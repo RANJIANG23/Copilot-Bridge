@@ -168,6 +168,12 @@
                                 <TextBlock Text="概览" FontSize="15" />
                             </StackPanel>
                         </Button>
+                        <Button x:Name="HistoryNav" Style="{StaticResource NavButtonStyle}" Tag="history" Click="Navigation_Click">
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock Text="&#xE81C;" FontFamily="Segoe Fluent Icons" FontSize="17" Width="30" />
+                                <TextBlock Text="历史对话" FontSize="15" />
+                            </StackPanel>
+                        </Button>
                         <Button x:Name="CollaborationNav" Style="{StaticResource NavButtonStyle}" Tag="collaboration" Click="Navigation_Click">
                             <StackPanel Orientation="Horizontal">
                                 <TextBlock Text="&#xE902;" FontFamily="Segoe Fluent Icons" FontSize="17" Width="30" />
@@ -183,7 +189,7 @@
                     </StackPanel>
                     <StackPanel Grid.Row="2" Margin="20,0,20,20">
                         <Separator Margin="0,0,0,14" Background="{StaticResource LineBrush}" />
-                        <TextBlock Text="Phase 5 · Manual modes" FontSize="12" Foreground="{StaticResource SubtleTextBrush}" />
+                        <TextBlock Text="v1.0 RC · Manual modes" FontSize="12" Foreground="{StaticResource SubtleTextBrush}" />
                         <TextBlock Text="数据仅保存在本机" FontSize="11" Foreground="#9AA3AF" Margin="0,4,0,0" />
                     </StackPanel>
                 </Grid>
@@ -206,7 +212,7 @@
                         <ScrollViewer VerticalScrollBarVisibility="Auto">
                             <StackPanel Margin="36,28,36,40" MaxWidth="1080" HorizontalAlignment="Stretch">
                                 <TextBlock Text="概览" FontSize="28" FontWeight="SemiBold" />
-                                <TextBlock Text="查看 Edge 连接、专用标签页和最近一次咨询。"
+                                <TextBlock Text="查看 Edge 连接、专用标签页并执行测试咨询。"
                                            Foreground="{StaticResource SubtleTextBrush}" Margin="0,7,0,24" />
 
                                 <Border Background="White" BorderBrush="{StaticResource LineBrush}" BorderThickness="1" CornerRadius="10">
@@ -246,9 +252,19 @@
                                          VerticalScrollBarVisibility="Auto"
                                          Text="这是 Copilot Bridge Phase 3 GUI 测试。请只回复：COPILOT_BRIDGE_PHASE3_OK" />
                                 <Button x:Name="TestButton" Content="发送测试咨询" Style="{StaticResource PrimaryButtonStyle}"
-                                        HorizontalAlignment="Left" Margin="0,12,0,28" Click="Test_Click" />
+                                        HorizontalAlignment="Left" Margin="0,12,0,0" Click="Test_Click" />
+                            </StackPanel>
+                        </ScrollViewer>
+                    </Grid>
 
-                                <TextBlock Text="最近咨询" FontSize="18" FontWeight="SemiBold" />
+                    <Grid x:Name="HistoryPanel" Visibility="Collapsed">
+                        <ScrollViewer VerticalScrollBarVisibility="Auto">
+                            <StackPanel Margin="36,28,36,40" MaxWidth="1080" HorizontalAlignment="Stretch">
+                                <TextBlock Text="历史对话" FontSize="28" FontWeight="SemiBold" />
+                                <TextBlock Text="查看最近一次咨询状态；仅保存本地元数据，不持久化问题或回复正文。"
+                                           Foreground="{StaticResource SubtleTextBrush}" Margin="0,7,0,24" />
+
+                                <TextBlock Text="最近一条" FontSize="18" FontWeight="SemiBold" />
                                 <Border Background="White" BorderBrush="{StaticResource LineBrush}" BorderThickness="1" CornerRadius="10" Margin="0,12,0,0" Padding="20,16">
                                     <Grid>
                                         <Grid.ColumnDefinitions>

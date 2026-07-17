@@ -6,7 +6,7 @@
 
 发布者只需分发两项：
 
-- `CopilotBridge-1.0.0-rc.1-win-x64.zip`
+- `CopilotBridge-1.0.0-rc.2-win-x64.zip`
 - 同名 `.sha256` 文件
 
 不要从仓库的 `bin` 或 `obj` 目录拼装包，也不要单独发送 EXE。
@@ -42,4 +42,3 @@
 - 用户数据默认跨升级、卸载保留；不要把 `%LOCALAPPDATA%\CopilotBridge` 打入团队包。
 
 本项目不提供在线更新、遥测后台、公共市场发布或管理员策略部署。
-

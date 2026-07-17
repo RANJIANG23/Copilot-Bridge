@@ -44,10 +44,12 @@ public partial class MainWindow : Window
         }
 
         OverviewPanel.Visibility = page == "overview" ? Visibility.Visible : Visibility.Collapsed;
+        HistoryPanel.Visibility = page == "history" ? Visibility.Visible : Visibility.Collapsed;
         CollaborationPanel.Visibility = page == "collaboration" ? Visibility.Visible : Visibility.Collapsed;
         BrowserPanel.Visibility = page == "browser" ? Visibility.Visible : Visibility.Collapsed;
 
         SetNavState(OverviewNav, page == "overview");
+        SetNavState(HistoryNav, page == "history");
         SetNavState(CollaborationNav, page == "collaboration");
         SetNavState(BrowserNav, page == "browser");
     }
