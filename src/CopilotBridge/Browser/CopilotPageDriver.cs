@@ -28,6 +28,7 @@ internal sealed class ReplyTimeoutException : Exception
 internal sealed class CopilotPageDriver
 {
     private static readonly TimeSpan SubmissionAcknowledgementTimeout = TimeSpan.FromSeconds(60);
+    private static readonly TimeSpan SurfaceReadyTimeout = TimeSpan.FromSeconds(15);
     private readonly IPage _page;
     private readonly ProviderSelectors _selectors;
     private readonly BridgeSettings _settings;
@@ -41,13 +42,13 @@ internal sealed class CopilotPageDriver
 
     internal async Task<string> ReadCurrentModelAsync()
     {
-        var switcher = await FindUniqueVisibleAsync("model switcher", _selectors.ModelSwitcher);
+        var switcher = await WaitForUniqueVisibleAsync("model switcher", _selectors.ModelSwitcher);
         return Normalize(await switcher.InnerTextAsync());
     }
 
     internal async Task<string> SelectAllowedModelAsync()
     {
-        var switcher = await FindUniqueVisibleAsync("model switcher", _selectors.ModelSwitcher);
+        var switcher = await WaitForUniqueVisibleAsync("model switcher", _selectors.ModelSwitcher);
         await switcher.ClickAsync();
         var started = DateTime.UtcNow;
         var deadline = started.AddMilliseconds(_settings.MenuMaximumWaitMilliseconds);
@@ -306,6 +307,25 @@ internal sealed class CopilotPageDriver
             {
                 return match;
             }
+        }
+
+        throw new InvalidOperationException($"Could not identify exactly one visible {description}.");
+    }
+
+    private async Task<ILocator> WaitForUniqueVisibleAsync(
+        string description,
+        IEnumerable<string> selectors)
+    {
+        var deadline = DateTime.UtcNow.Add(SurfaceReadyTimeout);
+        while (DateTime.UtcNow < deadline)
+        {
+            foreach (var selector in selectors)
+            {
+                var match = await SingleVisibleAsync(_page.Locator(selector));
+                if (match is not null) return match;
+            }
+
+            await Task.Delay(100);
         }
 
         throw new InvalidOperationException($"Could not identify exactly one visible {description}.");

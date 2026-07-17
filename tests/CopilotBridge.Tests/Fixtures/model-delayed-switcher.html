@@ -1,0 +1,12 @@
+<!doctype html><meta charset="utf-8">
+<button id="gptModeSwitcher" hidden>自动</button>
+<div id="menu" hidden><button onclick="choose('Opus')">Opus</button></div>
+<textarea placeholder="消息"></textarea><button aria-label="发送">发送</button>
+<script>
+setTimeout(() => document.querySelector('#gptModeSwitcher').hidden = false, 120);
+document.querySelector('#gptModeSwitcher').onclick = () => document.querySelector('#menu').hidden = false;
+function choose(label) {
+  document.querySelector('#gptModeSwitcher').textContent = label;
+  document.querySelector('#menu').hidden = true;
+}
+</script>

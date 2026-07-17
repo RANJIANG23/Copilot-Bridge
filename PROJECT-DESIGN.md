@@ -2,7 +2,7 @@
 
 > 设计基线：v1.0
 > 日期：2026-07-18（Asia/Shanghai）
-> 状态：Phase 0–4 已通过；Phase 5 三种手动协作模式进行中
+> 状态：Phase 0–5 已通过；Phase 6 团队分发进行中
 > 工作名称：Copilot Bridge
 > 项目目录：`D:\WorkSpace\Microsoft Copilot`
 > 目标模式执行路线图：[EXECUTION-ROADMAP.md](./EXECUTION-ROADMAP.md)

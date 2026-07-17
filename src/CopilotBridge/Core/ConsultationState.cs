@@ -6,23 +6,16 @@ internal sealed class ConsultationLease : IDisposable
 {
     private readonly FileStream _stream;
 
-    private ConsultationLease(FileStream stream)
-    {
-        _stream = stream;
-    }
+    private ConsultationLease(FileStream stream) => _stream = stream;
 
     internal static ConsultationLease? TryAcquire(string? path = null)
     {
         path ??= Path.Combine(AppDataDirectory(), "consultation.lock");
         Directory.CreateDirectory(Path.GetDirectoryName(path)!);
-
         try
         {
             return new ConsultationLease(new FileStream(
-                path,
-                FileMode.OpenOrCreate,
-                FileAccess.ReadWrite,
-                FileShare.None));
+                path, FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.None));
         }
         catch (IOException)
         {
@@ -33,18 +26,11 @@ internal sealed class ConsultationLease : IDisposable
     internal static bool IsBusy(string? path = null)
     {
         path ??= Path.Combine(AppDataDirectory(), "consultation.lock");
-        if (!File.Exists(path))
-        {
-            return false;
-        }
-
+        if (!File.Exists(path)) return false;
         try
         {
             using var stream = new FileStream(
-                path,
-                FileMode.Open,
-                FileAccess.ReadWrite,
-                FileShare.None);
+                path, FileMode.Open, FileAccess.ReadWrite, FileShare.None);
             return false;
         }
         catch (IOException)
@@ -58,6 +44,18 @@ internal sealed class ConsultationLease : IDisposable
     private static string AppDataDirectory() => Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
         "CopilotBridge");
+}
+
+internal sealed record ConsultationRecord
+{
+    public string Mode { get; init; } = "assist";
+    public int TurnCount { get; init; }
+    public string? PrimaryConversationUrl { get; init; }
+    public string? ComplexityConversationUrl { get; init; }
+    public string? EvidenceConversationUrl { get; init; }
+    public DateTimeOffset UpdatedAt { get; init; } = DateTimeOffset.Now;
+    public string Status { get; init; } = "completed";
+    public string? LastModel { get; init; }
 }
 
 internal sealed class ConsultationStateStore
@@ -78,32 +76,33 @@ internal sealed class ConsultationStateStore
             "consultations.json");
     }
 
-    internal async Task<string?> FindConversationAsync(
-        string consultationId,
-        CancellationToken cancellationToken = default)
-    {
-        var state = await LoadAsync(cancellationToken);
-        return state.Conversations.GetValueOrDefault(consultationId);
-    }
+    internal string FilePath => _path;
 
-    internal async Task SaveConversationAsync(
+    internal async Task<ConsultationRecord?> FindAsync(
         string consultationId,
-        string conversationUrl,
+        CancellationToken cancellationToken = default) =>
+        (await LoadAsync(cancellationToken)).Conversations.GetValueOrDefault(consultationId);
+
+    internal async Task<ConsultationRecord?> FindMostRecentAsync(
+        CancellationToken cancellationToken = default) =>
+        (await LoadAsync(cancellationToken)).Conversations.Values
+            .OrderByDescending(item => item.UpdatedAt)
+            .FirstOrDefault();
+
+    internal async Task SaveAsync(
+        string consultationId,
+        ConsultationRecord record,
         CancellationToken cancellationToken = default)
     {
         var state = await LoadAsync(cancellationToken);
-        state.Conversations[consultationId] = conversationUrl;
+        state.Conversations[consultationId] = record with { UpdatedAt = DateTimeOffset.Now };
         var directory = Path.GetDirectoryName(_path)!;
         Directory.CreateDirectory(directory);
         var temporaryPath = _path + ".tmp";
-
         try
         {
             await using (var stream = new FileStream(
-                             temporaryPath,
-                             FileMode.Create,
-                             FileAccess.Write,
-                             FileShare.None))
+                             temporaryPath, FileMode.Create, FileAccess.Write, FileShare.None))
             {
                 await JsonSerializer.SerializeAsync(stream, state, JsonOptions, cancellationToken);
                 await stream.FlushAsync(cancellationToken);
@@ -113,32 +112,46 @@ internal sealed class ConsultationStateStore
         }
         finally
         {
-            if (File.Exists(temporaryPath))
-            {
-                File.Delete(temporaryPath);
-            }
+            if (File.Exists(temporaryPath)) File.Delete(temporaryPath);
         }
     }
 
+    internal async Task<string?> FindConversationAsync(
+        string consultationId,
+        CancellationToken cancellationToken = default) =>
+        (await FindAsync(consultationId, cancellationToken))?.PrimaryConversationUrl;
+
+    internal Task SaveConversationAsync(
+        string consultationId,
+        string conversationUrl,
+        CancellationToken cancellationToken = default) =>
+        SaveAsync(
+            consultationId,
+            new ConsultationRecord { PrimaryConversationUrl = conversationUrl },
+            cancellationToken);
+
     private async Task<ConsultationState> LoadAsync(CancellationToken cancellationToken)
     {
-        if (!File.Exists(_path))
+        if (!File.Exists(_path)) return new ConsultationState();
+        await using var stream = new FileStream(
+            _path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
+        using var document = await JsonDocument.ParseAsync(stream, cancellationToken: cancellationToken);
+        var state = new ConsultationState();
+        if (!document.RootElement.TryGetProperty("conversations", out var conversations)) return state;
+
+        foreach (var item in conversations.EnumerateObject())
         {
-            return new ConsultationState();
+            state.Conversations[item.Name] = item.Value.ValueKind == JsonValueKind.String
+                ? new ConsultationRecord { PrimaryConversationUrl = item.Value.GetString() }
+                : item.Value.Deserialize<ConsultationRecord>(JsonOptions) ?? new ConsultationRecord();
         }
 
-        await using var stream = new FileStream(
-            _path,
-            FileMode.Open,
-            FileAccess.Read,
-            FileShare.ReadWrite);
-        return await JsonSerializer.DeserializeAsync<ConsultationState>(stream, JsonOptions, cancellationToken) ??
-               new ConsultationState();
+        return state;
     }
 
     private sealed class ConsultationState
     {
-        public Dictionary<string, string> Conversations { get; init; } =
+        public Dictionary<string, ConsultationRecord> Conversations { get; init; } =
             new(StringComparer.Ordinal);
     }
 }

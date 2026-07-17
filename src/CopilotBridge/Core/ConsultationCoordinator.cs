@@ -49,6 +49,7 @@ internal sealed class ConsultationCoordinator
         var driver = new CopilotPageDriver(page, _selectors, _settings);
         var model = await driver.SelectAllowedModelAsync();
         var turn = await driver.SendAndReadAsync(request.Prompt);
+        ValidateConversationUrl(turn.ConversationUrl);
         if (turn.UserMessageDelta != 1 || turn.AssistantMessageDelta != 1)
         {
             throw new SubmissionUnknownException(

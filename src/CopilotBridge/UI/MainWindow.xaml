@@ -183,7 +183,7 @@
                     </StackPanel>
                     <StackPanel Grid.Row="2" Margin="20,0,20,20">
                         <Separator Margin="0,0,0,14" Background="{StaticResource LineBrush}" />
-                        <TextBlock Text="Phase 3 · Thin GUI" FontSize="12" Foreground="{StaticResource SubtleTextBrush}" />
+                        <TextBlock Text="Phase 5 · Manual modes" FontSize="12" Foreground="{StaticResource SubtleTextBrush}" />
                         <TextBlock Text="数据仅保存在本机" FontSize="11" Foreground="#9AA3AF" Margin="0,4,0,0" />
                     </StackPanel>
                 </Grid>
@@ -240,7 +240,7 @@
                                 </StackPanel>
 
                                 <TextBlock Text="测试咨询" FontSize="18" FontWeight="SemiBold" />
-                                <TextBlock Text="使用当前 GUI 设置执行一次 Assist；发送状态不确定时绝不自动重试。"
+                                <TextBlock Text="使用当前 GUI 设置执行一次当前模式咨询；发送状态不确定时绝不自动重试。"
                                            Foreground="{StaticResource SubtleTextBrush}" Margin="0,6,0,12" />
                                 <TextBox x:Name="TestPromptTextBox" Height="86" AcceptsReturn="True" TextWrapping="Wrap"
                                          VerticalScrollBarVisibility="Auto"
@@ -289,23 +289,23 @@
 
                                 <Border Background="White" BorderBrush="#9BC2FF" BorderThickness="1" CornerRadius="9" Padding="16,14">
                                     <Grid><Grid.ColumnDefinitions><ColumnDefinition Width="Auto" /><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
-                                        <RadioButton x:Name="AssistRadio" IsChecked="True" VerticalAlignment="Center" />
+                                        <RadioButton x:Name="AssistRadio" GroupName="CollaborationMode" IsChecked="True" VerticalAlignment="Center" />
                                         <StackPanel Grid.Column="1" Margin="12,0"><TextBlock Text="Assist" FontWeight="SemiBold" /><TextBlock Text="Codex 主导，Copilot 回答一个聚焦问题" Foreground="{StaticResource SubtleTextBrush}" Margin="0,4,0,0" /></StackPanel>
                                         <Border Grid.Column="2" Background="#E7F1FF" CornerRadius="10" Padding="8,3"><TextBlock Text="可用" Foreground="{StaticResource AccentBrush}" FontSize="12" /></Border>
                                     </Grid>
                                 </Border>
-                                <Border Background="#FAFAFB" BorderBrush="{StaticResource LineBrush}" BorderThickness="1" CornerRadius="9" Padding="16,14" Margin="0,10,0,0" Opacity="0.72">
+                                <Border Background="White" BorderBrush="{StaticResource LineBrush}" BorderThickness="1" CornerRadius="9" Padding="16,14" Margin="0,10,0,0">
                                     <Grid><Grid.ColumnDefinitions><ColumnDefinition Width="Auto" /><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
-                                        <RadioButton IsEnabled="False" VerticalAlignment="Center" />
+                                        <RadioButton x:Name="OutsourceRadio" GroupName="CollaborationMode" VerticalAlignment="Center" />
                                         <StackPanel Grid.Column="1" Margin="12,0"><TextBlock Text="Outsource" FontWeight="SemiBold" /><TextBlock Text="Copilot 负责开放式推理，Codex 最终核验" Foreground="{StaticResource SubtleTextBrush}" Margin="0,4,0,0" /></StackPanel>
-                                        <TextBlock Grid.Column="2" Text="Phase 5" Foreground="#8A94A3" VerticalAlignment="Center" />
+                                        <Border Grid.Column="2" Background="#EAF7EF" CornerRadius="10" Padding="8,3"><TextBlock Text="可用" Foreground="#176B3A" FontSize="12" /></Border>
                                     </Grid>
                                 </Border>
-                                <Border Background="#FAFAFB" BorderBrush="{StaticResource LineBrush}" BorderThickness="1" CornerRadius="9" Padding="16,14" Margin="0,10,0,0" Opacity="0.72">
+                                <Border Background="White" BorderBrush="{StaticResource LineBrush}" BorderThickness="1" CornerRadius="9" Padding="16,14" Margin="0,10,0,0">
                                     <Grid><Grid.ColumnDefinitions><ColumnDefinition Width="Auto" /><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
-                                        <RadioButton IsEnabled="False" VerticalAlignment="Center" />
+                                        <RadioButton x:Name="ReviewRadio" GroupName="CollaborationMode" VerticalAlignment="Center" />
                                         <StackPanel Grid.Column="1" Margin="12,0"><TextBlock Text="Review" FontWeight="SemiBold" /><TextBlock Text="两个隔离 reviewer 会话，Codex 汇总裁决" Foreground="{StaticResource SubtleTextBrush}" Margin="0,4,0,0" /></StackPanel>
-                                        <TextBlock Grid.Column="2" Text="Phase 5" Foreground="#8A94A3" VerticalAlignment="Center" />
+                                        <Border Grid.Column="2" Background="#EAF7EF" CornerRadius="10" Padding="8,3"><TextBlock Text="可用" Foreground="#176B3A" FontSize="12" /></Border>
                                     </Grid>
                                 </Border>
 

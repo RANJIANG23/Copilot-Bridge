@@ -16,8 +16,8 @@
     "button[aria-label*='Send']",
     "button[data-testid*='send']"
   ],
-  "userMessages": "[data-testid='chatQuestion'], [data-message-author-role='user']",
-  "assistantMessages": "[data-testid='copilot-message-reply-div'] [data-testid='markdown-reply'], [data-message-author-role='assistant']",
+  "userMessages": "[data-testid='chatQuestion'], [data-message-author-role='user']:not(:has([data-testid='chatQuestion']))",
+  "assistantMessages": "[data-testid='copilot-message-reply-div'], [data-message-author-role='assistant']:not(:has([data-testid='copilot-message-reply-div']))",
   "busy": "[aria-busy='true'], button[aria-label*='停止'], button[aria-label*='Stop'], button[data-testid*='stop']",
   "opus": "Opus",
   "gptParent": "GPT",

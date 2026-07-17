@@ -102,61 +102,91 @@ internal sealed class CopilotBridgeTools : IAsyncDisposable
             return Failure("blocked", policyError, id, mode, false);
         }
 
-        if (settings.CollaborationMode != CollaborationMode.Assist)
-        {
-            return Failure("blocked", "collaboration_mode_unavailable", id, mode, false);
-        }
-
         using var lease = ConsultationLease.TryAcquire();
         if (lease is null)
         {
             return Failure("blocked", "busy", id, mode, true);
         }
 
-        var conversationUrl = await ResolveConversationAsync(
-            settings,
-            consultationId,
-            newConversation,
-            cancellationToken);
-        if (conversationUrl is null)
+        var existing = newConversation || string.IsNullOrWhiteSpace(consultationId)
+            ? null
+            : await _stateStore.FindAsync(consultationId.Trim(), cancellationToken);
+        if (!string.IsNullOrWhiteSpace(consultationId) && !newConversation && existing is null)
         {
-            var error = string.IsNullOrWhiteSpace(consultationId)
-                ? "tab_rebind_required"
-                : "consultation_not_found";
-            return Failure("blocked", error, id, mode, false);
+            return Failure("blocked", "consultation_not_found", id, mode, false);
         }
+
+        if (existing is not null && !existing.Mode.Equals(mode, StringComparison.OrdinalIgnoreCase))
+        {
+            return Failure("blocked", "consultation_mode_mismatch", id, mode, false);
+        }
+
+        var primaryUrl = existing?.PrimaryConversationUrl ??
+                         (settings.CollaborationMode == CollaborationMode.Review
+                             ? null
+                             : settings.BoundConversationUrl);
+        if (settings.CollaborationMode != CollaborationMode.Review &&
+            string.IsNullOrWhiteSpace(primaryUrl))
+        {
+            return Failure("blocked", "tab_rebind_required", id, mode, false);
+        }
+
+        var context = new CollaborationContext(
+            requestMarkdown,
+            settings.CollaborationMode,
+            existing?.TurnCount ?? 0,
+            primaryUrl,
+            existing?.ComplexityConversationUrl,
+            existing?.EvidenceConversationUrl);
 
         try
         {
             var session = await GetSessionAsync(settings);
-            var coordinator = new ConsultationCoordinator(settings, _selectors);
-            var result = await coordinator.AssistOnPageAsync(
-                session.Page,
-                new AssistRequest(requestMarkdown, conversationUrl));
-
-            await SaveConversationAsync(id, result.ConversationUrl, settings, cancellationToken);
+            var result = await new CollaborationRunner(settings, _selectors, session.Page)
+                .RunAsync(context);
+            await SaveRunAsync(id, mode, result, settings, cancellationToken);
             return new ConsultResponse(
                 "completed",
                 null,
                 id,
                 mode,
-                [new CopilotResponse(
-                    "primary",
-                    EffectiveModel(result.Model),
-                    result.ConversationUrl,
-                    result.ReplyMarkdown)],
+                result.Responses.Select(response => new CopilotResponse(
+                    response.Reviewer,
+                    EffectiveModel(response.Result.Model),
+                    response.Result.ConversationUrl,
+                    response.Result.ReplyMarkdown)).ToArray(),
                 false);
+        }
+        catch (TurnBudgetExceededException exception)
+        {
+            DiagnosticLog.Write("turn_budget_exhausted", exception);
+            return Failure("blocked", "turn_budget_exhausted", id, mode, false);
+        }
+        catch (PartialReviewException exception)
+        {
+            DiagnosticLog.Write("submission_unknown", exception);
+            await _stateStore.SaveAsync(
+                id,
+                new ConsultationRecord
+                {
+                    Mode = mode,
+                    TurnCount = context.TurnCount + 1,
+                    ComplexityConversationUrl = exception.Completed.Result.ConversationUrl,
+                    EvidenceConversationUrl = context.EvidenceConversationUrl,
+                    Status = "submission_unknown",
+                    LastModel = EffectiveModel(exception.Completed.Result.Model)
+                },
+                cancellationToken);
+            return Failure("submission_unknown", "partial_review", id, mode, false);
         }
         catch (ReplyTimeoutException exception)
         {
             DiagnosticLog.Write("reply_timeout", exception);
-            await RememberCurrentConversationAsync(id, cancellationToken);
             return Failure("reply_timeout", "reply_timeout", id, mode, false);
         }
         catch (SubmissionUnknownException exception)
         {
             DiagnosticLog.Write("submission_unknown", exception);
-            await RememberCurrentConversationAsync(id, cancellationToken);
             return Failure("submission_unknown", "submission_unknown", id, mode, false);
         }
         catch (Exception exception)
@@ -200,54 +230,37 @@ internal sealed class CopilotBridgeTools : IAsyncDisposable
         return _session;
     }
 
-    private async Task<string?> ResolveConversationAsync(
-        BridgeSettings settings,
-        string? consultationId,
-        bool newConversation,
-        CancellationToken cancellationToken)
-    {
-        if (newConversation)
-        {
-            return $"https://{_selectors.AllowedHost}/chat/";
-        }
-
-        if (!string.IsNullOrWhiteSpace(consultationId))
-        {
-            return await _stateStore.FindConversationAsync(
-                consultationId.Trim(),
-                cancellationToken);
-        }
-
-        return settings.BoundConversationUrl;
-    }
-
-    private async Task SaveConversationAsync(
+    private async Task SaveRunAsync(
         string id,
-        string conversationUrl,
+        string mode,
+        CollaborationRunResult result,
         BridgeSettings settings,
         CancellationToken cancellationToken)
     {
-        await _stateStore.SaveConversationAsync(id, conversationUrl, cancellationToken);
-        if (!string.Equals(
+        var last = result.Responses.Last();
+        await _stateStore.SaveAsync(
+            id,
+            new ConsultationRecord
+            {
+                Mode = mode,
+                TurnCount = result.TurnCount,
+                PrimaryConversationUrl = result.PrimaryConversationUrl,
+                ComplexityConversationUrl = result.ComplexityConversationUrl,
+                EvidenceConversationUrl = result.EvidenceConversationUrl,
+                Status = "completed",
+                LastModel = EffectiveModel(last.Result.Model)
+            },
+            cancellationToken);
+
+        if (result.PrimaryConversationUrl is not null &&
+            !string.Equals(
                 settings.BoundConversationUrl,
-                conversationUrl,
+                result.PrimaryConversationUrl,
                 StringComparison.OrdinalIgnoreCase))
         {
             await _settingsStore.SaveAsync(
-                settings with { BoundConversationUrl = conversationUrl },
+                settings with { BoundConversationUrl = result.PrimaryConversationUrl },
                 cancellationToken);
-        }
-    }
-
-    private async Task RememberCurrentConversationAsync(
-        string id,
-        CancellationToken cancellationToken)
-    {
-        if (_session is { Page.IsClosed: false } &&
-            Uri.TryCreate(_session.Page.Url, UriKind.Absolute, out var uri) &&
-            uri.Host.Equals(_selectors.AllowedHost, StringComparison.OrdinalIgnoreCase))
-        {
-            await _stateStore.SaveConversationAsync(id, uri.AbsoluteUri, cancellationToken);
         }
     }
 

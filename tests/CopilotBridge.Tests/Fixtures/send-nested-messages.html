@@ -1,0 +1,20 @@
+<!doctype html><meta charset="utf-8">
+<div id="messages"></div>
+<textarea placeholder="消息"></textarea>
+<button aria-label="发送" id="send">发送</button>
+<div aria-busy="true" id="busy" hidden>Generating</div>
+<script>
+window.sendCount = 0;
+document.querySelector('#send').onclick = () => {
+  window.sendCount++;
+  const prompt = document.querySelector('textarea').value;
+  document.querySelector('#messages').insertAdjacentHTML('beforeend',
+    `<div data-message-author-role="user"><div data-testid="chatQuestion">${prompt}</div></div>`);
+  document.querySelector('#busy').hidden = false;
+  setTimeout(() => {
+    document.querySelector('#messages').insertAdjacentHTML('beforeend',
+      '<div data-message-author-role="assistant"><div data-testid="copilot-message-reply-div"><div data-testid="markdown-reply"><p>nested reply</p></div></div></div>');
+    document.querySelector('#busy').hidden = true;
+  }, 60);
+};
+</script>

@@ -1,6 +1,7 @@
 using CopilotBridge.Browser;
 using CopilotBridge.Core;
 using Microsoft.Playwright;
+using System.Text.Json;
 using Xunit;
 
 namespace CopilotBridge.Tests;
@@ -14,6 +15,7 @@ public sealed class CoreTests
     [InlineData("model-opus-disabled.html", "GPT 5.6 Think deeper")]
     [InlineData("model-gpt-versions.html", "GPT 5.6 Think deeper")]
     [InlineData("model-deep-only.html", "深度思考")]
+    [InlineData("model-delayed-switcher.html", "Opus")]
     public async Task ModelQueueSelectsHighestAllowedFixture(string fixture, string expected)
     {
         await using var browser = await FixtureBrowser.OpenAsync(fixture);
@@ -67,6 +69,20 @@ public sealed class CoreTests
         Assert.Equal(1, result.AssistantMessageDelta);
         Assert.Equal(1, await browser.Page.EvaluateAsync<int>("window.sendCount"));
         Assert.Equal("virtualized reply", result.ReplyMarkdown);
+    }
+
+    [Fact]
+    public async Task NestedLiveMessageMarkupCountsOneLogicalTurn()
+    {
+        await using var browser = await FixtureBrowser.OpenAsync("send-nested-messages.html");
+        var driver = new CopilotPageDriver(browser.Page, Selectors, FastSettings(replyTimeoutSeconds: 2));
+
+        var result = await driver.SendAndReadAsync("nested prompt");
+
+        Assert.Equal(1, result.UserMessageDelta);
+        Assert.Equal(1, result.AssistantMessageDelta);
+        Assert.Equal(1, await browser.Page.EvaluateAsync<int>("window.sendCount"));
+        Assert.Equal("nested reply", result.ReplyMarkdown);
     }
 
     [Fact]
@@ -273,6 +289,153 @@ public sealed class CoreTests
                 Directory.Delete(directory, true);
             }
         }
+    }
+
+    [Fact]
+    public async Task ConsultationStatePersistsModeBudgetsAndReviewerUrlsWithoutBodies()
+    {
+        var directory = Path.Combine(Path.GetTempPath(), "CopilotBridge.Tests", Guid.NewGuid().ToString("N"));
+        var path = Path.Combine(directory, "consultations.json");
+        var store = new ConsultationStateStore(path);
+        try
+        {
+            var expected = new ConsultationRecord
+            {
+                Mode = "review",
+                TurnCount = 1,
+                ComplexityConversationUrl = "https://m365.cloud.microsoft/chat/complexity",
+                EvidenceConversationUrl = "https://m365.cloud.microsoft/chat/evidence",
+                Status = "completed",
+                LastModel = "opus"
+            };
+            await store.SaveAsync("review-a", expected);
+
+            var actual = await store.FindAsync("review-a");
+            Assert.NotNull(actual);
+            Assert.Equal("review", actual.Mode);
+            Assert.Equal(1, actual.TurnCount);
+            Assert.NotEqual(actual.ComplexityConversationUrl, actual.EvidenceConversationUrl);
+            var json = await File.ReadAllTextAsync(path);
+            Assert.DoesNotContain("prompt", json, StringComparison.OrdinalIgnoreCase);
+            Assert.DoesNotContain("reply", json, StringComparison.OrdinalIgnoreCase);
+            Assert.DoesNotContain("markdown", json, StringComparison.OrdinalIgnoreCase);
+            Assert.False(File.Exists(path + ".tmp"));
+            using var document = JsonDocument.Parse(json);
+            var keys = document.RootElement.GetProperty("conversations")
+                .GetProperty("review-a")
+                .EnumerateObject()
+                .Select(item => item.Name)
+                .Order()
+                .ToArray();
+            Assert.Equal(
+                new[]
+                {
+                    "complexityConversationUrl", "evidenceConversationUrl", "lastModel", "mode",
+                    "primaryConversationUrl", "status", "turnCount", "updatedAt"
+                }.Order(),
+                keys);
+        }
+        finally
+        {
+            if (Directory.Exists(directory)) Directory.Delete(directory, true);
+        }
+    }
+
+    [Fact]
+    public void DefaultConsultationStateIsPerUserLocalData()
+    {
+        var store = new ConsultationStateStore();
+        var localData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
+
+        Assert.StartsWith(localData, store.FilePath, StringComparison.OrdinalIgnoreCase);
+        Assert.EndsWith(
+            Path.Combine("CopilotBridge", "consultations.json"),
+            store.FilePath,
+            StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Theory]
+    [InlineData((int)CollaborationMode.Assist, 2)]
+    [InlineData((int)CollaborationMode.Outsource, 6)]
+    [InlineData((int)CollaborationMode.Review, 2)]
+    public async Task CollaborationModesStopAtTheirTurnBudgets(int mode, int limit)
+    {
+        var runner = new CollaborationRunner(_ => throw new InvalidOperationException("must not execute"));
+        var context = new CollaborationContext(
+            "request",
+            (CollaborationMode)mode,
+            limit,
+            "https://m365.cloud.microsoft/chat/primary",
+            null,
+            null);
+
+        await Assert.ThrowsAsync<TurnBudgetExceededException>(() => runner.RunAsync(context));
+    }
+
+    [Fact]
+    public async Task ReviewRunsTwoIsolatedRolesSerially()
+    {
+        var requests = new List<AssistRequest>();
+        var active = 0;
+        var maximumActive = 0;
+        var runner = new CollaborationRunner(async request =>
+        {
+            requests.Add(request);
+            active++;
+            maximumActive = Math.Max(maximumActive, active);
+            await Task.Delay(10);
+            active--;
+            var reviewer = requests.Count == 1 ? "complexity" : "evidence";
+            return new AssistResult(
+                "Opus",
+                reviewer,
+                $"https://m365.cloud.microsoft/chat/{reviewer}",
+                1,
+                1,
+                false);
+        });
+
+        var result = await runner.RunAsync(new CollaborationContext(
+            "shared review request",
+            CollaborationMode.Review,
+            0,
+            null,
+            null,
+            null));
+
+        Assert.Equal(1, maximumActive);
+        Assert.Equal(["complexity", "evidence"], result.Responses.Select(item => item.Reviewer));
+        Assert.Equal(2, requests.Count);
+        Assert.Contains("Complexity and boundaries", requests[0].Prompt);
+        Assert.DoesNotContain("Failure modes and evidence", requests[0].Prompt);
+        Assert.Contains("Failure modes and evidence", requests[1].Prompt);
+        Assert.DoesNotContain("Complexity and boundaries", requests[1].Prompt);
+        Assert.All(requests, request => Assert.Contains("shared review request", request.Prompt));
+        Assert.NotEqual(result.ComplexityConversationUrl, result.EvidenceConversationUrl);
+    }
+
+    [Fact]
+    public async Task ReviewDoesNotRetryComplexityWhenEvidenceFails()
+    {
+        var calls = 0;
+        var runner = new CollaborationRunner(request =>
+        {
+            calls++;
+            if (calls == 2) throw new InvalidOperationException("evidence pre-submit failure");
+            return Task.FromResult(new AssistResult(
+                "Opus",
+                "complexity",
+                "https://m365.cloud.microsoft/chat/complexity",
+                1,
+                1,
+                false));
+        });
+
+        var exception = await Assert.ThrowsAsync<PartialReviewException>(() => runner.RunAsync(
+            new CollaborationContext("request", CollaborationMode.Review, 0, null, null, null)));
+
+        Assert.Equal(2, calls);
+        Assert.Equal("complexity", exception.Completed.Reviewer);
     }
 
     [Fact]

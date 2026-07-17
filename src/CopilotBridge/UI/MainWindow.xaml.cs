@@ -9,6 +9,7 @@ namespace CopilotBridge.UI;
 public partial class MainWindow : Window
 {
     private readonly SettingsStore _settingsStore = new();
+    private readonly ConsultationStateStore _stateStore = new();
     private readonly ProviderSelectors _selectors = ProviderSelectors.Load();
     private BridgeSettings _settings = new();
     private EdgeSessionAdapter? _session;
@@ -25,6 +26,7 @@ public partial class MainWindow : Window
         {
             _settings = await _settingsStore.LoadAsync();
             ApplySettingsToControls();
+            ApplyRecentRecord(await _stateStore.FindMostRecentAsync());
             await RefreshStatusAsync();
         }
         catch (Exception exception)
@@ -130,34 +132,50 @@ public partial class MainWindow : Window
                 throw new InvalidOperationException("征询策略当前为“关闭”，请先在协作页调整。 ");
             }
 
-            if (_settings.CollaborationMode != CollaborationMode.Assist)
-            {
-                throw new InvalidOperationException("当前阶段只有 Assist 可用。Outsource 与 Review 将在 Phase 5 实现。");
-            }
-
-            if (string.IsNullOrWhiteSpace(_settings.BoundConversationUrl))
+            if (_settings.CollaborationMode != CollaborationMode.Review &&
+                string.IsNullOrWhiteSpace(_settings.BoundConversationUrl))
             {
                 throw new InvalidOperationException("请先绑定一个专用 Copilot 标签页。");
             }
 
-            var coordinator = new ConsultationCoordinator(_settings, _selectors);
             var session = await GetSessionAsync();
-            var result = await coordinator.AssistOnPageAsync(
-                session.Page,
-                new AssistRequest(prompt, _settings.BoundConversationUrl));
+            var result = await new CollaborationRunner(_settings, _selectors, session.Page)
+                .RunAsync(new CollaborationContext(
+                    prompt,
+                    _settings.CollaborationMode,
+                    0,
+                    _settings.BoundConversationUrl,
+                    null,
+                    null));
+            var last = result.Responses.Last();
+            var id = Guid.NewGuid().ToString("N");
+            await _stateStore.SaveAsync(
+                id,
+                new ConsultationRecord
+                {
+                    Mode = _settings.CollaborationMode.ToString().ToLowerInvariant(),
+                    TurnCount = result.TurnCount,
+                    PrimaryConversationUrl = result.PrimaryConversationUrl,
+                    ComplexityConversationUrl = result.ComplexityConversationUrl,
+                    EvidenceConversationUrl = result.EvidenceConversationUrl,
+                    Status = "completed",
+                    LastModel = last.Result.Model
+                });
 
-            _settings = _settings with { BoundConversationUrl = result.ConversationUrl };
+            if (result.PrimaryConversationUrl is not null)
+            {
+                _settings = _settings with { BoundConversationUrl = result.PrimaryConversationUrl };
+            }
             await _settingsStore.SaveAsync(_settings);
-            BoundUrlText.Text = result.ConversationUrl;
-            TabStatusText.Text = result.ConversationUrl;
+            BoundUrlText.Text = _settings.BoundConversationUrl ?? "Review 使用两个隔离会话";
+            TabStatusText.Text = session.Page.Url;
             RecentTimeText.Text = DateTime.Now.ToString("HH:mm:ss");
-            RecentModelText.Text = result.Model;
-            RecentStateText.Text = result.UserMessageDelta == 1 && result.AssistantMessageDelta == 1
-                ? "成功"
-                : "结果需检查";
-            RecentReplyText.Text = SingleLine(result.ReplyMarkdown);
-            ModelStatusText.Text = result.Model;
-            ShowNotice("测试咨询完成；本次正文仅显示在当前窗口，不会写入配置文件。", NoticeKind.Success);
+            RecentModelText.Text = string.Join(" / ", result.Responses.Select(item => item.Result.Model));
+            RecentStateText.Text = $"{_settings.CollaborationMode} 成功";
+            RecentReplyText.Text = string.Join(" | ", result.Responses.Select(item =>
+                $"{item.Reviewer}: {SingleLine(item.Result.ReplyMarkdown)}"));
+            ModelStatusText.Text = last.Result.Model;
+            ShowNotice("当前模式咨询完成；只持久化 ID、URL、回合数、模型和状态，不保存正文。", NoticeKind.Success);
         }
         catch (ReplyTimeoutException exception)
         {
@@ -278,7 +296,11 @@ public partial class MainWindow : Window
             MenuMaximumWaitMilliseconds = menuMaximum,
             ReplyTimeoutSeconds = replyTimeout,
             ConsultationPolicy = (ConsultationPolicy)Math.Max(0, PolicyComboBox.SelectedIndex),
-            CollaborationMode = CollaborationMode.Assist
+            CollaborationMode = ReviewRadio.IsChecked == true
+                ? CollaborationMode.Review
+                : OutsourceRadio.IsChecked == true
+                    ? CollaborationMode.Outsource
+                    : CollaborationMode.Assist
         };
         await _settingsStore.SaveAsync(_settings);
     }
@@ -287,10 +309,21 @@ public partial class MainWindow : Window
     {
         PolicyComboBox.SelectedIndex = (int)_settings.ConsultationPolicy;
         AssistRadio.IsChecked = _settings.CollaborationMode == CollaborationMode.Assist;
+        OutsourceRadio.IsChecked = _settings.CollaborationMode == CollaborationMode.Outsource;
+        ReviewRadio.IsChecked = _settings.CollaborationMode == CollaborationMode.Review;
         MenuMinimumTextBox.Text = _settings.MenuMinimumWaitMilliseconds.ToString();
         MenuMaximumTextBox.Text = _settings.MenuMaximumWaitMilliseconds.ToString();
         ReplyTimeoutTextBox.Text = _settings.ReplyTimeoutSeconds.ToString();
         BoundUrlText.Text = _settings.BoundConversationUrl ?? "未绑定";
+    }
+
+    private void ApplyRecentRecord(ConsultationRecord? record)
+    {
+        if (record is null) return;
+        RecentTimeText.Text = record.UpdatedAt.LocalDateTime.ToString("MM-dd HH:mm");
+        RecentModelText.Text = record.LastModel ?? "—";
+        RecentStateText.Text = $"{record.Mode} · {record.Status}";
+        RecentReplyText.Text = "正文未保存";
     }
 
     private void SetBusy(bool busy, string status)
