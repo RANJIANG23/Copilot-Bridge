@@ -261,6 +261,37 @@ public sealed class CoreTests
         }
     }
 
+    [Fact]
+    public void DiagnosticLogRecordsBoundedErrorMetadataWithoutMultilinePayload()
+    {
+        var directory = Path.Combine(Path.GetTempPath(), "CopilotBridge.Tests", Guid.NewGuid().ToString("N"));
+        var path = Path.Combine(directory, "bridge.log");
+
+        try
+        {
+            DiagnosticLog.Write(
+                "submission_unknown",
+                new SubmissionUnknownException(
+                    "single-line boundary",
+                    new TimeoutException("user message was not observed\r\nafter click")),
+                path);
+
+            var lines = File.ReadAllLines(path);
+            var line = Assert.Single(lines);
+            Assert.Contains("[submission_unknown]", line);
+            Assert.Contains("SubmissionUnknownException", line);
+            Assert.Contains("TimeoutException", line);
+            Assert.Contains("after click", line);
+        }
+        finally
+        {
+            if (Directory.Exists(directory))
+            {
+                Directory.Delete(directory, true);
+            }
+        }
+    }
+
     private static BridgeSettings FastSettings(int replyTimeoutSeconds = 1) => new()
     {
         MenuMinimumWaitMilliseconds = 10,

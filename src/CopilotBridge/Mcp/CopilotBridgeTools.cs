@@ -147,19 +147,23 @@ internal sealed class CopilotBridgeTools : IAsyncDisposable
                     result.ReplyMarkdown)],
                 false);
         }
-        catch (ReplyTimeoutException)
+        catch (ReplyTimeoutException exception)
         {
+            DiagnosticLog.Write("reply_timeout", exception);
             await RememberCurrentConversationAsync(id, cancellationToken);
             return Failure("reply_timeout", "reply_timeout", id, mode, false);
         }
-        catch (SubmissionUnknownException)
+        catch (SubmissionUnknownException exception)
         {
+            DiagnosticLog.Write("submission_unknown", exception);
             await RememberCurrentConversationAsync(id, cancellationToken);
             return Failure("submission_unknown", "submission_unknown", id, mode, false);
         }
         catch (Exception exception)
         {
-            return Failure("not_submitted", MapPreSubmitError(exception), id, mode, true);
+            var errorCode = MapPreSubmitError(exception);
+            DiagnosticLog.Write(errorCode, exception);
+            return Failure("not_submitted", errorCode, id, mode, true);
         }
     }
 
