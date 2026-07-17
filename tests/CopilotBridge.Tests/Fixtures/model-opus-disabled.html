@@ -1,0 +1,14 @@
+<!doctype html><meta charset="utf-8">
+<button id="gptModeSwitcher">自动</button>
+<div id="menu" hidden>
+  <button disabled>Opus</button>
+  <button id="gpt">GPT</button>
+  <div id="sub" hidden><button onclick="choose('GPT 5.6 Think deeper')">GPT 5.6 Think deeper</button></div>
+  <button onclick="choose('深度思考')">深度思考</button>
+</div>
+<script>
+const menu = document.querySelector('#menu');
+document.querySelector('#gptModeSwitcher').onclick = () => menu.hidden = false;
+document.querySelector('#gpt').onmouseenter = () => document.querySelector('#sub').hidden = false;
+function choose(label) { document.querySelector('#gptModeSwitcher').textContent = label; menu.hidden = true; }
+</script>

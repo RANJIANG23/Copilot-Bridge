@@ -13,4 +13,8 @@
     <PackageReference Include="Microsoft.Playwright" Version="1.61.0" />
   </ItemGroup>
 
+  <ItemGroup>
+    <EmbeddedResource Include="Resources\m365-copilot-web.json" />
+  </ItemGroup>
+
 </Project>

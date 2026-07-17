@@ -1,0 +1,22 @@
+<!doctype html><meta charset="utf-8">
+<button id="gptModeSwitcher">自动</button>
+<div id="menu" hidden><button onclick="choose('Opus')">Opus</button></div>
+<div id="messages"></div>
+<textarea placeholder="消息"></textarea>
+<button aria-label="发送" id="send">发送</button>
+<div aria-busy="true" id="busy" hidden>Generating</div>
+<script>
+window.sendCount = 0;
+document.querySelector('#gptModeSwitcher').onclick = () => document.querySelector('#menu').hidden = false;
+function choose(label) { document.querySelector('#gptModeSwitcher').textContent = label; document.querySelector('#menu').hidden = true; }
+document.querySelector('#send').onclick = () => {
+  window.sendCount++;
+  const prompt = document.querySelector('textarea').value;
+  document.querySelector('#messages').insertAdjacentHTML('beforeend', `<div data-message-author-role="user">${prompt}</div>`);
+  document.querySelector('#busy').hidden = false;
+  setTimeout(() => {
+    document.querySelector('#messages').insertAdjacentHTML('beforeend', '<div data-message-author-role="assistant"><p>followup ok</p></div>');
+    document.querySelector('#busy').hidden = true;
+  }, 40);
+};
+</script>

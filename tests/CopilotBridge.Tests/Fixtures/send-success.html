@@ -1,0 +1,19 @@
+<!doctype html><meta charset="utf-8">
+<div id="messages"></div>
+<div id="composer" contenteditable="true" role="textbox"></div>
+<button aria-label="发送" id="send">发送</button>
+<div id="busy" aria-busy="true" hidden>Generating</div>
+<script>
+window.sendCount = 0;
+document.querySelector('#send').onclick = () => {
+  window.sendCount++;
+  const prompt = document.querySelector('#composer').innerText.replace(/[\u200B-\u200D\uFEFF]+$/g, '');
+  document.querySelector('#messages').insertAdjacentHTML('beforeend', `<div data-message-author-role="user">${prompt}</div>`);
+  document.querySelector('#composer').innerText = '';
+  document.querySelector('#busy').hidden = false;
+  setTimeout(() => {
+    document.querySelector('#messages').insertAdjacentHTML('beforeend', `<div data-message-author-role="assistant"><h2>Answer</h2><p>A <strong>bold</strong> paragraph with <a href="https://example.com/docs">docs</a>.</p><ul><li>First</li><li>Second</li></ul><pre><code class="language-csharp">Console.WriteLine("ok");</code></pre><table><tr><th>Name</th><th>Value</th></tr><tr><td>model</td><td>Opus</td></tr></table></div>`);
+    document.querySelector('#busy').hidden = true;
+  }, 80);
+};
+</script>

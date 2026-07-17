@@ -1,0 +1,13 @@
+<!doctype html><meta charset="utf-8">
+<div id="messages"></div>
+<textarea placeholder="消息"></textarea>
+<button aria-label="发送" id="send">发送</button>
+<script>
+window.sendCount = 0;
+document.querySelector('#send').onclick = () => {
+  window.sendCount++;
+  const prompt = document.querySelector('textarea').value;
+  document.querySelector('#messages').insertAdjacentHTML('beforeend', `<div data-message-author-role="user">${prompt}</div>`);
+  setTimeout(() => document.body.insertAdjacentHTML('beforeend', '<div role="alert" data-testid="error-message">service unavailable</div>'), 40);
+};
+</script>

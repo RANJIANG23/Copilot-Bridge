@@ -1,0 +1,12 @@
+<!doctype html><meta charset="utf-8">
+<button id="gptModeSwitcher">自动</button>
+<div id="menu" hidden>
+  <button>自动</button>
+  <button>快速答复</button>
+  <button>GPT 5.5 快速响应</button>
+</div>
+<button aria-label="发送" onclick="window.sendCount++">发送</button>
+<script>
+window.sendCount = 0;
+document.querySelector('#gptModeSwitcher').onclick = () => document.querySelector('#menu').hidden = false;
+</script>

@@ -1,0 +1,12 @@
+<!doctype html><meta charset="utf-8">
+<button id="gptModeSwitcher">自动</button>
+<div id="menu" hidden>
+  <button onclick="choose('自动')">自动</button>
+  <button onclick="choose('快速答复')">快速答复</button>
+  <button onclick="choose('深度思考')">深度思考</button>
+</div>
+<script>
+const menu = document.querySelector('#menu');
+document.querySelector('#gptModeSwitcher').onclick = () => menu.hidden = false;
+function choose(label) { document.querySelector('#gptModeSwitcher').textContent = label; menu.hidden = true; }
+</script>
