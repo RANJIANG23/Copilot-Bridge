@@ -42,12 +42,14 @@ internal sealed class CopilotPageDriver
 
     internal async Task<string> ReadCurrentModelAsync()
     {
+        await EnsureAuthenticatedAsync();
         var switcher = await WaitForUniqueVisibleAsync("model switcher", _selectors.ModelSwitcher);
         return Normalize(await switcher.InnerTextAsync());
     }
 
     internal async Task<string> SelectAllowedModelAsync()
     {
+        await EnsureAuthenticatedAsync();
         var switcher = await WaitForUniqueVisibleAsync("model switcher", _selectors.ModelSwitcher);
         await switcher.ClickAsync();
         var started = DateTime.UtcNow;
@@ -107,6 +109,7 @@ internal sealed class CopilotPageDriver
             throw new ArgumentException("Prompt is required.", nameof(prompt));
         }
 
+        await EnsureAuthenticatedAsync();
         await EnsureIdleAsync();
         var composer = await FindUniqueVisibleAsync("message composer", _selectors.Composer);
         await composer.FillAsync(prompt);
@@ -260,6 +263,23 @@ internal sealed class CopilotPageDriver
         }
 
         return await TryClickSingleEnabledAsync(direct);
+    }
+
+    internal async Task EnsureAuthenticatedAsync()
+    {
+        foreach (var selector in _selectors.LoginRequired)
+        {
+            var matches = _page.Locator(selector);
+            var count = await matches.CountAsync();
+            for (var index = 0; index < count; index++)
+            {
+                if (await matches.Nth(index).IsVisibleAsync())
+                {
+                    throw new InvalidOperationException(
+                        "Microsoft 365 Copilot login is required. Sign in with the current Edge profile before retrying.");
+                }
+            }
+        }
     }
 
     private async Task EnsureIdleAsync()

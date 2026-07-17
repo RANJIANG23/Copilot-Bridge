@@ -16,6 +16,12 @@
     "button[aria-label*='Send']",
     "button[data-testid*='send']"
   ],
+  "loginRequired": [
+    "[data-testid='sign-in-button']",
+    "a[href*='login.microsoftonline.com']",
+    "button:has-text('Sign in')",
+    "button:has-text('登录')"
+  ],
   "userMessages": "[data-testid='chatQuestion'], [data-message-author-role='user']:not(:has([data-testid='chatQuestion']))",
   "assistantMessages": "[data-testid='copilot-message-reply-div'], [data-message-author-role='assistant']:not(:has([data-testid='copilot-message-reply-div']))",
   "busy": "[aria-busy='true'], button[aria-label*='停止'], button[aria-label*='Stop'], button[data-testid*='stop']",

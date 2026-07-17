@@ -1,0 +1,20 @@
+{
+  "name": "copilot-bridge-team",
+  "interface": {
+    "displayName": "Copilot Bridge Team"
+  },
+  "plugins": [
+    {
+      "name": "copilot-bridge",
+      "source": {
+        "source": "local",
+        "path": "./plugins/copilot-bridge"
+      },
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "ON_INSTALL"
+      },
+      "category": "Productivity"
+    }
+  ]
+}

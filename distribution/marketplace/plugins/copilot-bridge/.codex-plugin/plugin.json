@@ -1,0 +1,23 @@
+{
+  "name": "copilot-bridge",
+  "version": "1.0.0-rc.1",
+  "description": "Consult a signed-in Microsoft 365 Copilot from Codex through the local Copilot Bridge.",
+  "author": {
+    "name": "Copilot Bridge Team"
+  },
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "Copilot Bridge",
+    "shortDescription": "Ask Microsoft 365 Copilot for a second opinion.",
+    "longDescription": "Connects Codex to the locally installed Copilot Bridge, which uses the signed-in Microsoft 365 Copilot tab in the user's daily Edge profile.",
+    "developerName": "Copilot Bridge Team",
+    "category": "Productivity",
+    "capabilities": ["Interactive", "Write"],
+    "defaultPrompt": [
+      "Ask Copilot to review this design, then adjudicate its advice.",
+      "Check whether this implementation is overengineered."
+    ],
+    "brandColor": "#1677FF"
+  },
+  "mcpServers": "./.mcp.json"
+}

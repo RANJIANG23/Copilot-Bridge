@@ -40,6 +40,19 @@ public sealed class CoreTests
     }
 
     [Fact]
+    public async Task LoginRequiredFailsBeforeModelSelectionOrSend()
+    {
+        await using var browser = await FixtureBrowser.OpenAsync("login-required.html");
+        var driver = new CopilotPageDriver(browser.Page, Selectors, FastSettings());
+
+        var exception = await Assert.ThrowsAsync<InvalidOperationException>(
+            () => driver.SelectAllowedModelAsync());
+
+        Assert.Contains("login is required", exception.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.Equal(0, await browser.Page.EvaluateAsync<int>("window.sendCount"));
+    }
+
+    [Fact]
     public async Task CompletedReplyIsExtractedAsMarkdownAfterOneSend()
     {
         await using var browser = await FixtureBrowser.OpenAsync("send-success.html");
@@ -243,6 +256,19 @@ public sealed class CoreTests
         var settings = new BridgeSettings { ConsultationPolicy = (ConsultationPolicy)policy };
 
         Assert.Equal(expectedError, Mcp.CopilotBridgeTools.ValidatePolicy(settings, trigger));
+    }
+
+    [Theory]
+    [InlineData("Microsoft 365 Copilot login is required.", "login_required")]
+    [InlineData("Daily Edge has no DevToolsActivePort.", "remote_debugging_disabled")]
+    [InlineData("WebSocket error: connect ECONNREFUSED; ws connecting", "remote_debugging_disabled")]
+    [InlineData("No eligible Microsoft 365 Copilot chat tab was found.", "tab_rebind_required")]
+    [InlineData("Target page, context or browser has been closed", "tab_rebind_required")]
+    [InlineData("No allowed model is available.", "no_eligible_model")]
+    public void PreSubmitFailuresHaveStableG7ErrorCodes(string message, string expected)
+    {
+        Assert.Equal(expected, Mcp.CopilotBridgeTools.MapPreSubmitError(
+            new InvalidOperationException(message)));
     }
 
     [Fact]

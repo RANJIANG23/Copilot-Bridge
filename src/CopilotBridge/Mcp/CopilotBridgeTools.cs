@@ -317,17 +317,23 @@ internal sealed class CopilotBridgeTools : IAsyncDisposable
         _ => "deep_thinking"
     };
 
-    private static string MapPreSubmitError(Exception exception) => exception.Message switch
+    internal static string MapPreSubmitError(Exception exception) => exception.Message switch
     {
+        var message when message.Contains("login is required", StringComparison.OrdinalIgnoreCase) =>
+            "login_required",
         var message when message.Contains("DevToolsActivePort", StringComparison.OrdinalIgnoreCase) =>
             "remote_debugging_disabled",
-        var message when message.Contains("Timeout", StringComparison.OrdinalIgnoreCase) &&
+        var message when (message.Contains("Timeout", StringComparison.OrdinalIgnoreCase) ||
+                          message.Contains("ECONNREFUSED", StringComparison.OrdinalIgnoreCase)) &&
                          message.Contains("ws connecting", StringComparison.OrdinalIgnoreCase) =>
             "remote_debugging_disabled",
         var message when message.Contains("No eligible", StringComparison.OrdinalIgnoreCase) =>
             "tab_rebind_required",
         var message when message.Contains("Found", StringComparison.OrdinalIgnoreCase) &&
                          message.Contains("eligible Copilot tabs", StringComparison.OrdinalIgnoreCase) =>
+            "tab_rebind_required",
+        var message when message.Contains("has been closed", StringComparison.OrdinalIgnoreCase) ||
+                         message.Contains("page closed", StringComparison.OrdinalIgnoreCase) =>
             "tab_rebind_required",
         var message when message.Contains("allowed model", StringComparison.OrdinalIgnoreCase) ||
                          message.Contains("Model readback", StringComparison.OrdinalIgnoreCase) =>

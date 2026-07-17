@@ -9,6 +9,7 @@ internal sealed record ProviderSelectors
     public required string[] ModelSwitcher { get; init; }
     public required string[] Composer { get; init; }
     public required string[] SendButton { get; init; }
+    public required string[] LoginRequired { get; init; }
     public required string UserMessages { get; init; }
     public required string AssistantMessages { get; init; }
     public required string Busy { get; init; }
