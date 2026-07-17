@@ -1,0 +1,5 @@
+﻿interface:
+  display_name: "Copilot Consult"
+  short_description: "Obtain and verify a focused Copilot second opinion"
+  default_prompt: "Use $copilot-consult to obtain a focused Copilot second opinion and adjudicate it against local evidence."
+

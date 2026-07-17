@@ -1,6 +1,7 @@
 using System.Runtime.InteropServices;
 using System.Text;
 using System.Windows;
+using CopilotBridge.Mcp;
 using CopilotBridge.Probe;
 using CopilotBridge.UI;
 
@@ -11,6 +12,11 @@ internal static class Program
     [STAThread]
     public static int Main(string[] args)
     {
+        if (args.Contains("--mcp", StringComparer.OrdinalIgnoreCase))
+        {
+            return McpHost.RunAsync().GetAwaiter().GetResult();
+        }
+
         var isProbe = args.Contains("--probe", StringComparer.OrdinalIgnoreCase);
         var isAssistTest = args.Contains("--assist-test", StringComparer.OrdinalIgnoreCase);
         if (args.Length == 0 || (!isProbe && !isAssistTest))
@@ -18,7 +24,7 @@ internal static class Program
             if (args.Length > 0)
             {
                 ConsoleHost.Attach();
-                Console.WriteLine("Usage: CopilotBridge.exe (--probe [options] | --assist-test) [--endpoint <url>]");
+                Console.WriteLine("Usage: CopilotBridge.exe (--mcp | --probe [options] | --assist-test) [--endpoint <url>]");
                 return 2;
             }
 

@@ -114,6 +114,13 @@ public partial class MainWindow : Window
             return;
         }
 
+        using var lease = ConsultationLease.TryAcquire();
+        if (lease is null)
+        {
+            ShowNotice("已有一个咨询正在执行，请等待其完成。", NoticeKind.Error);
+            return;
+        }
+
         SetBusy(true, "正在咨询 Copilot");
         try
         {
@@ -151,6 +158,13 @@ public partial class MainWindow : Window
             RecentReplyText.Text = SingleLine(result.ReplyMarkdown);
             ModelStatusText.Text = result.Model;
             ShowNotice("测试咨询完成；本次正文仅显示在当前窗口，不会写入配置文件。", NoticeKind.Success);
+        }
+        catch (ReplyTimeoutException exception)
+        {
+            RecentTimeText.Text = DateTime.Now.ToString("HH:mm:ss");
+            RecentStateText.Text = "回复超时";
+            RecentReplyText.Text = "消息已发送，不会自动重试";
+            ShowNotice(exception.Message, NoticeKind.Error);
         }
         catch (SubmissionUnknownException exception)
         {

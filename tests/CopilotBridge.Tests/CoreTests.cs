@@ -56,15 +56,15 @@ public sealed class CoreTests
     }
 
     [Fact]
-    public async Task ReplyTimeoutBecomesSubmissionUnknownWithoutRetry()
+    public async Task VerifiedSendTimeoutBecomesReplyTimeoutWithoutRetry()
     {
         await using var browser = await FixtureBrowser.OpenAsync("send-timeout.html");
         var driver = new CopilotPageDriver(browser.Page, Selectors, FastSettings());
 
-        var exception = await Assert.ThrowsAsync<SubmissionUnknownException>(
+        var exception = await Assert.ThrowsAsync<ReplyTimeoutException>(
             () => driver.SendAndReadAsync("timeout prompt"));
 
-        Assert.Contains("could not be verified", exception.Message);
+        Assert.Contains("message was submitted", exception.Message);
         Assert.Equal(1, await browser.Page.EvaluateAsync<int>("window.sendCount"));
     }
 
@@ -195,6 +195,69 @@ public sealed class CoreTests
             }
 
             Directory.Delete(directory, false);
+        }
+    }
+
+    [Theory]
+    [InlineData((int)ConsultationPolicy.ManualOnly, "user_explicit", null)]
+    [InlineData((int)ConsultationPolicy.ManualOnly, "codex_auto", "blocked_by_policy")]
+    [InlineData((int)ConsultationPolicy.CodexMayConsult, "codex_auto", null)]
+    [InlineData((int)ConsultationPolicy.CodexMayConsult, "required_checkpoint", null)]
+    [InlineData((int)ConsultationPolicy.RequiredForKeyDesign, "required_checkpoint", null)]
+    [InlineData((int)ConsultationPolicy.Disabled, "user_explicit", "blocked_by_policy")]
+    public void ConsultationPolicyEnforcesTrigger(
+        int policy,
+        string trigger,
+        string? expectedError)
+    {
+        var settings = new BridgeSettings { ConsultationPolicy = (ConsultationPolicy)policy };
+
+        Assert.Equal(expectedError, Mcp.CopilotBridgeTools.ValidatePolicy(settings, trigger));
+    }
+
+    [Fact]
+    public void ConsultationLeaseReturnsBusyWithoutQueueing()
+    {
+        var path = Path.Combine(
+            Path.GetTempPath(),
+            "CopilotBridge.Tests",
+            Guid.NewGuid().ToString("N"),
+            "consultation.lock");
+
+        Assert.False(ConsultationLease.IsBusy(path));
+        Assert.False(File.Exists(path));
+        using var first = ConsultationLease.TryAcquire(path);
+        using var second = ConsultationLease.TryAcquire(path);
+
+        Assert.NotNull(first);
+        Assert.Null(second);
+        Assert.True(ConsultationLease.IsBusy(path));
+    }
+
+    [Fact]
+    public async Task ConsultationStateStoresOnlyIdAndConversationUrl()
+    {
+        var directory = Path.Combine(Path.GetTempPath(), "CopilotBridge.Tests", Guid.NewGuid().ToString("N"));
+        var path = Path.Combine(directory, "consultations.json");
+        var store = new ConsultationStateStore(path);
+
+        try
+        {
+            await store.SaveConversationAsync("consultation-a", "https://m365.cloud.microsoft/chat/a");
+
+            Assert.Equal(
+                "https://m365.cloud.microsoft/chat/a",
+                await store.FindConversationAsync("consultation-a"));
+            var json = await File.ReadAllTextAsync(path);
+            Assert.DoesNotContain("prompt", json, StringComparison.OrdinalIgnoreCase);
+            Assert.DoesNotContain("reply", json, StringComparison.OrdinalIgnoreCase);
+        }
+        finally
+        {
+            if (Directory.Exists(directory))
+            {
+                Directory.Delete(directory, true);
+            }
         }
     }
 

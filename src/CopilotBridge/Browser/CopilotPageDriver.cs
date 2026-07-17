@@ -17,6 +17,14 @@ internal sealed class SubmissionUnknownException : Exception
     }
 }
 
+internal sealed class ReplyTimeoutException : Exception
+{
+    internal ReplyTimeoutException(string message, Exception? innerException = null)
+        : base(message, innerException)
+    {
+    }
+}
+
 internal sealed class CopilotPageDriver
 {
     private readonly IPage _page;
@@ -119,6 +127,7 @@ internal sealed class CopilotPageDriver
             throw new InvalidOperationException("The verified send button is disabled.");
         }
 
+        var userMessageVerified = false;
         try
         {
             await send.ClickAsync();
@@ -126,6 +135,7 @@ internal sealed class CopilotPageDriver
                 async () => await users.CountAsync() > userCountBefore || await IsExactTextVisibleAsync(prompt),
                 TimeSpan.FromSeconds(15),
                 "The page did not expose a new user message after the single send click.");
+            userMessageVerified = true;
             await WaitUntilAsync(
                 async () =>
                 {
@@ -152,6 +162,12 @@ internal sealed class CopilotPageDriver
         catch (SubmissionUnknownException)
         {
             throw;
+        }
+        catch (TimeoutException exception) when (userMessageVerified)
+        {
+            throw new ReplyTimeoutException(
+                $"The message was submitted, but the reply did not complete before timeout: {exception.Message}",
+                exception);
         }
         catch (Exception exception)
         {
