@@ -30,6 +30,12 @@ internal sealed class CopilotPageDriver
         _settings = settings;
     }
 
+    internal async Task<string> ReadCurrentModelAsync()
+    {
+        var switcher = await FindUniqueVisibleAsync("model switcher", _selectors.ModelSwitcher);
+        return Normalize(await switcher.InnerTextAsync());
+    }
+
     internal async Task<string> SelectAllowedModelAsync()
     {
         var switcher = await FindUniqueVisibleAsync("model switcher", _selectors.ModelSwitcher);

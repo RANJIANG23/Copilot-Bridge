@@ -2,7 +2,7 @@
 
 > 设计基线：v1.0
 > 日期：2026-07-18（Asia/Shanghai）
-> 状态：Phase 0–2 已通过；尚未开始 Phase 3 薄 GUI 纵切
+> 状态：Phase 0–3 已通过；尚未开始 Phase 4 Codex MCP + Skill
 > 工作名称：Copilot Bridge
 > 项目目录：`D:\WorkSpace\Microsoft Copilot`
 > 目标模式执行路线图：[EXECUTION-ROADMAP.md](./EXECUTION-ROADMAP.md)

@@ -29,7 +29,8 @@ internal sealed class EdgeSessionAdapter : IAsyncDisposable
     internal static async Task<EdgeSessionAdapter> ConnectAsync(
         BridgeSettings settings,
         ProviderSelectors selectors,
-        string? endpointOverride = null)
+        string? endpointOverride = null,
+        int timeoutMilliseconds = 10_000)
     {
         var endpoint = endpointOverride ?? ResolveEndpoint(settings.EdgeUserDataDirectory);
         var playwright = await Playwright.CreateAsync();
@@ -38,7 +39,7 @@ internal sealed class EdgeSessionAdapter : IAsyncDisposable
         {
             var browser = await playwright.Chromium.ConnectOverCDPAsync(
                 endpoint,
-                new BrowserTypeConnectOverCDPOptions { Timeout = 10_000 });
+                new BrowserTypeConnectOverCDPOptions { Timeout = timeoutMilliseconds });
             var page = FindSingleCopilotPage(browser, selectors.AllowedHost);
             return new EdgeSessionAdapter(playwright, browser, page, endpoint);
         }

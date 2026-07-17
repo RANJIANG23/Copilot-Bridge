@@ -1,23 +1,53 @@
+using System.Runtime.InteropServices;
+using System.Text;
+using System.Windows;
 using CopilotBridge.Probe;
+using CopilotBridge.UI;
 
 namespace CopilotBridge;
 
 internal static class Program
 {
-    public static async Task<int> Main(string[] args)
+    [STAThread]
+    public static int Main(string[] args)
     {
         var isProbe = args.Contains("--probe", StringComparer.OrdinalIgnoreCase);
         var isAssistTest = args.Contains("--assist-test", StringComparer.OrdinalIgnoreCase);
         if (args.Length == 0 || (!isProbe && !isAssistTest))
         {
-            Console.WriteLine("Copilot Bridge");
-            Console.WriteLine("Usage: CopilotBridge.exe (--probe [options] | --assist-test) [--endpoint <url>]");
-            return args.Length == 0 ? 0 : 2;
+            if (args.Length > 0)
+            {
+                ConsoleHost.Attach();
+                Console.WriteLine("Usage: CopilotBridge.exe (--probe [options] | --assist-test) [--endpoint <url>]");
+                return 2;
+            }
+
+            var application = new Application
+            {
+                ShutdownMode = ShutdownMode.OnMainWindowClose
+            };
+            return application.Run(new MainWindow());
         }
 
+        ConsoleHost.Attach();
         var options = ProbeOptions.Parse(args);
         return isAssistTest
-            ? await AssistProbe.RunAsync(options.Endpoint)
-            : await EdgeProbe.RunAsync(options);
+            ? AssistProbe.RunAsync(options.Endpoint).GetAwaiter().GetResult()
+            : EdgeProbe.RunAsync(options).GetAwaiter().GetResult();
     }
+}
+
+internal static class ConsoleHost
+{
+    private const uint AttachParentProcess = 0xFFFFFFFF;
+
+    internal static void Attach()
+    {
+        AttachConsole(AttachParentProcess);
+        Console.SetOut(new StreamWriter(Console.OpenStandardOutput(), new UTF8Encoding(false)) { AutoFlush = true });
+        Console.SetError(new StreamWriter(Console.OpenStandardError(), new UTF8Encoding(false)) { AutoFlush = true });
+    }
+
+    [DllImport("kernel32.dll", SetLastError = true)]
+    private static extern bool AttachConsole(uint processId);
 }

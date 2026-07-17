@@ -1,6 +1,22 @@
 using System.Text.Json;
+using System.Text.Json.Serialization;
 
 namespace CopilotBridge.Core;
+
+internal enum ConsultationPolicy
+{
+    Disabled,
+    ManualOnly,
+    CodexMayConsult,
+    RequiredForKeyDesign
+}
+
+internal enum CollaborationMode
+{
+    Assist,
+    Outsource,
+    Review
+}
 
 internal sealed record BridgeSettings
 {
@@ -15,6 +31,12 @@ internal sealed record BridgeSettings
     public int MenuMaximumWaitMilliseconds { get; init; } = 6_000;
 
     public int ReplyTimeoutSeconds { get; init; } = 300;
+
+    public ConsultationPolicy ConsultationPolicy { get; init; } = ConsultationPolicy.ManualOnly;
+
+    public CollaborationMode CollaborationMode { get; init; } = CollaborationMode.Assist;
+
+    public string? BoundConversationUrl { get; init; }
 }
 
 internal sealed class SettingsStore
@@ -24,6 +46,11 @@ internal sealed class SettingsStore
         PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
         WriteIndented = true
     };
+
+    static SettingsStore()
+    {
+        JsonOptions.Converters.Add(new JsonStringEnumConverter());
+    }
 
     internal SettingsStore(string? path = null)
     {
