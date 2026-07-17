@@ -4,7 +4,7 @@
 > 日期：2026-07-18（Asia/Shanghai）
 > 适用目录：`D:\WorkSpace\Microsoft Copilot`
 > 上位设计：[PROJECT-DESIGN.md](./PROJECT-DESIGN.md)
-> 当前状态：Phase 0–3 已通过；Phase 4 进行中
+> 当前状态：Phase 0–4 已通过；Phase 5 进行中
 
 ## 1. 文档用途
 
@@ -606,8 +606,8 @@ G8 待验证，不能把总目标标记为完成。
 | Phase 1 | 通过 | 2026-07-18 03:06 +08:00 | 2026-07-18 03:26 +08:00 | 20 分钟 | `phase-1` | G1：连接日常 Edge 的完整 WebSocket 端点，唯一 Copilot 页和 background target 验证通过；G2：完整水合等待后选择并读回 Opus；G3：单击发送一次，GPT 5.6 Think deeper 回复 `COPILOT_BRIDGE_TEST_OK`，会话内 prompt/reply 均恰好 1 条。游戏窗口在发送全程保持前台，用户光标可继续移动；Release 0 警告/0 错误，677 LOC、1 个直接依赖、0 个输入模拟 API |
 | Phase 2 | 通过 | 2026-07-18 03:27 +08:00 | 2026-07-18 03:36 +08:00 | 9 分钟 | `phase-2` | Settings Store、单一 M365 selector 资源、Edge Session Adapter、Page Driver、Markdown 提取与 Assist Coordinator 已完成；13/13 fixture 测试覆盖延迟菜单、Opus/GPT/深度思考回退、GPT 5.6/5.5 区分、零发送、生成完成/超时/页面错误、发送边界、Markdown 与显式 conversation URL 追问。真实 Coordinator 以 Opus 单击发送并收到 `COPILOT_BRIDGE_PHASE2_OK`；最终实页回归通过。Release 0 警告/0 错误，1099 LOC、1 个直接依赖 |
 | Phase 3 | 通过 | 2026-07-18 03:38 +08:00 | 2026-07-18 04:05 +08:00 | 27 分钟 | `phase-3` | 单一 WPF EXE 完成概览、协作、浏览器与模型三页；首次 Edge 授权后窗口级 CDP 会话持续复用，绑定、两页设置保存和 Opus 测试咨询均未再次弹出授权。实页收到唯一回复 `COPILOT_BRIDGE_PHASE3_OK`；配置仅持久化模式、超时与 conversation URL，未保存 prompt/reply。Design QA 通过；Release 0 警告/0 错误，13/13 测试通过，1944 LOC、1 个直接依赖、0 个输入模拟 API |
-| Phase 4 | 进行中 | 2026-07-18 04:06 +08:00 | — | — | — | 同一 EXE 的官方 SDK STDIO MCP、两个诚实注解工具、repo Skill 与项目级逐工具预授权配置已实现；Release 23/23 测试和 Skill 校验通过。G4 已通过：Codex MCP 收到 `COPILOT_BRIDGE_G4_OK` 并继续任务。G6 已通过：实际咨询期间 Computer Use 在前台计算器输入 `1`，结束后窗口、焦点和值均未改变。G5 第 1 次返回 `submission_unknown`，已按规则停止且零重试，等待用户核对原会话后继续 |
-| Phase 5 | 未开始 | — | — | — | — | — |
+| Phase 4 | 通过 | 2026-07-18 04:06 +08:00 | 2026-07-18 05:10 +08:00 | 64 分钟 | `phase-4` | 同一 EXE 的官方 SDK STDIO MCP 只暴露两个诚实注解工具；repo Skill、项目级逐工具预授权、协议与退出测试均通过。G4：Codex MCP 收到 `COPILOT_BRIDGE_G4_OK` 并继续原任务。G5：同一 consultation ID 与 conversation URL 完成 01–10 十个唯一请求；所有请求均单击一次、零重发，03–10 返回精确 token；长会话 DOM 虚拟化误判已用专门 fixture 修复。G6：咨询期间前台计算器、焦点和值不变。跨进程锁下真实 MCP 后发写入立即返回 `blocked/busy`、零回复、零发送。Release 25/25 测试、Skill 校验、0 警告/0 错误；2535 LOC、2 个直接依赖。企业审批由真实 destructive/open-world 注解与 Codex 策略执行，Bridge 不绕过。 |
+| Phase 5 | 进行中 | 2026-07-18 05:10 +08:00 | — | — | — | — |
 | Phase 6 | 未开始 | — | — | — | — | — |
 
 允许状态只有：`未开始`、`进行中`、`通过`、`阻塞`、`部分完成`。

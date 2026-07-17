@@ -27,6 +27,7 @@ internal sealed class ReplyTimeoutException : Exception
 
 internal sealed class CopilotPageDriver
 {
+    private static readonly TimeSpan SubmissionAcknowledgementTimeout = TimeSpan.FromSeconds(60);
     private readonly IPage _page;
     private readonly ProviderSelectors _selectors;
     private readonly BridgeSettings _settings;
@@ -120,6 +121,8 @@ internal sealed class CopilotPageDriver
         var assistants = _page.Locator(_selectors.AssistantMessages);
         var userCountBefore = await users.CountAsync();
         var assistantCountBefore = await assistants.CountAsync();
+        var lastUserBefore = await ReadLastMessageFingerprintAsync(users);
+        var lastAssistantBefore = await ReadLastMessageFingerprintAsync(assistants);
         var send = await FindUniqueVisibleAsync("send button", _selectors.SendButton);
         if (!await send.IsEnabledAsync())
         {
@@ -132,15 +135,18 @@ internal sealed class CopilotPageDriver
         {
             await send.ClickAsync();
             await WaitUntilAsync(
-                async () => await users.CountAsync() > userCountBefore || await IsExactTextVisibleAsync(prompt),
-                TimeSpan.FromSeconds(15),
+                async () => await MessageAdvancedAsync(users, userCountBefore, lastUserBefore),
+                SubmissionAcknowledgementTimeout,
                 "The page did not expose a new user message after the single send click.");
             userMessageVerified = true;
             await WaitUntilAsync(
                 async () =>
                 {
                     await ThrowIfPageErrorAsync();
-                    return await assistants.CountAsync() > assistantCountBefore;
+                    return await MessageAdvancedAsync(
+                        assistants,
+                        assistantCountBefore,
+                        lastAssistantBefore);
                 },
                 TimeSpan.FromSeconds(_settings.ReplyTimeoutSeconds),
                 "Copilot did not expose a new assistant reply before the timeout.");
@@ -156,8 +162,11 @@ internal sealed class CopilotPageDriver
             return new PageTurnResult(
                 markdown,
                 _page.Url,
-                await users.CountAsync() - userCountBefore,
-                await assistants.CountAsync() - assistantCountBefore);
+                await ObservedMessageDeltaAsync(users, userCountBefore, lastUserBefore),
+                await ObservedMessageDeltaAsync(
+                    assistants,
+                    assistantCountBefore,
+                    lastAssistantBefore));
         }
         catch (SubmissionUnknownException)
         {
@@ -301,6 +310,40 @@ internal sealed class CopilotPageDriver
 
         throw new InvalidOperationException($"Could not identify exactly one visible {description}.");
     }
+
+    private static async Task<bool> MessageAdvancedAsync(
+        ILocator messages,
+        int countBefore,
+        string? lastBefore) =>
+        await messages.CountAsync() > countBefore ||
+        !string.Equals(
+            await ReadLastMessageFingerprintAsync(messages),
+            lastBefore,
+            StringComparison.Ordinal);
+
+    private static async Task<int> ObservedMessageDeltaAsync(
+        ILocator messages,
+        int countBefore,
+        string? lastBefore)
+    {
+        var countAfter = await messages.CountAsync();
+        if (countAfter > countBefore)
+        {
+            return countAfter - countBefore;
+        }
+
+        return string.Equals(
+            await ReadLastMessageFingerprintAsync(messages),
+            lastBefore,
+            StringComparison.Ordinal)
+            ? 0
+            : 1;
+    }
+
+    private static async Task<string?> ReadLastMessageFingerprintAsync(ILocator messages) =>
+        await messages.CountAsync() == 0
+            ? null
+            : Normalize(await messages.Last.InnerTextAsync());
 
     private Task<bool> IsExactTextVisibleAsync(string text) =>
         IsSingleVisibleAsync(_page.GetByText(text, new PageGetByTextOptions { Exact = true }));

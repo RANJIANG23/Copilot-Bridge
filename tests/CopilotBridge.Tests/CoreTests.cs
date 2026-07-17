@@ -56,6 +56,20 @@ public sealed class CoreTests
     }
 
     [Fact]
+    public async Task VirtualizedMessageListStillVerifiesExactlyOneTurn()
+    {
+        await using var browser = await FixtureBrowser.OpenAsync("send-virtualized.html");
+        var driver = new CopilotPageDriver(browser.Page, Selectors, FastSettings(replyTimeoutSeconds: 2));
+
+        var result = await driver.SendAndReadAsync("unique virtualized prompt");
+
+        Assert.Equal(1, result.UserMessageDelta);
+        Assert.Equal(1, result.AssistantMessageDelta);
+        Assert.Equal(1, await browser.Page.EvaluateAsync<int>("window.sendCount"));
+        Assert.Equal("virtualized reply", result.ReplyMarkdown);
+    }
+
+    [Fact]
     public async Task VerifiedSendTimeoutBecomesReplyTimeoutWithoutRetry()
     {
         await using var browser = await FixtureBrowser.OpenAsync("send-timeout.html");

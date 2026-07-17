@@ -1,0 +1,22 @@
+<!doctype html><meta charset="utf-8">
+<div id="messages">
+  <div data-message-author-role="user">previous prompt</div>
+  <div data-message-author-role="assistant">previous reply</div>
+</div>
+<div id="composer" contenteditable="true" role="textbox"></div>
+<button aria-label="发送" id="send">发送</button>
+<div id="busy" aria-busy="true" hidden>Generating</div>
+<script>
+window.sendCount = 0;
+document.querySelector('#send').onclick = () => {
+  window.sendCount++;
+  const prompt = document.querySelector('#composer').innerText.replace(/[\u200B-\u200D\uFEFF]+$/g, '');
+  document.querySelector('[data-message-author-role="user"]').innerText = prompt;
+  document.querySelector('#composer').innerText = '';
+  document.querySelector('#busy').hidden = false;
+  setTimeout(() => {
+    document.querySelector('[data-message-author-role="assistant"]').innerHTML = '<p>virtualized reply</p>';
+    document.querySelector('#busy').hidden = true;
+  }, 80);
+};
+</script>
