@@ -1,6 +1,7 @@
 [CmdletBinding()]
 param(
     [string]$InstallDirectory = (Join-Path $env:LOCALAPPDATA 'Programs\CopilotBridge'),
+    [string]$StartMenuDirectory = [Environment]::GetFolderPath('Programs'),
     [switch]$RemoveUserData,
     [switch]$SkipCodexPlugin
 )
@@ -10,14 +11,41 @@ $marketplaceName = 'copilot-bridge-team'
 $pluginSelector = "copilot-bridge@$marketplaceName"
 $installedMarketplace = Join-Path $InstallDirectory 'marketplace'
 
+function Get-ConfiguredMarketplaceRoot {
+    param(
+        [string[]]$Lines,
+        [string]$Name
+    )
+
+    $inlineLine = $Lines |
+        Where-Object { $_ -match "^$([regex]::Escape($Name))\s+" } |
+        Select-Object -First 1
+    if ($inlineLine) {
+        return ($inlineLine -replace "^$([regex]::Escape($Name))\s+", '').Trim()
+    }
+
+    $header = 'Marketplace `' + $Name + '`'
+    for ($index = 0; $index -lt $Lines.Count; $index++) {
+        if ($Lines[$index].Trim() -ne $header) {
+            continue
+        }
+
+        for ($candidate = $index + 1; $candidate -lt $Lines.Count; $candidate++) {
+            $value = $Lines[$candidate].Trim()
+            if ($value) {
+                return $value
+            }
+        }
+    }
+
+    return $null
+}
+
 if (-not $SkipCodexPlugin -and (Get-Command codex -ErrorAction SilentlyContinue)) {
     $marketplaceLines = @(& codex plugin marketplace list 2>&1)
     if ($LASTEXITCODE -eq 0) {
-        $existingLine = $marketplaceLines |
-            Where-Object { $_ -match "^$([regex]::Escape($marketplaceName))\s+" } |
-            Select-Object -First 1
-        if ($existingLine) {
-            $existingRoot = ($existingLine -replace "^$([regex]::Escape($marketplaceName))\s+", '').Trim()
+        $existingRoot = Get-ConfiguredMarketplaceRoot $marketplaceLines $marketplaceName
+        if ($existingRoot) {
             if ([IO.Path]::GetFullPath($existingRoot) -eq [IO.Path]::GetFullPath($installedMarketplace)) {
                 $pluginLines = @(& codex plugin list 2>&1)
                 if ($LASTEXITCODE -eq 0 -and
@@ -44,7 +72,7 @@ Get-Process -Name CopilotBridge -ErrorAction SilentlyContinue |
     Where-Object { $_.Path -eq $installedExecutable } |
     Stop-Process -Force
 
-$startMenu = Join-Path ([Environment]::GetFolderPath('Programs')) 'Copilot Bridge.lnk'
+$startMenu = Join-Path $StartMenuDirectory 'Copilot Bridge.lnk'
 if (Test-Path -LiteralPath $startMenu) {
     Remove-Item -LiteralPath $startMenu -Force
 }

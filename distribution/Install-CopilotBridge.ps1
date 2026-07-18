@@ -1,6 +1,7 @@
 [CmdletBinding()]
 param(
     [string]$InstallDirectory = (Join-Path $env:LOCALAPPDATA 'Programs\CopilotBridge'),
+    [string]$StartMenuDirectory = [Environment]::GetFolderPath('Programs'),
     [switch]$SkipCodexPlugin
 )
 
@@ -10,6 +11,36 @@ $pluginSelector = "copilot-bridge@$marketplaceName"
 $appSource = Join-Path $PSScriptRoot 'app'
 $marketplaceSource = Join-Path $PSScriptRoot 'marketplace'
 $defaultInstallDirectory = Join-Path $env:LOCALAPPDATA 'Programs\CopilotBridge'
+
+function Get-ConfiguredMarketplaceRoot {
+    param(
+        [string[]]$Lines,
+        [string]$Name
+    )
+
+    $inlineLine = $Lines |
+        Where-Object { $_ -match "^$([regex]::Escape($Name))\s+" } |
+        Select-Object -First 1
+    if ($inlineLine) {
+        return ($inlineLine -replace "^$([regex]::Escape($Name))\s+", '').Trim()
+    }
+
+    $header = 'Marketplace `' + $Name + '`'
+    for ($index = 0; $index -lt $Lines.Count; $index++) {
+        if ($Lines[$index].Trim() -ne $header) {
+            continue
+        }
+
+        for ($candidate = $index + 1; $candidate -lt $Lines.Count; $candidate++) {
+            $value = $Lines[$candidate].Trim()
+            if ($value) {
+                return $value
+            }
+        }
+    }
+
+    return $null
+}
 
 if (-not $SkipCodexPlugin -and
     [IO.Path]::GetFullPath($InstallDirectory) -ne [IO.Path]::GetFullPath($defaultInstallDirectory)) {
@@ -29,6 +60,13 @@ if (-not $SkipCodexPlugin -and -not (Get-Command codex -ErrorAction SilentlyCont
 $installParent = Split-Path $InstallDirectory -Parent
 $stage = Join-Path $installParent ('.CopilotBridge.install-' + [Guid]::NewGuid().ToString('N'))
 $backup = Join-Path $installParent ('.CopilotBridge.backup-' + [Guid]::NewGuid().ToString('N'))
+$startMenu = Join-Path $StartMenuDirectory 'Copilot Bridge.lnk'
+$hadPreviousInstall = Test-Path -LiteralPath $InstallDirectory
+$hadPreviousShortcut = Test-Path -LiteralPath $startMenu
+$pluginWasInstalled = $false
+$pluginWasRemoved = $false
+$marketplaceWasAdded = $false
+$completed = $false
 New-Item -ItemType Directory -Path $stage -Force | Out-Null
 
 try {
@@ -53,7 +91,7 @@ try {
     }
     Move-Item -LiteralPath $stage -Destination $InstallDirectory
 
-    $startMenu = Join-Path ([Environment]::GetFolderPath('Programs')) 'Copilot Bridge.lnk'
+    New-Item -ItemType Directory -Path $StartMenuDirectory -Force | Out-Null
     $shell = New-Object -ComObject WScript.Shell
     $shortcut = $shell.CreateShortcut($startMenu)
     $shortcut.TargetPath = $installedExecutable
@@ -68,11 +106,8 @@ try {
         if ($LASTEXITCODE -ne 0) {
             throw 'Unable to read configured Codex plugin marketplaces.'
         }
-        $existingLine = $marketplaceLines |
-            Where-Object { $_ -match "^$([regex]::Escape($marketplaceName))\s+" } |
-            Select-Object -First 1
-        if ($existingLine) {
-            $existingRoot = ($existingLine -replace "^$([regex]::Escape($marketplaceName))\s+", '').Trim()
+        $existingRoot = Get-ConfiguredMarketplaceRoot $marketplaceLines $marketplaceName
+        if ($existingRoot) {
             if ([IO.Path]::GetFullPath($existingRoot) -ne [IO.Path]::GetFullPath($installedMarketplace)) {
                 throw "Marketplace '$marketplaceName' already points to another location: $existingRoot"
             }
@@ -82,35 +117,93 @@ try {
             if ($LASTEXITCODE -ne 0) {
                 throw 'Unable to register the Copilot Bridge marketplace.'
             }
+            $marketplaceWasAdded = $true
         }
 
         $pluginLines = @(& codex plugin list 2>&1)
         if ($LASTEXITCODE -ne 0) {
             throw 'Unable to read installed Codex plugins.'
         }
-        if ($pluginLines | Where-Object { $_ -match "^$([regex]::Escape($pluginSelector))\s+installed" }) {
+        $pluginWasInstalled = [bool]($pluginLines |
+            Where-Object { $_ -match "^$([regex]::Escape($pluginSelector))\s+installed" })
+        if ($pluginWasInstalled) {
             & codex plugin remove $pluginSelector --json
             if ($LASTEXITCODE -ne 0) {
                 throw 'Unable to remove the previous Copilot Bridge plugin version.'
             }
+            $pluginWasRemoved = $true
         }
         & codex plugin add $pluginSelector --json
         if ($LASTEXITCODE -ne 0) {
             throw 'Unable to install the Copilot Bridge plugin.'
         }
     }
+
+    $completed = $true
 }
 catch {
-    if (-not (Test-Path -LiteralPath $InstallDirectory) -and (Test-Path -LiteralPath $backup)) {
-        Move-Item -LiteralPath $backup -Destination $InstallDirectory
+    $installError = $_
+    $rollbackErrors = [Collections.Generic.List[string]]::new()
+
+    try {
+        if (Test-Path -LiteralPath $backup) {
+            if (Test-Path -LiteralPath $InstallDirectory) {
+                Remove-Item -LiteralPath $InstallDirectory -Recurse -Force
+            }
+            Move-Item -LiteralPath $backup -Destination $InstallDirectory
+        }
+        elseif (-not $hadPreviousInstall -and (Test-Path -LiteralPath $InstallDirectory)) {
+            Remove-Item -LiteralPath $InstallDirectory -Recurse -Force
+        }
     }
-    throw
+    catch {
+        $rollbackErrors.Add("application rollback failed: $($_.Exception.Message)")
+    }
+
+    if (-not $hadPreviousShortcut -and (Test-Path -LiteralPath $startMenu)) {
+        try {
+            Remove-Item -LiteralPath $startMenu -Force
+        }
+        catch {
+            $rollbackErrors.Add("shortcut rollback failed: $($_.Exception.Message)")
+        }
+    }
+
+    if (-not $SkipCodexPlugin -and $pluginWasInstalled -and $pluginWasRemoved) {
+        try {
+            & codex plugin add $pluginSelector --json
+            if ($LASTEXITCODE -ne 0) {
+                throw 'Codex CLI rejected the previous plugin registration.'
+            }
+        }
+        catch {
+            $rollbackErrors.Add("plugin rollback failed: $($_.Exception.Message)")
+        }
+    }
+
+    if (-not $SkipCodexPlugin -and $marketplaceWasAdded) {
+        try {
+            & codex plugin marketplace remove $marketplaceName --json
+            if ($LASTEXITCODE -ne 0) {
+                throw 'Codex CLI rejected marketplace rollback.'
+            }
+        }
+        catch {
+            $rollbackErrors.Add("marketplace rollback failed: $($_.Exception.Message)")
+        }
+    }
+
+    if ($rollbackErrors.Count -gt 0) {
+        throw "$($installError.Exception.Message) Rollback was incomplete: $($rollbackErrors -join '; ')"
+    }
+
+    throw $installError
 }
 finally {
     if (Test-Path -LiteralPath $stage) {
         Remove-Item -LiteralPath $stage -Recurse -Force
     }
-    if (Test-Path -LiteralPath $backup) {
+    if ($completed -and (Test-Path -LiteralPath $backup)) {
         Remove-Item -LiteralPath $backup -Recurse -Force
     }
 }
