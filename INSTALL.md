@@ -4,7 +4,8 @@
 
 - Windows 11 x64。
 - Microsoft Edge 已使用团队成员自己的 Microsoft 365 账号登录 Copilot。
-- Edge 已为当前浏览器实例启用 Remote debugging，并显示本地端口 `127.0.0.1:9222`。
+- Edge 由桌面或开始菜单正常启动，并使用成员日常默认配置档。
+- Edge 已在 `edge://inspect` 的 Remote debugging 页面为当前浏览器实例启用远程调试，并显示本地端口 `127.0.0.1:9222`。
 - Codex 桌面版或可执行 `codex` 命令的 Codex CLI。
 
 Copilot Bridge 不接管账号、Cookie 或 Edge 配置档，也不会自动修改企业策略。
@@ -30,15 +31,18 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\Install-CopilotBridge.
 
 ## 首次绑定
 
-1. 保持 Edge 运行并确认 Remote debugging 为 `127.0.0.1:9222`。
-2. 从开始菜单打开 Copilot Bridge。
-3. 在诊断页确认 Edge、Microsoft 365 Copilot 登录和模型菜单均可用。
-4. 绑定专用于 Bridge 的 Copilot 标签页。
-5. 在设置页选择征询策略和协作模式；初始建议为“仅手动 + Assist”。
-6. 保存并关闭窗口。后台咨询不依赖 GUI 保持打开。
-7. 新建 Codex 任务，再要求 Codex 使用 `copilot-consult`。
+1. 从桌面或开始菜单正常启动日常 Edge，不要为 Bridge 使用带 `--remote-debugging-port` 的命令行快捷方式。
+2. 打开 `edge://inspect` 的 Remote debugging 页面，允许当前浏览器实例，并确认显示 `127.0.0.1:9222`。
+3. 从开始菜单打开 Copilot Bridge。
+4. 在诊断页确认 Edge、Microsoft 365 Copilot 登录和模型菜单均可用。
+5. 绑定专用于 Bridge 的 Copilot 标签页。
+6. 在设置页选择征询策略和协作模式；初始建议为“仅手动 + Assist”。
+7. 保存并关闭窗口。后台咨询不依赖 GUI 保持打开。
+8. 新建 Codex 任务，再要求 Codex 使用 `copilot-consult`。
 
 如果 Edge 显示 Remote access 确认，这是浏览器本身的安全边界。Bridge 不会绕过该提示或企业管理员策略。
+
+第二台电脑实测发现：使用命令行参数拉起 Edge 时，授权后 Remote debugging 可能一直停在 `Starting`；改为从桌面正常启动默认配置档后工作正常。因此团队 v1 只支持后一条已验证路径，应用不会自动带参数启动 Edge。
 
 ## 应用单独安装
 

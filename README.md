@@ -48,7 +48,7 @@ dd91b4dc25f30502109b28723342ba57251d624a8614d31d1372d96358bad16b
 - Windows 11 x64
 - Microsoft Edge 已登录成员自己的 Microsoft 365 企业账号 / Microsoft Edge signed in with the team member's own Microsoft 365 work account
 - 该账号可以使用 Microsoft 365 Copilot / An account entitled to use Microsoft 365 Copilot
-- Edge 当前实例已启用 Remote debugging，并显示 `127.0.0.1:9222` / Remote debugging enabled for the current Edge instance at `127.0.0.1:9222`
+- Edge 从桌面或开始菜单正常启动默认配置档，并在 `edge://inspect` 中启用 Remote debugging，显示 `127.0.0.1:9222` / Edge launched normally from the desktop or Start menu with the default profile, with Remote debugging enabled at `edge://inspect` and showing `127.0.0.1:9222`
 - Codex 桌面版或 Codex CLI / Codex desktop app or Codex CLI
 
 Bridge 不保存或迁移账号、Cookie、令牌和 Microsoft 365 凭据。Bridge does not store or migrate accounts, cookies, tokens, or Microsoft 365 credentials.
@@ -67,6 +67,8 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\Install-CopilotBridge.
 5. 首次建议使用“仅手动 + Assist”。For the first run, use `Manual only + Assist`.
 6. 保存设置，关闭 GUI，并新建一个 Codex 任务。Save the settings, close the GUI, and start a new Codex task.
 7. 要求 Codex 使用 `copilot-consult` 对一个具体方案进行二次核验。Ask Codex to use `copilot-consult` for a focused second opinion.
+
+不要为 Bridge 使用带远程调试参数的命令行方式启动 Edge；第二台电脑实测该方式可能停在 `Starting`。Do not launch Edge for Bridge with remote-debugging command-line flags; second-computer testing found that this path can remain stuck at `Starting`.
 
 完整步骤见 [安装说明](./INSTALL.md)。团队第二台电脑请同时执行 [G8 试点清单](./TEAM-ROLLOUT.md#试点验收g8)。
 

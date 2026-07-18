@@ -11,6 +11,17 @@
 3. 若 Edge 刚重启，重新启用并接受浏览器自身的 Remote access 提示。
 4. 回到 GUI 重新运行诊断；不要修改 Edge user-data 目录里的文件。
 
+## Remote debugging 一直停在 Starting
+
+症状：通过带远程调试参数的命令或快捷方式拉起 Edge，允许 Remote access 后，页面仍长期显示 `Starting`。
+
+1. 关闭这次由命令行参数拉起的 Edge 实例。
+2. 从桌面或开始菜单正常启动成员日常使用的默认 Edge 配置档。
+3. 打开 `edge://inspect`，进入 Remote debugging，并允许当前浏览器实例。
+4. 等待页面明确显示 `127.0.0.1:9222`，再回到 Copilot Bridge 绑定。
+
+Microsoft Edge 通用文档同时提供命令行参数和运行中浏览器页面授权两种方式，但 Copilot Bridge 团队 v1 的第二台电脑实测只把后一种作为支持路径。不要为绕过 `Starting` 修改 user-data 目录、企业策略或增加另一套浏览器自动化。
+
 ## Copilot 未登录
 
 症状：诊断识别到登录页、无 Copilot 输入框，或咨询返回登录相关错误。
@@ -57,4 +68,3 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\Install-CopilotBridge.
 ```
 
 不要手动删除 Codex 的全局配置，也不要复制其他成员的 Edge 配置档。
-
