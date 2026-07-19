@@ -139,21 +139,6 @@ Collaboration modes can only be changed manually in the GUI. v1 does not select 
 
 ## 本地开发 / Local development
 
-仓库有且只有一个生产项目、一个测试项目和一个生产可执行文件。不要恢复 Frozen 项目或增加第二套浏览器自动化。
-
-The repository is intentionally limited to one production project, one test project, and one production executable. Do not restore the Frozen project or add a second browser-automation stack.
-
-```powershell
-dotnet build CopilotBridge.sln
-dotnet test CopilotBridge.sln --no-build
-```
-
-生成内部 `win-x64` 自包含发布包。Build the internal self-contained `win-x64` release package:
-
-```powershell
-.\distribution\Build-Release.ps1
-```
-
 修改代码前必须完整阅读 [PROJECT-DESIGN.md](./PROJECT-DESIGN.md) 与 [EXECUTION-ROADMAP.md](./EXECUTION-ROADMAP.md)。
 
 Read [PROJECT-DESIGN.md](./PROJECT-DESIGN.md) and [EXECUTION-ROADMAP.md](./EXECUTION-ROADMAP.md) completely before changing code.
