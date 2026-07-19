@@ -16,13 +16,13 @@ Routine consultations do not simulate physical input, take foreground focus, or 
 
 | 项目 / Item | 状态 / Status |
 |---|---|
-| 版本 / Version | `1.0.0-rc.5` |
-| 发布状态 / Release status | 内部团队 v1 候选版 / Internal team v1 candidate |
+| 开发版本 / Development version | `1.1.0-dev` |
+| 发布状态 / Release status | 团队 v1 已通过；v1.1 会话工作台开发中 / Team v1 passed; v1.1 conversation workspace in development |
 | 已通过 / Passed | Phase 0–6 and G1–G8（本机隔离验收 / local isolated acceptance） |
 | 后续试点 / Follow-up pilot | 不同硬件、账号和企业策略环境 / Different hardware, account, and enterprise-policy environments |
 | 平台 / Platform | Windows 11 x64 |
 
-RC5 已达到项目定义的本机团队 v1 门禁，但不把本机隔离验收描述为跨设备兼容性证明。RC5 satisfies the project's local team-v1 gates, but local isolated acceptance is not presented as proof of cross-device compatibility.
+RC5 已达到项目定义的本机团队 v1 门禁，但不把本机隔离验收描述为跨设备兼容性证明。`1.1.0-dev` 尚未发布安装包；现有 RC5 下载仍是最后一个发布包。RC5 satisfies the project's local team-v1 gates, but local isolated acceptance is not presented as proof of cross-device compatibility. `1.1.0-dev` has not been packaged for release.
 
 ## 下载 / Download
 
@@ -99,8 +99,8 @@ Collaboration modes can only be changed manually in the GUI. v1 does not select 
 - 浏览器交互只使用 Edge CDP 与专用 Copilot 标签页中的 DOM。Browser interaction uses Edge CDP and the DOM of the dedicated Copilot tab only.
 - 不使用 Computer Use、OCR、Windows UI Automation 或物理输入模拟作为生产兜底。Computer Use, OCR, Windows UI Automation, and physical input simulation are not production fallbacks.
 - 点击发送后的状态不确定时绝不自动重发。The bridge never resubmits after the submit state becomes uncertain.
-- 默认只保存咨询 ID、时间、模式、模型、状态和 conversation URL 等本地元数据。By default, only local metadata such as consultation ID, time, mode, model, status, and conversation URL is stored.
-- 不默认保存问题正文、回复正文、页面 HTML、Cookie 或令牌。Prompt bodies, reply bodies, page HTML, cookies, and tokens are not persisted by default.
+- v1.1 的即时会话会在用户选择的本地工作区保存 Bridge 发送和接收的 Markdown 正文，并附带实际模型与状态；不会自动导入旧网页历史。v1.1 immediate conversations persist Bridge-sent and received Markdown in the user-selected local workspace, including the effective model and status; existing web history is never imported automatically.
+- 页面 HTML、Cookie、令牌和其他 Edge 标签页正文仍不会保存。Page HTML, cookies, tokens, and content from other Edge tabs are never persisted.
 - 不提供在线更新、遥测后台、团队账号托管或管理员策略绕过。There is no online updater, telemetry backend, shared-account hosting, or administrator-policy bypass.
 
 ## 文档 / Documentation

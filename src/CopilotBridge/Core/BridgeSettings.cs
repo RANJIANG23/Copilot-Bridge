@@ -37,6 +37,13 @@ internal sealed record BridgeSettings
     public CollaborationMode CollaborationMode { get; init; } = CollaborationMode.Assist;
 
     public string? BoundConversationUrl { get; init; }
+
+    public string ConversationWorkspaceDirectory { get; init; } = Path.Combine(
+        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+        "CopilotBridge",
+        "workspace");
+
+    public bool StoreConversationContent { get; init; } = true;
 }
 
 internal sealed class SettingsStore
@@ -115,6 +122,11 @@ internal sealed class SettingsStore
         if (string.IsNullOrWhiteSpace(settings.EdgeUserDataDirectory))
         {
             throw new InvalidDataException("Edge user-data directory is required.");
+        }
+
+        if (string.IsNullOrWhiteSpace(settings.ConversationWorkspaceDirectory))
+        {
+            throw new InvalidDataException("Conversation workspace directory is required.");
         }
 
         if (settings.MenuMinimumWaitMilliseconds < 0 ||

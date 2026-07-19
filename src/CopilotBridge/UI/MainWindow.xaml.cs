@@ -1,5 +1,6 @@
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Input;
 using System.Windows.Media;
 using CopilotBridge.Browser;
 using CopilotBridge.Core;
@@ -12,21 +13,24 @@ public partial class MainWindow : Window
     private readonly ConsultationStateStore _stateStore = new();
     private readonly ProviderSelectors _selectors = ProviderSelectors.Load();
     private BridgeSettings _settings = new();
+    private ConversationWorkspaceStore _workspace = new();
+    private IReadOnlyList<WorkspaceProject> _projects = [];
+    private ConversationDocument? _selectedConversation;
+    private string _activeProjectId = ConversationWorkspaceStore.InboxProjectId;
     private EdgeSessionAdapter? _session;
     private bool _busy;
+    private Point _conversationDragStart;
 
-    public MainWindow()
-    {
-        InitializeComponent();
-    }
+    public MainWindow() => InitializeComponent();
 
     private async void Window_Loaded(object sender, RoutedEventArgs e)
     {
         try
         {
             _settings = await _settingsStore.LoadAsync();
+            _workspace = new ConversationWorkspaceStore(_settings.ConversationWorkspaceDirectory);
             ApplySettingsToControls();
-            ApplyRecentRecord(await _stateStore.FindMostRecentAsync());
+            await RefreshWorkspaceAsync();
             await RefreshStatusAsync();
         }
         catch (Exception exception)
@@ -36,33 +40,25 @@ public partial class MainWindow : Window
         }
     }
 
-    private void Navigation_Click(object sender, RoutedEventArgs e)
+    private async void Navigation_Click(object sender, RoutedEventArgs e)
     {
-        if (sender is not Button button || button.Tag is not string page)
-        {
-            return;
-        }
-
+        if (sender is not Button button || button.Tag is not string page) return;
         OverviewPanel.Visibility = page == "overview" ? Visibility.Visible : Visibility.Collapsed;
         HistoryPanel.Visibility = page == "history" ? Visibility.Visible : Visibility.Collapsed;
         CollaborationPanel.Visibility = page == "collaboration" ? Visibility.Visible : Visibility.Collapsed;
         BrowserPanel.Visibility = page == "browser" ? Visibility.Visible : Visibility.Collapsed;
-
         SetNavState(OverviewNav, page == "overview");
         SetNavState(HistoryNav, page == "history");
         SetNavState(CollaborationNav, page == "collaboration");
         SetNavState(BrowserNav, page == "browser");
+        if (page == "history") await RefreshWorkspaceAsync();
     }
 
     private async void Refresh_Click(object sender, RoutedEventArgs e) => await RefreshStatusAsync();
 
     private async void Bind_Click(object sender, RoutedEventArgs e)
     {
-        if (_busy)
-        {
-            return;
-        }
-
+        if (_busy) return;
         SetBusy(true, _session is null ? "等待 Edge 授权" : "正在绑定标签页");
         try
         {
@@ -79,42 +75,28 @@ public partial class MainWindow : Window
             SetDisconnectedState();
             ShowNotice(FriendlyMessage(exception), NoticeKind.Error);
         }
-        finally
-        {
-            SetBusy(false, "就绪");
-        }
+        finally { SetBusy(false, "就绪"); }
     }
 
     private async void Save_Click(object sender, RoutedEventArgs e)
     {
-        if (_busy)
-        {
-            return;
-        }
-
+        if (_busy) return;
         try
         {
             await SaveSettingsFromControlsAsync();
             ShowNotice("设置已保存，将从下一次咨询开始生效。", NoticeKind.Success);
             HeaderStatusText.Text = "设置已保存";
         }
-        catch (Exception exception)
-        {
-            ShowNotice(FriendlyMessage(exception), NoticeKind.Error);
-        }
+        catch (Exception exception) { ShowNotice(FriendlyMessage(exception), NoticeKind.Error); }
     }
 
     private async void Test_Click(object sender, RoutedEventArgs e)
     {
-        if (_busy)
-        {
-            return;
-        }
-
+        if (_busy) return;
         var prompt = TestPromptTextBox.Text.Trim();
         if (prompt.Length == 0)
         {
-            ShowNotice("请先输入测试问题。", NoticeKind.Error);
+            ShowNotice("请先输入即时咨询内容。", NoticeKind.Error);
             return;
         }
 
@@ -131,13 +113,14 @@ public partial class MainWindow : Window
             await SaveSettingsFromControlsAsync();
             if (_settings.ConsultationPolicy == ConsultationPolicy.Disabled)
             {
-                throw new InvalidOperationException("征询策略当前为“关闭”，请先在协作页调整。 ");
+                throw new InvalidOperationException("征询策略当前为“关闭”，请先在协作页调整。");
             }
 
-            if (_settings.CollaborationMode != CollaborationMode.Review &&
-                string.IsNullOrWhiteSpace(_settings.BoundConversationUrl))
+            var conversation = _selectedConversation ?? await CreateImmediateConversationAsync();
+            var primaryUrl = conversation.CopilotConversationUrl ?? _settings.BoundConversationUrl;
+            if (_settings.CollaborationMode != CollaborationMode.Review && string.IsNullOrWhiteSpace(primaryUrl))
             {
-                throw new InvalidOperationException("请先绑定一个专用 Copilot 标签页。");
+                throw new InvalidOperationException("请先绑定一个专用 Copilot 标签页。 ");
             }
 
             var session = await GetSessionAsync();
@@ -146,73 +129,226 @@ public partial class MainWindow : Window
                     prompt,
                     _settings.CollaborationMode,
                     0,
-                    _settings.BoundConversationUrl,
+                    primaryUrl,
                     null,
                     null));
             var last = result.Responses.Last();
-            var id = Guid.NewGuid().ToString("N");
-            await _stateStore.SaveAsync(
-                id,
-                new ConsultationRecord
-                {
-                    Mode = _settings.CollaborationMode.ToString().ToLowerInvariant(),
-                    TurnCount = result.TurnCount,
-                    PrimaryConversationUrl = result.PrimaryConversationUrl,
-                    ComplexityConversationUrl = result.ComplexityConversationUrl,
-                    EvidenceConversationUrl = result.EvidenceConversationUrl,
-                    Status = "completed",
-                    LastModel = last.Result.Model
-                });
+            _selectedConversation = await _workspace.AppendRunAsync(conversation, result);
+
+            var id = _selectedConversation.Id;
+            await _stateStore.SaveAsync(id, new ConsultationRecord
+            {
+                Mode = _settings.CollaborationMode.ToString().ToLowerInvariant(),
+                TurnCount = result.TurnCount,
+                PrimaryConversationUrl = result.PrimaryConversationUrl,
+                ComplexityConversationUrl = result.ComplexityConversationUrl,
+                EvidenceConversationUrl = result.EvidenceConversationUrl,
+                Status = "completed",
+                LastModel = last.Result.Model
+            });
 
             if (result.PrimaryConversationUrl is not null)
             {
                 _settings = _settings with { BoundConversationUrl = result.PrimaryConversationUrl };
+                await _settingsStore.SaveAsync(_settings);
             }
-            await _settingsStore.SaveAsync(_settings);
+
             BoundUrlText.Text = _settings.BoundConversationUrl ?? "Review 使用两个隔离会话";
             TabStatusText.Text = session.Page.Url;
-            RecentTimeText.Text = DateTime.Now.ToString("HH:mm:ss");
-            RecentModelText.Text = string.Join(" / ", result.Responses.Select(item => item.Result.Model));
-            RecentStateText.Text = $"{_settings.CollaborationMode} 成功";
-            RecentReplyText.Text = string.Join(" | ", result.Responses.Select(item =>
-                $"{item.Reviewer}: {SingleLine(item.Result.ReplyMarkdown)}"));
             ModelStatusText.Text = last.Result.Model;
-            ShowNotice("当前模式咨询完成；只持久化 ID、URL、回合数、模型和状态，不保存正文。", NoticeKind.Success);
+            await RefreshWorkspaceAsync(_selectedConversation.Id);
+            ShowNotice("即时会话已保存为本地 Markdown；不会自动读取旧网页历史。", NoticeKind.Success);
         }
         catch (ReplyTimeoutException exception)
         {
-            RecentTimeText.Text = DateTime.Now.ToString("HH:mm:ss");
-            RecentStateText.Text = "回复超时";
-            RecentReplyText.Text = "消息已发送，不会自动重试";
             ShowNotice(exception.Message, NoticeKind.Error);
         }
         catch (SubmissionUnknownException exception)
         {
-            RecentTimeText.Text = DateTime.Now.ToString("HH:mm:ss");
-            RecentStateText.Text = "发送状态未知";
-            RecentReplyText.Text = "不会自动重试";
             ShowNotice(exception.Message, NoticeKind.Error);
         }
         catch (Exception exception)
         {
-            RecentTimeText.Text = DateTime.Now.ToString("HH:mm:ss");
-            RecentStateText.Text = "未发送";
-            RecentReplyText.Text = "可在修正问题后重试";
             ShowNotice(FriendlyMessage(exception), NoticeKind.Error);
         }
-        finally
+        finally { SetBusy(false, "就绪"); }
+    }
+
+    private async void NewProject_Click(object sender, RoutedEventArgs e)
+    {
+        try
         {
-            SetBusy(false, "就绪");
+            var project = await _workspace.CreateProjectAsync(NewProjectTextBox.Text);
+            NewProjectTextBox.Clear();
+            _activeProjectId = project.Id;
+            await RefreshWorkspaceAsync();
+            SelectProject(project.Id);
+            ShowNotice($"已创建项目“{project.Name}”。", NoticeKind.Success);
         }
+        catch (Exception exception) { ShowNotice(FriendlyMessage(exception), NoticeKind.Error); }
+    }
+
+    private async void NewConversation_Click(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            _selectedConversation = await CreateImmediateConversationAsync();
+            await RefreshWorkspaceAsync(_selectedConversation.Id);
+            ShowNotice("已创建即时会话。输入内容后在概览页发送，正文会写入该会话。", NoticeKind.Success);
+        }
+        catch (Exception exception) { ShowNotice(FriendlyMessage(exception), NoticeKind.Error); }
+    }
+
+    private async void Project_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (ProjectListBox.SelectedItem is not WorkspaceProject project) return;
+        _activeProjectId = project.Id;
+        await RefreshConversationListAsync();
+    }
+
+    private void ConversationListBox_PreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e) =>
+        _conversationDragStart = e.GetPosition(ConversationListBox);
+
+    private void ConversationListBox_PreviewMouseMove(object sender, MouseEventArgs e)
+    {
+        if (e.LeftButton != MouseButtonState.Pressed || ConversationListBox.SelectedItem is not ConversationSummary summary) return;
+        var position = e.GetPosition(ConversationListBox);
+        if (Math.Abs(position.X - _conversationDragStart.X) < SystemParameters.MinimumHorizontalDragDistance &&
+            Math.Abs(position.Y - _conversationDragStart.Y) < SystemParameters.MinimumVerticalDragDistance) return;
+        DragDrop.DoDragDrop(ConversationListBox, summary.Id, DragDropEffects.Move);
+    }
+
+    private async void ProjectListBox_Drop(object sender, DragEventArgs e)
+    {
+        if (!e.Data.GetDataPresent(DataFormats.StringFormat) ||
+            e.Data.GetData(DataFormats.StringFormat) is not string conversationId) return;
+        var target = FindParent<ListBoxItem>(e.OriginalSource as DependencyObject)?.DataContext as WorkspaceProject;
+        if (target is null) return;
+        var document = await _workspace.FindAsync(conversationId);
+        if (document is null || document.ProjectId == target.Id) return;
+        _selectedConversation = await _workspace.MoveAsync(document, target.Id);
+        _activeProjectId = target.Id;
+        await RefreshWorkspaceAsync(_selectedConversation.Id);
+        ShowNotice("会话 Markdown 已拖入项目文件夹。", NoticeKind.Success);
+    }
+
+    private async void Conversation_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (ConversationListBox.SelectedItem is not ConversationSummary summary) return;
+        _selectedConversation = await _workspace.FindAsync(summary.Id);
+        DisplayConversation(_selectedConversation);
+    }
+
+    private async void RenameConversation_Click(object sender, RoutedEventArgs e)
+    {
+        if (_selectedConversation is null) return;
+        try
+        {
+            _selectedConversation = await _workspace.RenameAsync(_selectedConversation, ConversationTitleTextBox.Text);
+            await RefreshWorkspaceAsync(_selectedConversation.Id);
+            ShowNotice("本地显示名称已更新；Copilot 网页标题仍被保留。", NoticeKind.Success);
+        }
+        catch (Exception exception) { ShowNotice(FriendlyMessage(exception), NoticeKind.Error); }
+    }
+
+    private async void MoveConversation_Click(object sender, RoutedEventArgs e)
+    {
+        if (_selectedConversation is null || MoveProjectComboBox.SelectedValue is not string projectId) return;
+        try
+        {
+            _selectedConversation = await _workspace.MoveAsync(_selectedConversation, projectId);
+            _activeProjectId = projectId;
+            await RefreshWorkspaceAsync(_selectedConversation.Id);
+            ShowNotice("会话 Markdown 已移动到所选项目文件夹。", NoticeKind.Success);
+        }
+        catch (Exception exception) { ShowNotice(FriendlyMessage(exception), NoticeKind.Error); }
+    }
+
+    private void SearchConversation_Click(object sender, RoutedEventArgs e)
+    {
+        if (_selectedConversation is null) return;
+        var query = ConversationSearchTextBox.Text.Trim();
+        var results = _workspace.Search(_selectedConversation, query);
+        SearchResultsText.Text = results.Count == 0
+            ? (query.Length == 0 ? "请输入关键词。" : "未命中当前会话。")
+            : string.Join(Environment.NewLine + Environment.NewLine, results.Select(result =>
+                $"{result.Turn.Timestamp.LocalDateTime:MM-dd HH:mm} · {result.Turn.Role} · " +
+                $"{result.Turn.Model ?? "—"}{Environment.NewLine}{result.Snippet}"));
+    }
+
+    private void CopyConversation_Click(object sender, RoutedEventArgs e)
+    {
+        if (_selectedConversation is null) return;
+        Clipboard.SetText(_workspace.Render(_selectedConversation));
+        ShowNotice("当前会话 Markdown 已复制，可粘贴到 Codex 或其他工具。", NoticeKind.Success);
+    }
+
+    private async Task<ConversationDocument> CreateImmediateConversationAsync()
+    {
+        var conversation = await _workspace.CreateConversationAsync(_activeProjectId);
+        conversation = conversation with
+        {
+            Mode = _settings.CollaborationMode.ToString().ToLowerInvariant(),
+            CopilotConversationUrl = $"https://{_selectors.AllowedHost}/chat/"
+        };
+        await _workspace.SaveAsync(conversation);
+        return conversation;
+    }
+
+    private async Task RefreshWorkspaceAsync(string? selectConversationId = null)
+    {
+        _projects = await _workspace.GetProjectsAsync();
+        ProjectListBox.ItemsSource = _projects;
+        MoveProjectComboBox.ItemsSource = _projects;
+        if (_projects.All(project => project.Id != _activeProjectId)) _activeProjectId = ConversationWorkspaceStore.InboxProjectId;
+        SelectProject(_activeProjectId);
+        await RefreshConversationListAsync(selectConversationId);
+    }
+
+    private async Task RefreshConversationListAsync(string? selectConversationId = null)
+    {
+        var conversations = await _workspace.GetConversationsAsync(_activeProjectId);
+        ConversationListBox.ItemsSource = conversations;
+        var target = selectConversationId ?? _selectedConversation?.Id;
+        var selected = conversations.FirstOrDefault(item => item.Id == target);
+        if (selected is not null)
+        {
+            ConversationListBox.SelectedItem = selected;
+            _selectedConversation = await _workspace.FindAsync(selected.Id);
+        }
+        else
+        {
+            _selectedConversation = null;
+        }
+        DisplayConversation(_selectedConversation);
+    }
+
+    private void SelectProject(string projectId)
+    {
+        ProjectListBox.SelectedItem = _projects.FirstOrDefault(project => project.Id == projectId);
+    }
+
+    private void DisplayConversation(ConversationDocument? document)
+    {
+        var visible = document is not null;
+        ConversationEmptyText.Visibility = visible ? Visibility.Collapsed : Visibility.Visible;
+        ConversationDetailPanel.Visibility = visible ? Visibility.Visible : Visibility.Collapsed;
+        if (!visible) return;
+        ConversationTitleTextBox.Text = document!.DisplayTitle;
+        CopilotTitleText.Text = document.CopilotTitleCurrent;
+        CopilotTitleHistoryText.Text = document.CopilotTitleHistory.Count == 0
+            ? document.CopilotTitleInitial
+            : string.Join(" → ", document.CopilotTitleHistory);
+        ConversationMetaText.Text = $"{document.Mode} · {document.Turns.Count} 条记录 · {document.UpdatedAt.LocalDateTime:yyyy-MM-dd HH:mm}";
+        ConversationMarkdownTextBox.Text = _workspace.Render(document);
+        MoveProjectComboBox.SelectedValue = document.ProjectId;
+        ConversationSearchTextBox.Text = string.Empty;
+        SearchResultsText.Text = "";
     }
 
     private async Task RefreshStatusAsync()
     {
-        if (_busy)
-        {
-            return;
-        }
-
+        if (_busy) return;
         SetBusy(true, _session is null ? "等待 Edge 授权" : "正在刷新状态");
         try
         {
@@ -225,10 +361,7 @@ public partial class MainWindow : Window
             SetDisconnectedState();
             ShowNotice(FriendlyMessage(exception), NoticeKind.Error);
         }
-        finally
-        {
-            SetBusy(false, EdgeStatusText.Text == "已连接" ? "Edge 已连接" : "需要设置");
-        }
+        finally { SetBusy(false, EdgeStatusText.Text == "已连接" ? "Edge 已连接" : "需要设置"); }
     }
 
     private async Task ReadConnectedStatusAsync(EdgeSessionAdapter session)
@@ -244,26 +377,15 @@ public partial class MainWindow : Window
 
     private async Task<EdgeSessionAdapter> GetSessionAsync()
     {
-        if (_session is not null && !_session.Page.IsClosed)
-        {
-            return _session;
-        }
-
+        if (_session is not null && !_session.Page.IsClosed) return _session;
         await ResetSessionAsync();
-        _session = await EdgeSessionAdapter.ConnectAsync(
-            _settings,
-            _selectors,
-            timeoutMilliseconds: 30_000);
+        _session = await EdgeSessionAdapter.ConnectAsync(_settings, _selectors, timeoutMilliseconds: 30_000);
         return _session;
     }
 
     private async Task ResetSessionAsync()
     {
-        if (_session is null)
-        {
-            return;
-        }
-
+        if (_session is null) return;
         await _session.DisposeAsync();
         _session = null;
     }
@@ -291,20 +413,21 @@ public partial class MainWindow : Window
         {
             throw new InvalidDataException("等待时间无效：最大等待必须大于或等于最短等待，回复超时必须大于 0。");
         }
-
+        var workspaceDirectory = WorkspaceDirectoryTextBox.Text.Trim();
+        if (workspaceDirectory.Length == 0) throw new InvalidDataException("本地会话工作区不能为空。");
         _settings = _settings with
         {
             MenuMinimumWaitMilliseconds = menuMinimum,
             MenuMaximumWaitMilliseconds = menuMaximum,
             ReplyTimeoutSeconds = replyTimeout,
             ConsultationPolicy = (ConsultationPolicy)Math.Max(0, PolicyComboBox.SelectedIndex),
-            CollaborationMode = ReviewRadio.IsChecked == true
-                ? CollaborationMode.Review
-                : OutsourceRadio.IsChecked == true
-                    ? CollaborationMode.Outsource
-                    : CollaborationMode.Assist
+            CollaborationMode = ReviewRadio.IsChecked == true ? CollaborationMode.Review :
+                OutsourceRadio.IsChecked == true ? CollaborationMode.Outsource : CollaborationMode.Assist,
+            ConversationWorkspaceDirectory = workspaceDirectory
         };
         await _settingsStore.SaveAsync(_settings);
+        _workspace = new ConversationWorkspaceStore(_settings.ConversationWorkspaceDirectory);
+        await RefreshWorkspaceAsync();
     }
 
     private void ApplySettingsToControls()
@@ -316,16 +439,8 @@ public partial class MainWindow : Window
         MenuMinimumTextBox.Text = _settings.MenuMinimumWaitMilliseconds.ToString();
         MenuMaximumTextBox.Text = _settings.MenuMaximumWaitMilliseconds.ToString();
         ReplyTimeoutTextBox.Text = _settings.ReplyTimeoutSeconds.ToString();
+        WorkspaceDirectoryTextBox.Text = _settings.ConversationWorkspaceDirectory;
         BoundUrlText.Text = _settings.BoundConversationUrl ?? "未绑定";
-    }
-
-    private void ApplyRecentRecord(ConsultationRecord? record)
-    {
-        if (record is null) return;
-        RecentTimeText.Text = record.UpdatedAt.LocalDateTime.ToString("MM-dd HH:mm");
-        RecentModelText.Text = record.LastModel ?? "—";
-        RecentStateText.Text = $"{record.Mode} · {record.Status}";
-        RecentReplyText.Text = "正文未保存";
     }
 
     private void SetBusy(bool busy, string status)
@@ -338,65 +453,39 @@ public partial class MainWindow : Window
         TestButton.IsEnabled = !busy;
         SaveCollaborationButton.IsEnabled = !busy;
         SaveBrowserButton.IsEnabled = !busy;
+        NewProjectButton.IsEnabled = !busy;
+        NewConversationButton.IsEnabled = !busy;
     }
 
     private void ShowNotice(string message, NoticeKind kind)
     {
         NoticeText.Text = message;
         NoticeBorder.Visibility = Visibility.Visible;
-        NoticeBorder.Background = Brush(kind switch
-        {
-            NoticeKind.Success => "#EAF7EF",
-            NoticeKind.Error => "#FFF0F0",
-            _ => "#FFF4E5"
-        });
-        NoticeBorder.BorderBrush = Brush(kind switch
-        {
-            NoticeKind.Success => "#B9E5C9",
-            NoticeKind.Error => "#F3C0C0",
-            _ => "#FFD7A3"
-        });
-        NoticeText.Foreground = Brush(kind switch
-        {
-            NoticeKind.Success => "#176B3A",
-            NoticeKind.Error => "#9B2C2C",
-            _ => "#7A4A0A"
-        });
+        NoticeBorder.Background = Brush(kind switch { NoticeKind.Success => "#EAF7EF", NoticeKind.Error => "#FFF0F0", _ => "#FFF4E5" });
+        NoticeBorder.BorderBrush = Brush(kind switch { NoticeKind.Success => "#B9E5C9", NoticeKind.Error => "#F3C0C0", _ => "#FFD7A3" });
+        NoticeText.Foreground = Brush(kind switch { NoticeKind.Success => "#176B3A", NoticeKind.Error => "#9B2C2C", _ => "#7A4A0A" });
     }
 
     private void ClearNotice() => NoticeBorder.Visibility = Visibility.Collapsed;
-
-    private static void SetNavState(Button button, bool selected)
+    private static void SetNavState(Button button, bool selected) { button.Background = Brush(selected ? "#EAF3FF" : "#00FFFFFF"); button.Foreground = Brush(selected ? "#0A6CFF" : "#4D5868"); }
+    private static SolidColorBrush Brush(string value) => new((Color)ColorConverter.ConvertFromString(value));
+    private static T? FindParent<T>(DependencyObject? current) where T : DependencyObject
     {
-        button.Background = Brush(selected ? "#EAF3FF" : "#00FFFFFF");
-        button.Foreground = Brush(selected ? "#0A6CFF" : "#4D5868");
+        while (current is not null)
+        {
+            if (current is T match) return match;
+            current = VisualTreeHelper.GetParent(current);
+        }
+        return null;
     }
-
-    private static SolidColorBrush Brush(string value) =>
-        new((Color)ColorConverter.ConvertFromString(value));
-
     private static string FriendlyMessage(Exception exception) => exception.Message switch
     {
-        var message when message.Contains("DevToolsActivePort", StringComparison.OrdinalIgnoreCase) =>
-            "Edge 远程调试尚未开启。请在 edge://inspect 的 Remote debugging 页面允许当前浏览器实例。",
-        var message when message.Contains("No eligible", StringComparison.OrdinalIgnoreCase) =>
-            "没有发现可用的 Microsoft 365 Copilot 聊天标签页。请先打开 https://m365.cloud.microsoft/chat/。",
-        var message when message.Contains("Found", StringComparison.OrdinalIgnoreCase) &&
-                         message.Contains("eligible Copilot tabs", StringComparison.OrdinalIgnoreCase) =>
-            "发现多个 Copilot 聊天标签页。请只保留一个专用标签页后重试。",
-        var message when message.Contains("Timeout", StringComparison.OrdinalIgnoreCase) &&
-                         message.Contains("ws connecting", StringComparison.OrdinalIgnoreCase) =>
-            "等待 Edge 允许远程访问超时。请在 Edge 中选择“允许”，然后点击刷新状态；本次运行的后续操作会复用同一连接。",
+        var message when message.Contains("DevToolsActivePort", StringComparison.OrdinalIgnoreCase) => "Edge 远程调试尚未开启。请在 edge://inspect 的 Remote debugging 页面允许当前浏览器实例。",
+        var message when message.Contains("No eligible", StringComparison.OrdinalIgnoreCase) => "没有发现可用的 Microsoft 365 Copilot 聊天标签页。请先打开 https://m365.cloud.microsoft/chat/。",
+        var message when message.Contains("Found", StringComparison.OrdinalIgnoreCase) && message.Contains("eligible Copilot tabs", StringComparison.OrdinalIgnoreCase) => "发现多个 Copilot 聊天标签页。请只保留一个专用标签页后重试。",
+        var message when message.Contains("Timeout", StringComparison.OrdinalIgnoreCase) && message.Contains("ws connecting", StringComparison.OrdinalIgnoreCase) => "等待 Edge 允许远程访问超时。请在 Edge 中选择“允许”，然后点击刷新状态；本次运行的后续操作会复用同一连接。",
         _ => exception.Message
     };
 
-    private static string SingleLine(string value) =>
-        string.Join(' ', value.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries));
-
-    private enum NoticeKind
-    {
-        Info,
-        Success,
-        Error
-    }
+    private enum NoticeKind { Info, Success, Error }
 }

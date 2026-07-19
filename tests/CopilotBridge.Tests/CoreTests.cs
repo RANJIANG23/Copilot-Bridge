@@ -405,6 +405,68 @@ public sealed class CoreTests
     }
 
     [Fact]
+    public async Task ConversationWorkspaceStoresImmediateMarkdownAndKeepsStableIdentityAcrossRenameAndMove()
+    {
+        var root = Path.Combine(Path.GetTempPath(), "CopilotBridge.Tests", Guid.NewGuid().ToString("N"));
+        var store = new ConversationWorkspaceStore(root);
+        try
+        {
+            var project = await store.CreateProjectAsync("项目一");
+            var conversation = await store.CreateConversationAsync(ConversationWorkspaceStore.InboxProjectId);
+            conversation = conversation with
+            {
+                CopilotConversationUrl = "https://m365.cloud.microsoft/chat/conversation/conversation-1",
+                CopilotConversationId = "conversation-1",
+                CopilotTitleInitial = "网页原标题",
+                CopilotTitleCurrent = "网页当前标题"
+            };
+            await store.SaveAsync(conversation);
+
+            var result = new CollaborationRunResult(
+                [new ReviewerResult(
+                    "primary",
+                    "# 任务\n\n请检查方案。",
+                    new AssistResult(
+                        "Opus",
+                        "# 结论\n\n方案可行。",
+                        conversation.CopilotConversationUrl,
+                        1,
+                        1,
+                        false))],
+                1,
+                conversation.CopilotConversationUrl,
+                null,
+                null);
+            conversation = await store.AppendRunAsync(conversation, result);
+
+            Assert.Equal("conversation-1", conversation.CopilotConversationId);
+            Assert.Equal(2, conversation.Turns.Count);
+            Assert.Single(store.Search(conversation, "方案可行"));
+            var beforeMove = Path.Combine(root, ConversationWorkspaceStore.InboxProjectId, $"conversation-{conversation.Id}.md");
+            var markdown = await File.ReadAllTextAsync(beforeMove);
+            Assert.Contains("# 任务", markdown);
+            Assert.Contains("# 结论", markdown);
+            Assert.Contains("实际模型：`Opus`", markdown);
+
+            conversation = await store.RenameAsync(conversation, "本地项目标题");
+            conversation = await store.MoveAsync(conversation, project.Id);
+            var restored = await store.FindAsync(conversation.Id);
+
+            Assert.NotNull(restored);
+            Assert.Equal("本地项目标题", restored.DisplayTitle);
+            Assert.Equal("网页原标题", restored.CopilotTitleInitial);
+            Assert.Equal("网页当前标题", restored.CopilotTitleCurrent);
+            Assert.Equal(project.Id, restored.ProjectId);
+            Assert.False(File.Exists(beforeMove));
+            Assert.True(File.Exists(Path.Combine(root, project.Id, $"conversation-{conversation.Id}.md")));
+        }
+        finally
+        {
+            if (Directory.Exists(root)) Directory.Delete(root, true);
+        }
+    }
+
+    [Fact]
     public void DefaultConsultationStateIsPerUserLocalData()
     {
         var store = new ConsultationStateStore();

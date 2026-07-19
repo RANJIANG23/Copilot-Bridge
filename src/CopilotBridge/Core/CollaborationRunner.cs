@@ -11,7 +11,7 @@ internal sealed record CollaborationContext(
     string? ComplexityConversationUrl,
     string? EvidenceConversationUrl);
 
-internal sealed record ReviewerResult(string Reviewer, AssistResult Result);
+internal sealed record ReviewerResult(string Reviewer, string RequestMarkdown, AssistResult Result);
 
 internal sealed record CollaborationRunResult(
     IReadOnlyList<ReviewerResult> Responses,
@@ -88,7 +88,7 @@ internal sealed class CollaborationRunner
 
         var result = await _execute(new AssistRequest(context.Prompt, context.PrimaryConversationUrl));
         return new CollaborationRunResult(
-            [new ReviewerResult("primary", result)],
+            [new ReviewerResult("primary", context.Prompt, result)],
             context.TurnCount + 1,
             result.ConversationUrl,
             null,
@@ -97,24 +97,26 @@ internal sealed class CollaborationRunner
 
     private async Task<CollaborationRunResult> RunReviewAsync(CollaborationContext context)
     {
-        var complexity = await _execute(new AssistRequest(
-            RolePrompt(
+        var complexityPrompt = RolePrompt(
                 "Reviewer A — Complexity and boundaries",
                 "Independently examine complexity, scope boundaries, and simpler alternatives.",
-                context.Prompt),
+                context.Prompt);
+        var complexity = await _execute(new AssistRequest(
+            complexityPrompt,
             context.ComplexityConversationUrl ?? _newConversationUrl));
-        var first = new ReviewerResult("complexity", complexity);
+        var first = new ReviewerResult("complexity", complexityPrompt, complexity);
 
         try
         {
-            var evidence = await _execute(new AssistRequest(
-                RolePrompt(
+            var evidencePrompt = RolePrompt(
                     "Reviewer B — Failure modes and evidence",
                     "Independently examine failure modes, evidence quality, and verifiability.",
-                    context.Prompt),
+                    context.Prompt);
+            var evidence = await _execute(new AssistRequest(
+                evidencePrompt,
                 context.EvidenceConversationUrl ?? _newConversationUrl));
             return new CollaborationRunResult(
-                [first, new ReviewerResult("evidence", evidence)],
+                [first, new ReviewerResult("evidence", evidencePrompt, evidence)],
                 context.TurnCount + 1,
                 null,
                 complexity.ConversationUrl,
