@@ -20,21 +20,17 @@ Routine consultations do not simulate physical input, take foreground focus, or 
 
 ### 下载 / Download
 
-从 [GitHub Releases](https://github.com/RANJIANG23/Copilot-Bridge/releases/tag/v1.0.0-rc.5) 下载以下两个文件。Download both files from [GitHub Releases](https://github.com/RANJIANG23/Copilot-Bridge/releases/tag/v1.0.0-rc.5):
+从 [GitHub Releases](https://github.com/RANJIANG23/Copilot-Bridge/releases) 下载以下两个同版本文件。Download both matching-version files from [GitHub Releases](https://github.com/RANJIANG23/Copilot-Bridge/releases):
 
-- `CopilotBridge-1.0.0-rc.5-win-x64.zip`
-- `CopilotBridge-1.0.0-rc.5-win-x64.zip.sha256`
+- `CopilotBridge-1.1.1-win-x64.zip`
+- `CopilotBridge-1.1.1-win-x64.zip.sha256`
 
-当前 ZIP SHA-256 / Current ZIP SHA-256:
-
-```text
-b31bb22178356fd94b707db77f29f8f00bee5aa450d3c751e4f791e6b9714a23
-```
+ZIP 的 SHA-256 位于同名 `.sha256` 文件中。The ZIP SHA-256 is supplied in its matching `.sha256` file.
 
 安装前可在 PowerShell 中核对。Verify it in PowerShell before installation:
 
 ```powershell
-(Get-FileHash .\CopilotBridge-1.0.0-rc.5-win-x64.zip -Algorithm SHA256).Hash.ToLowerInvariant()
+(Get-FileHash .\CopilotBridge-1.1.1-win-x64.zip -Algorithm SHA256).Hash.ToLowerInvariant()
 ```
 
 ### 使用前提 / Requirements
@@ -80,7 +76,7 @@ v1.0 established a complete, verifiable path from Codex to Microsoft 365 Copilot
 - **一次性发送保护**：发送状态不确定时绝不自动重发；GUI 与 MCP 并发写入会立即返回 busy，而非排队。**One-time submission protection:** uncertain submissions are never retried; concurrent GUI and MCP writes return busy instead of queuing.
 - **本机团队门禁**：Phase 0–6 与 G1–G8 已完成；真实日常 Edge 后台 Assist、十次唯一发送、MCP 接入、本机隔离安装/卸载与前台无抢占均已验证。**Local team gates:** Phase 0–6 and G1–G8 are complete, including real daily-Edge background Assist, ten unique submissions, MCP integration, isolated local install/uninstall, and no foreground takeover.
 
-当前可下载的稳定发布包是 RC5。The currently downloadable stable release package is RC5.
+当前源码版本的团队安装包为 1.1.1；每次安装前均应核对同名 `.sha256` 文件。The team installer for the current source version is 1.1.1; verify its matching `.sha256` file before installation.
 
 ## v1.1 会话工作台 / v1.1 conversation workspace
 
