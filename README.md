@@ -78,13 +78,13 @@ v1.0 established a complete, verifiable path from Codex to Microsoft 365 Copilot
 
 当前源码版本的团队安装包为 1.1.1；每次安装前均应核对同名 `.sha256` 文件。The team installer for the current source version is 1.1.1; verify its matching `.sha256` file before installation.
 
-## v1.1 会话工作台 / v1.1 conversation workspace
+## v1.1.1 会话工作台与体验更新 / v1.1.1 workspace and usability update
 
-v1.1 把 Copilot Bridge 从“瞬时征询工具”扩展为受控的本地会话工作台：用户和获授权的本地 Agent 可以按会话、项目和选定范围复用 Microsoft 365 Copilot 的 Markdown 上下文，同时继续使用用户自己的已登录 Edge，不采用反向代理、不绕过 Microsoft 验证，也不自动读取未授权的网页历史。
+v1.1.1 将 v1.1 的会话工作台整理为可供团队安装的版本：在继续使用用户已登录 Edge、仅通过 Edge CDP 与 DOM 操作明确绑定标签页的前提下，补齐了本地会话管理、模型与轮次设置、深浅主题可用性和团队诊断能力。它不使用反向代理、不绕过 Microsoft 验证，也不自动读取未授权的网页历史。
 
-v1.1 evolves Copilot Bridge from a transient consultation tool into a controlled local conversation workspace. Users and authorized local agents can reuse Microsoft 365 Copilot context by conversation, project, and explicitly selected scope while continuing to use the user's signed-in Edge session—without reverse proxying, bypassing Microsoft authentication, or silently importing existing web history.
+v1.1.1 packages the v1.1 conversation workspace for team installation. It retains the signed-in Edge session and operates only the explicitly bound tab through Edge CDP and DOM, while adding local conversation management, model and turn settings, light/dark-theme usability, and team diagnostics. It does not reverse proxy, bypass Microsoft authentication, or silently import unauthorized web history.
 
-### 已完成：Phase 7–10 / Delivered
+### 已完成 / Highlights
 
 - 新即时咨询完整保存为一会话一份 Markdown，包括实际发送内容、Copilot 回复、角色、时间和已验证模型。New immediate consultations are stored as one Markdown file per conversation, including the actual request, Copilot response, role, timestamp, and verified model.
 - “历史对话”升级为项目、会话列表和详情三栏工作台；支持创建项目、移动、改名、会话内关键词检索和复制 Markdown。The History area is now a three-pane workspace for projects, conversations, and conversation details, with project creation, moving, renaming, in-conversation search, and Markdown copy.
@@ -94,6 +94,11 @@ v1.1 evolves Copilot Bridge from a transient consultation tool into a controlled
 - GUI 支持中文和 English，并将语言选择写入本地设置。The GUI supports Chinese and English, with the language choice persisted locally.
 - 用户可以从“历史对话”显式导入当前唯一打开的旧 Copilot 对话：先查看标题、URL 和已加载消息数，确认后才保存为一份 Markdown。过程不会发送、滚动、导航或批量读取其他网页历史。Users can explicitly import the one currently open Copilot conversation from Conversation History: title, URL, and loaded-message count are previewed before a single Markdown file is saved. The flow does not send, scroll, navigate, or bulk-read other web history.
 - 导入的 Copilot 回复逐条标注为 `unknown` 模型状态，不会用当前页面模型反推历史模型；同一 Copilot URL 不会重复创建 Markdown。Imported Copilot replies are marked `unknown` per turn rather than inferred from the current page model; the same Copilot URL cannot create duplicate Markdown.
+- 项目与会话都支持右键重命名和删除；系统项目受保护，非空项目不会被级联删除，删除会话只影响本地 Markdown。Projects and conversations both support right-click rename and delete; system projects are protected, non-empty projects cannot be deleted recursively, and deleting a conversation affects only local Markdown.
+- “浏览器与模型”可拖动调整模型优先级，并可设置 1–20 的沟通轮次上限；本地会话工作区提供“浏览”按钮选择目录。Browser & Models supports drag-to-reorder model priority and a configurable 1–20 conversation-turn limit; the local workspace includes a Browse button for choosing a directory.
+- 深色主题下的右键菜单与文字保持可读；提示条可手动关闭且会自动消失；标签页绑定移至概览，工作区与即时咨询收拢到设置页。Dark-theme context menus and text remain readable; notices can be closed manually and dismiss automatically; tab binding is on Overview, while workspace and immediate consultation are consolidated in Settings.
+- MCP 诊断日志会复用同一长期运行进程的上下文，便于定位重复出现的 Edge 授权提示。MCP diagnostic logs retain context across the same long-running process to help identify repeated Edge authorization prompts.
+- 已发布 Windows x64 自包含安装包 `CopilotBridge-1.1.1-win-x64.zip`，并附带同名 SHA-256 校验文件。The Windows x64 self-contained package `CopilotBridge-1.1.1-win-x64.zip` is released with its matching SHA-256 file.
 
 ### 后续目标 / Next milestones
 
@@ -107,14 +112,14 @@ v1.1 evolves Copilot Bridge from a transient consultation tool into a controlled
 | 项目 / Item | 状态 / Status |
 |---|---|
 | 当前源码版本 / Current source version | `1.1.1` |
-| 发布状态 / Release status | 团队 v1 已通过；v1.1.1 源码已验证，安装包尚未发布 / Team v1 passed; v1.1.1 source verified, installer package not yet published |
+| 发布状态 / Release status | 团队 v1 已通过；v1.1.1 已发布，含 Windows x64 自包含安装包与 SHA-256 文件 / Team v1 passed; v1.1.1 released with the Windows x64 self-contained package and SHA-256 file |
 | 已通过 / Passed | Phase 0–6 and G1–G8（本机隔离验收 / local isolated acceptance） |
 | 后续试点 / Follow-up pilot | 不同硬件、账号和企业策略环境 / Different hardware, account, and enterprise-policy environments |
 | 平台 / Platform | Windows 11 x64 |
 
-RC5 已达到项目定义的本机团队 v1 门禁，但不把本机隔离验收描述为跨设备兼容性证明。`1.1.1` 尚未发布安装包；现有 RC5 下载仍是最后一个发布包。
+团队 v1 已达到项目定义的本机门禁，但不把本机隔离验收描述为跨设备兼容性证明。`1.1.1` 已作为 Windows x64 自包含安装包发布；安装前请核对 GitHub Release 中的同名 `.sha256` 文件。
 
-RC5 satisfies the project's local team-v1 gates, but local isolated acceptance is not presented as proof of cross-device compatibility. `1.1.1` has not been packaged for release.
+Team v1 satisfies the project's local gates, but local isolated acceptance is not presented as proof of cross-device compatibility. `1.1.1` is released as a Windows x64 self-contained package; verify the matching `.sha256` file in the GitHub Release before installation.
 
 ## 架构开发思路 / Architecture and design rationale
 
