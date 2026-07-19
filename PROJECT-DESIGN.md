@@ -2,7 +2,7 @@
 
 > 设计基线：v1.1.2
 > 日期：2026-07-20（Asia/Shanghai）
-> 状态：团队 v1 已通过；v1.1 会话工作台 Phase 7–10 已通过；v1.1.2 Phase 11–13 已通过，Phase 14 进行中
+> 状态：团队 v1 已通过；v1.1 会话工作台 Phase 7–10 已通过；v1.1.2 Phase 11–14 已通过并完成发布门禁
 > 工作名称：Copilot Bridge
 > 项目目录：本仓库根目录
 > 目标模式执行路线图：[EXECUTION-ROADMAP.md](./EXECUTION-ROADMAP.md)

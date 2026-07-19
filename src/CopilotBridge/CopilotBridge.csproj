@@ -18,6 +18,11 @@
 
   <ItemGroup>
     <EmbeddedResource Include="Resources\m365-copilot-web.json" />
+    <Resource Include="Resources\Fonts\NotoSansSC-VariableFont_wght.ttf" />
+    <Content Include="Resources\Fonts\OFL-NotoSansSC.txt">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <TargetPath>licenses\NotoSansSC-OFL.txt</TargetPath>
+    </Content>
   </ItemGroup>
 
 </Project>

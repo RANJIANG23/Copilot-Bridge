@@ -30,6 +30,7 @@ public partial class MainWindow : Window
     private string _activeProjectId = ConversationWorkspaceStore.StandaloneProjectId;
     private EdgeSessionAdapter? _session;
     private bool _busy;
+    private bool _statusRefreshInProgress;
     private Point _conversationDragStart;
     private Point _modelPriorityDragStart;
     private Point _projectDragStart;
@@ -71,7 +72,7 @@ public partial class MainWindow : Window
             ApplyUiLanguage();
             UpdateHistoryColumns();
             await RefreshWorkspaceAsync();
-            await RefreshStatusAsync();
+            await RefreshStatusAsync(automatic: true);
             ScheduleStatusRefresh();
         }
         catch (Exception exception)
@@ -117,6 +118,23 @@ public partial class MainWindow : Window
         {
             WorkspaceDirectoryTextBox.Text = dialog.FolderName;
         }
+    }
+
+    private void OpenWorkspace_Click(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            var input = WorkspaceDirectoryTextBox.Text.Trim();
+            if (input.Length == 0) throw new InvalidDataException(T("本地会话工作区不能为空。"));
+            var directory = Path.GetFullPath(Environment.ExpandEnvironmentVariables(input));
+            if (!Directory.Exists(directory))
+            {
+                throw new DirectoryNotFoundException(string.Format(T("本地会话工作区不存在：{0}"), directory));
+            }
+
+            Process.Start(new ProcessStartInfo { FileName = directory, UseShellExecute = true });
+        }
+        catch (Exception exception) { ShowNotice(FriendlyMessage(exception), NoticeKind.Error); }
     }
 
     private void PinTaskbar_Click(object sender, RoutedEventArgs e)
@@ -209,6 +227,11 @@ public partial class MainWindow : Window
     private async void Bind_Click(object sender, RoutedEventArgs e)
     {
         if (_busy) return;
+        if (_statusRefreshInProgress)
+        {
+            ShowNotice(T("状态刷新正在完成，请稍后再试。"), NoticeKind.Info);
+            return;
+        }
         SetBusy(true, _session is null ? "等待 Edge 授权" : "正在绑定标签页");
         try
         {
@@ -245,6 +268,11 @@ public partial class MainWindow : Window
     private async void Test_Click(object sender, RoutedEventArgs e)
     {
         if (_busy) return;
+        if (_statusRefreshInProgress)
+        {
+            ShowNotice(T("状态刷新正在完成，请稍后再试。"), NoticeKind.Info);
+            return;
+        }
         var prompt = TestPromptTextBox.Text.Trim();
         if (prompt.Length == 0)
         {
@@ -778,6 +806,11 @@ public partial class MainWindow : Window
     private async void ImportConversation_Click(object sender, RoutedEventArgs e)
     {
         if (_busy) return;
+        if (_statusRefreshInProgress)
+        {
+            ShowNotice(T("状态刷新正在完成，请稍后再试。"), NoticeKind.Info);
+            return;
+        }
         SetBusy(true, "正在读取旧对话预览");
         try
         {
@@ -824,12 +857,13 @@ public partial class MainWindow : Window
 
     private async Task RefreshStatusAsync(bool automatic = false)
     {
-        if (_busy)
+        if (_busy || _statusRefreshInProgress)
         {
             if (automatic) ScheduleStatusRefresh();
             return;
         }
-        SetBusy(true, _session is null ? "等待 Edge 授权" : "正在刷新状态");
+        _statusRefreshInProgress = true;
+        if (!automatic) SetBusy(true, _session is null ? "等待 Edge 授权" : "正在刷新状态");
         try
         {
             var session = await GetSessionAsync();
@@ -840,13 +874,14 @@ public partial class MainWindow : Window
         }
         catch (Exception exception)
         {
-            SetDisconnectedState();
+            if (!automatic) SetDisconnectedState();
             _consecutiveStatusRefreshFailures++;
             if (!automatic) ShowNotice(FriendlyMessage(exception), NoticeKind.Error);
         }
         finally
         {
-            SetBusy(false, EdgeStatusText.Text == T("已连接") ? "Edge 已连接" : "需要设置");
+            if (!automatic) SetBusy(false, EdgeStatusText.Text == T("已连接") ? "Edge 已连接" : "需要设置");
+            _statusRefreshInProgress = false;
             ScheduleStatusRefresh();
         }
     }
@@ -981,6 +1016,7 @@ public partial class MainWindow : Window
         SaveCollaborationButton.IsEnabled = !busy;
         SaveBrowserButton.IsEnabled = !busy;
         SaveSettingsButton.IsEnabled = !busy;
+        OpenWorkspaceButton.IsEnabled = !busy;
         BrowseWorkspaceButton.IsEnabled = !busy;
         ModelPriorityListBox.IsEnabled = !busy;
         LanguageComboBox.IsEnabled = !busy;
