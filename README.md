@@ -151,3 +151,7 @@ Read [PROJECT-DESIGN.md](./PROJECT-DESIGN.md) and [EXECUTION-ROADMAP.md](./EXECU
 本项目是独立工具，并非 Microsoft、OpenAI 或 Anthropic 的官方产品，不隶属于、代表或获得其背书。它通过用户自己的已登录 Microsoft Edge 会话工作；使用者必须仅在自己获授权的账号、租户和组织策略范围内使用，并自行评估适用的服务条款、数据处理、合规与安全要求。请勿通过本项目发送不应交给 Microsoft 365 Copilot 处理的敏感数据。本项目按“现状”提供，不提供可用性、安全性、合规性或适配任何环境的保证。
 
 This is an independent tool, not an official product of, affiliated with, representing, or endorsed by Microsoft, OpenAI, or Anthropic. It operates through the user's own signed-in Microsoft Edge session. Use it only with accounts, tenants, and organizational policies that authorize such use, and evaluate the applicable service terms, data handling, compliance, and security requirements yourself. Do not send sensitive data through this project if it should not be processed by Microsoft 365 Copilot. This project is provided "as is," without guarantees of availability, security, compliance, or suitability for any environment.
+
+作者为独立开发者，项目仍在持续学习、验证与迭代中。架构设计、工程实现及 Vibe Coding 实践可能存在不足，欢迎通过 Issue、Discussion 或 Pull Request 提出问题、改进建议与贡献。
+
+The author is an independent developer, and this project remains under active learning, validation, and iteration. Its architecture, engineering implementation, and Vibe Coding practices may have limitations. Issues, discussions, suggestions, and pull requests are welcome.
