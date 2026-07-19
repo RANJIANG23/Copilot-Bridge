@@ -42,6 +42,9 @@ Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'Uninstall-CopilotBridge.ps1') -
 Copy-Item -LiteralPath (Join-Path $repositoryRoot 'INSTALL.md') -Destination $stage
 Copy-Item -LiteralPath (Join-Path $repositoryRoot 'TEAM-ROLLOUT.md') -Destination $stage
 Copy-Item -LiteralPath (Join-Path $repositoryRoot 'TROUBLESHOOTING.md') -Destination $stage
+Copy-Item -LiteralPath (Join-Path $repositoryRoot 'LICENSE') -Destination $stage
+Copy-Item -LiteralPath (Join-Path $repositoryRoot 'NOTICE') -Destination $stage
+Copy-Item -LiteralPath (Join-Path $repositoryRoot 'THIRD-PARTY-NOTICES.md') -Destination $stage
 
 $manifestPath = Join-Path $stage 'SHA256SUMS.txt'
 $stagePrefixLength = $stage.TrimEnd('\').Length + 1

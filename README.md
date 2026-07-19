@@ -146,6 +146,12 @@ Bridge prioritizes user control, verifiability, and a minimal runtime boundary r
 
 Read [PROJECT-DESIGN.md](./PROJECT-DESIGN.md) and [EXECUTION-ROADMAP.md](./EXECUTION-ROADMAP.md) completely before changing code.
 
+## 许可证与贡献 / License and contributions
+
+本项目采用 [Apache License 2.0](./LICENSE) 发布。提交 Pull Request 前，请阅读[贡献指南](./CONTRIBUTING.md)；提交即表示你确认有权贡献，并同意你的贡献可按 Apache License 2.0 发布。第三方组件及其通知见 [THIRD-PARTY-NOTICES.md](./THIRD-PARTY-NOTICES.md)。
+
+This project is licensed under the [Apache License 2.0](./LICENSE). Before opening a pull request, read the [contribution guide](./CONTRIBUTING.md); by submitting a contribution, you confirm that you have the right to contribute it and agree that it may be distributed under Apache License 2.0. See [THIRD-PARTY-NOTICES.md](./THIRD-PARTY-NOTICES.md) for third-party components and notices.
+
 ## 说明 / Disclaimer
 
 本项目是独立工具，并非 Microsoft、OpenAI 或 Anthropic 的官方产品，不隶属于、代表或获得其背书。它通过用户自己的已登录 Microsoft Edge 会话工作；使用者必须仅在自己获授权的账号、租户和组织策略范围内使用，并自行评估适用的服务条款、数据处理、合规与安全要求。请勿通过本项目发送不应交给 Microsoft 365 Copilot 处理的敏感数据。本项目按“现状”提供，不提供可用性、安全性、合规性或适配任何环境的保证。
