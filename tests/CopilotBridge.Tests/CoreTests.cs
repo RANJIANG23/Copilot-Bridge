@@ -2,6 +2,7 @@ using CopilotBridge.Browser;
 using CopilotBridge.Core;
 using CopilotBridge.UI;
 using Microsoft.Playwright;
+using System.Diagnostics;
 using System.Text.Json;
 using Xunit;
 
@@ -166,7 +167,8 @@ public sealed class CoreTests
             MenuMaximumWaitMilliseconds = 250,
             ReplyTimeoutSeconds = 42,
             DisplayLanguage = AppLanguage.English,
-            Theme = AppTheme.Dark
+            Theme = AppTheme.Dark,
+            KeepMcpRunningInBackground = false
         };
 
         try
@@ -188,6 +190,41 @@ public sealed class CoreTests
             {
                 Directory.Delete(directory, false);
             }
+        }
+    }
+
+    [Fact]
+    public void BackgroundResidentDefaultsToEnabled()
+    {
+        Assert.True(new BridgeSettings().KeepMcpRunningInBackground);
+    }
+
+    [Fact]
+    public void McpProcessRegistrationRoundTripsAndCanBeRemoved()
+    {
+        var directory = Path.Combine(Path.GetTempPath(), "CopilotBridge.Tests", Guid.NewGuid().ToString("N"));
+        var registryPath = Path.Combine(directory, "mcp-processes.json");
+        try
+        {
+            using var process = Process.GetCurrentProcess();
+            var executablePath = Environment.ProcessPath ?? process.MainModule?.FileName
+                ?? throw new InvalidOperationException("Test process path is unavailable.");
+            var registry = new McpProcessRegistry(registryPath);
+            const int exitedProcessId = 999_999;
+            registry.Register(new McpProcessRegistration(exitedProcessId, executablePath, DateTimeOffset.Now));
+            registry.Register(new McpProcessRegistration(process.Id, executablePath, process.StartTime));
+
+            Assert.Contains($"\"processId\": {process.Id}", File.ReadAllText(registryPath));
+            Assert.DoesNotContain($"\"processId\": {exitedProcessId}", File.ReadAllText(registryPath));
+            Assert.Empty(registry.GetLiveRegistrations(executablePath));
+            registry.Unregister(process.Id);
+
+            Assert.DoesNotContain($"\"processId\": {process.Id}", File.ReadAllText(registryPath));
+            Assert.False(File.Exists(registryPath + ".tmp"));
+        }
+        finally
+        {
+            if (Directory.Exists(directory)) Directory.Delete(directory, true);
         }
     }
 

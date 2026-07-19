@@ -77,6 +77,8 @@ internal sealed record BridgeSettings
 
     public AppTheme Theme { get; init; } = AppTheme.Light;
 
+    public bool KeepMcpRunningInBackground { get; init; } = true;
+
     public string? BoundConversationUrl { get; init; }
 
     public string ConversationWorkspaceDirectory { get; init; } = Path.Combine(

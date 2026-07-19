@@ -15,6 +15,7 @@ internal static class McpHost
 
     internal static async Task<int> RunAsync()
     {
+        using var registration = new McpProcessRegistry().RegisterCurrentProcess();
         await using var tools = new CopilotBridgeTools();
         DiagnosticLog.WriteInfo(
             "mcp_server_started",

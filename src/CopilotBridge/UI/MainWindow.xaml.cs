@@ -1,4 +1,6 @@
 using System.Collections.ObjectModel;
+using System.ComponentModel;
+using System.Diagnostics;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
@@ -14,6 +16,7 @@ public partial class MainWindow : Window
 {
     private readonly SettingsStore _settingsStore = new();
     private readonly ConsultationStateStore _stateStore = new();
+    private readonly McpProcessRegistry _mcpProcessRegistry = new();
     private readonly ProviderSelectors _selectors = ProviderSelectors.Load();
     private readonly DispatcherTimer _statusRefreshTimer = new();
     private readonly DispatcherTimer _noticeTimer = new() { Interval = TimeSpan.FromSeconds(5) };
@@ -750,6 +753,33 @@ public partial class MainWindow : Window
         await ResetSessionAsync();
     }
 
+    protected override void OnClosing(CancelEventArgs e)
+    {
+        if (_settingsAreLoaded)
+        {
+            var executablePath = Environment.ProcessPath ?? Process.GetCurrentProcess().MainModule?.FileName;
+            if (!string.IsNullOrWhiteSpace(executablePath))
+            {
+                var registrations = _mcpProcessRegistry.GetLiveRegistrations(executablePath);
+                if (registrations.Count > 0)
+                {
+                    var shouldTerminate = !_settings.KeepMcpRunningInBackground ||
+                        MessageBox.Show(
+                            T("MCP 后台进程仍在运行。是否终止并关闭 GUI？"),
+                            T("后台常驻"),
+                            MessageBoxButton.YesNo,
+                            MessageBoxImage.Question) == MessageBoxResult.Yes;
+                    if (shouldTerminate)
+                    {
+                        _mcpProcessRegistry.TerminateRegisteredProcesses(executablePath);
+                    }
+                }
+            }
+        }
+
+        base.OnClosing(e);
+    }
+
     private void SetDisconnectedState()
     {
         EdgeStatusText.Text = T("未连接");
@@ -782,6 +812,7 @@ public partial class MainWindow : Window
                 OutsourceRadio.IsChecked == true ? CollaborationMode.Outsource : CollaborationMode.Assist,
             DisplayLanguage = LanguageComboBox.SelectedIndex == 1 ? AppLanguage.English : AppLanguage.Chinese,
             Theme = ThemeComboBox.SelectedIndex == (int)AppTheme.Dark ? AppTheme.Dark : AppTheme.Light,
+            KeepMcpRunningInBackground = KeepMcpRunningCheckBox.IsChecked == true,
             ConversationWorkspaceDirectory = workspaceDirectory
         };
         await _settingsStore.SaveAsync(_settings);
@@ -805,6 +836,7 @@ public partial class MainWindow : Window
         BoundUrlText.Text = _settings.BoundConversationUrl ?? T("未绑定");
         LanguageComboBox.SelectedIndex = (int)_settings.DisplayLanguage;
         ThemeComboBox.SelectedIndex = (int)_settings.Theme;
+        KeepMcpRunningCheckBox.IsChecked = _settings.KeepMcpRunningInBackground;
     }
 
     private void SetBusy(bool busy, string status)

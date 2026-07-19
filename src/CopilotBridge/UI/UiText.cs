@@ -88,6 +88,10 @@ internal static class UiText
         ["保存浏览器与模型设置"] = "Save browser and model settings",
         ["显示语言"] = "Display language",
         ["主题"] = "Theme",
+        ["后台常驻"] = "Background resident",
+        ["关闭 GUI 后保持 MCP 后台进程"] = "Keep the MCP background process after closing the GUI",
+        ["开启时，关闭 GUI 会询问是否终止 MCP；关闭时，关闭 GUI 会直接终止 Bridge 自己登记的 MCP 进程。"] = "When enabled, closing the GUI asks whether to stop MCP. When disabled, closing the GUI stops only MCP processes registered by this Bridge.",
+        ["MCP 后台进程仍在运行。是否终止并关闭 GUI？"] = "The MCP background process is still running. Stop it and close the GUI?",
         ["浅色（默认）"] = "Light (default)",
         ["深色（Codex）"] = "Dark (Codex)",
         ["深色主题采用 Codex 风格的低眩光深色画布。"] = "Dark theme uses a low-glare canvas inspired by Codex.",
@@ -206,6 +210,9 @@ internal static class UiText
                     break;
                 case RadioButton radio when radio.Content is string content:
                     radio.Content = Translate(content, language);
+                    break;
+                case CheckBox checkBox when checkBox.Content is string content:
+                    checkBox.Content = Translate(content, language);
                     break;
             }
 
