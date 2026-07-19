@@ -6,7 +6,7 @@
 
 发布者只需分发两项：
 
-- `CopilotBridge-1.1.2-win-x64.zip`
+- `CopilotBridge-1.2.0-win-x64.zip`
 - 同名 `.sha256` 文件
 
 不要从仓库的 `bin` 或 `obj` 目录拼装包，也不要单独发送 EXE。
@@ -24,6 +24,7 @@ G8 通过必须同时满足：
 - 隔离安装目录与开始菜单入口正确创建；
 - 隔离 marketplace 和 Plugin 正确登记并启用；
 - 安装后的 MCP 进程能够启动；
+- MCP 精确暴露 status、consult、search、read 四个工具，旧项目权限默认关闭；
 - 卸载后应用、快捷方式、Plugin 和 marketplace 均被清除；
 - 宿主 Codex 配置、其他 Plugin/marketplace 与用户数据保持不变；
 - 真实 Assist 返回非空回复、实际模型、consultation ID 和 conversation URL；
@@ -41,8 +42,9 @@ Edge 自身的 Remote access 授权提示可能进入前台并需要用户确认
 2. 使用自己的 Microsoft 365 企业账号登录 Edge 中的 Copilot。
 3. 从桌面或开始菜单正常启动默认 Edge 配置档，再在 `edge://inspect` 中启用当前实例的 Remote debugging；不要为 Bridge 使用命令行参数拉起 Edge。
 4. 在 Copilot Bridge GUI 完成诊断、绑定和设置保存。
-5. 关闭 GUI，新建 Codex 任务。
-6. 要求 Codex 执行一次 Assist，例如：`请使用 copilot-consult 对下面方案给出一次二次核验。`
+5. 如需复用本地历史，在“对话管理”中按项目显式设置 Agent 访问权限；不要把权限理解为外部发送授权。
+6. 关闭 GUI，新建 Codex 任务。
+7. 先确认授权项目可被窄检索和分页读取，再按需执行一次 Assist，例如：`请使用 copilot-consult 对下面方案给出一次二次核验。`
 
 ## v1 后团队试点建议
 

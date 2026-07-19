@@ -1,8 +1,8 @@
 # Microsoft Copilot 项目完整设计
 
-> 设计基线：v1.2.0-dev
+> 设计基线：v1.2.0 本地发布候选
 > 日期：2026-07-20（Asia/Shanghai）
-> 状态：v1.1.2 已发布；v1.2.0 Phase 15–18 已通过，项目感知检索、受控读取、上下文组织与本地留存纵切已闭环
+> 状态：v1.1.2 已发布；v1.2.0 Phase 15–19 已通过，本地候选包与隔离升级/回退门禁完成，尚未创建标签或发布
 > 工作名称：Copilot Bridge
 > 项目目录：本仓库根目录
 > 目标模式执行路线图：[EXECUTION-ROADMAP.md](./EXECUTION-ROADMAP.md)

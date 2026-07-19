@@ -1,15 +1,15 @@
 {
   "name": "copilot-bridge",
-  "version": "1.1.1",
-  "description": "Consult a signed-in Microsoft 365 Copilot from Codex through the local Copilot Bridge.",
+  "version": "1.2.0",
+  "description": "Reuse authorized local Copilot conversations or consult signed-in Microsoft 365 Copilot through the local Copilot Bridge.",
   "author": {
     "name": "Copilot Bridge Team"
   },
   "skills": "./skills/",
   "interface": {
     "displayName": "Copilot Bridge",
-    "shortDescription": "Ask Microsoft 365 Copilot for a second opinion.",
-    "longDescription": "Connects Codex to the locally installed Copilot Bridge, which uses the signed-in Microsoft 365 Copilot tab in the user's daily Edge profile.",
+    "shortDescription": "Reuse authorized Copilot history or ask for a second opinion.",
+    "longDescription": "Lets Codex search and read explicitly authorized local Copilot projects, and uses the signed-in Microsoft 365 Copilot tab in the user's daily Edge profile for explicit consultations.",
     "developerName": "Copilot Bridge Team",
     "category": "Productivity",
     "capabilities": ["Interactive", "Write"],

@@ -7,5 +7,10 @@ if (-not (Test-Path -LiteralPath $executable -PathType Leaf)) {
     exit 1
 }
 
-& $executable --mcp
+$arguments = @('--mcp')
+if (-not [string]::IsNullOrWhiteSpace($env:COPILOT_BRIDGE_SETTINGS_PATH)) {
+    $arguments += @('--settings-path', $env:COPILOT_BRIDGE_SETTINGS_PATH)
+}
+
+& $executable @arguments
 exit $LASTEXITCODE

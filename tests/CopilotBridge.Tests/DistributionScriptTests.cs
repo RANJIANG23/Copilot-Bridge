@@ -7,6 +7,30 @@ namespace CopilotBridge.Tests;
 public sealed class DistributionScriptTests
 {
     [Fact]
+    public void ReleaseMetadataTargetsVersion120()
+    {
+        var root = DistributionFixture.FindRepositoryRoot();
+        Assert.Contains("[string]$Version = '1.2.0'", File.ReadAllText(Path.Combine(root, "distribution", "Build-Release.ps1")));
+        Assert.Contains("<Version>1.2.0</Version>", File.ReadAllText(Path.Combine(root, "src", "CopilotBridge", "CopilotBridge.csproj")));
+        Assert.Contains("\"version\": \"1.2.0\"", File.ReadAllText(Path.Combine(
+            root,
+            "distribution",
+            "marketplace",
+            "plugins",
+            "copilot-bridge",
+            ".codex-plugin",
+            "plugin.json")));
+        Assert.Contains("COPILOT_BRIDGE_SETTINGS_PATH", File.ReadAllText(Path.Combine(
+            root,
+            "distribution",
+            "marketplace",
+            "plugins",
+            "copilot-bridge",
+            "scripts",
+            "start-mcp.ps1")));
+    }
+
+    [Fact]
     public async Task FailedPluginUpgradeRestoresPreviousApplicationAndPlugin()
     {
         using var fixture = DistributionFixture.Create();
@@ -234,7 +258,7 @@ public sealed class DistributionScriptTests
                 await errorTask);
         }
 
-        private static string FindRepositoryRoot()
+        internal static string FindRepositoryRoot()
         {
             for (var directory = new DirectoryInfo(AppContext.BaseDirectory);
                  directory is not null;

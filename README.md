@@ -120,9 +120,9 @@ v1.1.2 focuses on conversation management, a Copilot-inspired interface, and des
 
 ### v1.2.0 开发主线 / v1.2.0 development focus
 
-`1.1.2` 已完成 Phase 13–14 并正式发布。`1.2.0-dev` 已启动，核心主线是让 Codex 在用户按项目授权的范围内检索、读取和复用本地 Copilot 会话；现有 Edge/CDP/DOM 发送、协作模式和禁止自动重发边界保持不变。
+`1.1.2` 已完成 Phase 13–14 并正式发布。`1.2.0` 已完成 Phase 15–19 的本地发布候选门禁，核心主线是让 Codex 在用户按项目授权的范围内检索、读取和复用本地 Copilot 会话；现有 Edge/CDP/DOM 发送、协作模式和禁止自动重发边界保持不变。候选包尚未创建标签、推送或正式发布。
 
-`1.1.2` has completed Phases 13–14 and is released. `1.2.0-dev` is now underway, focused on allowing Codex to search, read, and reuse local Copilot conversations within project scopes explicitly authorized by the user. Existing Edge/CDP/DOM submission, collaboration-mode, and no-automatic-resend boundaries remain unchanged.
+`1.1.2` has completed Phases 13–14 and is released. The local `1.2.0` release candidate has passed Phases 15–19, allowing Codex to search, read, and reuse local Copilot conversations within project scopes explicitly authorized by the user. Existing Edge/CDP/DOM submission, collaboration-mode, and no-automatic-resend boundaries remain unchanged. No tag, push, or public release has been created for this candidate.
 
 - **默认关闭**：已有和新建项目默认不向 MCP 暴露。**Off by default:** existing and newly created projects are not exposed through MCP by default.
 - **四级权限**：用户可按项目选择关闭、元数据、检索片段或完整会话读取。**Four access levels:** users can choose off, metadata, search snippets, or full conversation reading per project.
@@ -136,9 +136,9 @@ v1.1.2 focuses on conversation management, a Copilot-inspired interface, and des
 
 | 项目 / Item | 状态 / Status |
 |---|---|
-| 当前源码版本 / Current source version | `1.2.0-dev`（开发中 / in development） |
+| 当前源码版本 / Current source version | `1.2.0`（本地发布候选，尚未发布 / local release candidate, not released） |
 | 发布状态 / Release status | v1.1.2 已发布 Windows x64 自包含安装包与 SHA-256 文件 / v1.1.2 released with a Windows x64 self-contained package and SHA-256 file |
-| 已通过 / Passed | Phase 0–18 and G1–G8（v1.2.0 尚未发布 / v1.2.0 is not released） |
+| 已通过 / Passed | Phase 0–19 and G1–G8（v1.2.0 尚未发布 / v1.2.0 is not released） |
 | 后续试点 / Follow-up pilot | 不同硬件、账号和企业策略环境 / Different hardware, account, and enterprise-policy environments |
 | 平台 / Platform | Windows 11 x64 |
 
