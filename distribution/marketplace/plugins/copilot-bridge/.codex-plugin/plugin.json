@@ -1,6 +1,6 @@
 {
   "name": "copilot-bridge",
-  "version": "1.0.0-rc.3",
+  "version": "1.0.0-rc.4",
   "description": "Consult a signed-in Microsoft 365 Copilot from Codex through the local Copilot Bridge.",
   "author": {
     "name": "Copilot Bridge Team"

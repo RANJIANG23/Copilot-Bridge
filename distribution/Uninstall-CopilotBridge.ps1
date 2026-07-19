@@ -11,58 +11,64 @@ $marketplaceName = 'copilot-bridge-team'
 $pluginSelector = "copilot-bridge@$marketplaceName"
 $installedMarketplace = Join-Path $InstallDirectory 'marketplace'
 
-function Get-ConfiguredMarketplaceRoot {
-    param(
-        [string[]]$Lines,
-        [string]$Name
-    )
-
-    $inlineLine = $Lines |
-        Where-Object { $_ -match "^$([regex]::Escape($Name))\s+" } |
-        Select-Object -First 1
-    if ($inlineLine) {
-        return ($inlineLine -replace "^$([regex]::Escape($Name))\s+", '').Trim()
-    }
-
-    $header = 'Marketplace `' + $Name + '`'
-    for ($index = 0; $index -lt $Lines.Count; $index++) {
-        if ($Lines[$index].Trim() -ne $header) {
-            continue
-        }
-
-        for ($candidate = $index + 1; $candidate -lt $Lines.Count; $candidate++) {
-            $value = $Lines[$candidate].Trim()
-            if ($value) {
-                return $value
-            }
-        }
-    }
-
-    return $null
-}
-
 if (-not $SkipCodexPlugin -and (Get-Command codex -ErrorAction SilentlyContinue)) {
-    $marketplaceLines = @(& codex plugin marketplace list 2>&1)
-    if ($LASTEXITCODE -eq 0) {
-        $existingRoot = Get-ConfiguredMarketplaceRoot $marketplaceLines $marketplaceName
-        if ($existingRoot) {
-            if ([IO.Path]::GetFullPath($existingRoot) -eq [IO.Path]::GetFullPath($installedMarketplace)) {
-                $pluginLines = @(& codex plugin list 2>&1)
-                if ($LASTEXITCODE -eq 0 -and
-                    ($pluginLines | Where-Object { $_ -match "^$([regex]::Escape($pluginSelector))\s+installed" })) {
-                    & codex plugin remove $pluginSelector --json
-                    if ($LASTEXITCODE -ne 0) {
-                        throw 'Unable to remove the Copilot Bridge plugin.'
-                    }
+    $marketplaceOutput = @(& codex plugin marketplace list --json 2>&1)
+    if ($LASTEXITCODE -ne 0) {
+        throw 'Unable to read configured Codex plugin marketplaces. Nothing was removed.'
+    }
+    try {
+        $marketplaces = (($marketplaceOutput -join "`n") | ConvertFrom-Json).marketplaces
+    }
+    catch {
+        throw 'Codex returned an invalid marketplace list. Nothing was removed.'
+    }
+
+    $existingRoot = @($marketplaces) |
+        Where-Object name -eq $marketplaceName |
+        Select-Object -ExpandProperty root -First 1
+    if ($existingRoot) {
+        if ([IO.Path]::GetFullPath($existingRoot) -eq [IO.Path]::GetFullPath($installedMarketplace)) {
+            $pluginOutput = @(& codex plugin list --json 2>&1)
+            if ($LASTEXITCODE -ne 0) {
+                throw 'Unable to read installed Codex plugins. Nothing was removed.'
+            }
+            try {
+                $plugins = (($pluginOutput -join "`n") | ConvertFrom-Json).installed
+            }
+            catch {
+                throw 'Codex returned an invalid plugin list. Nothing was removed.'
+            }
+
+            $pluginWasRemoved = $false
+            if (@($plugins) | Where-Object { $_.pluginId -eq $pluginSelector -and $_.installed }) {
+                & codex plugin remove $pluginSelector --json
+                if ($LASTEXITCODE -ne 0) {
+                    throw 'Unable to remove the Copilot Bridge plugin. Nothing else was removed.'
                 }
+
+                $pluginWasRemoved = $true
+            }
+
+            try {
                 & codex plugin marketplace remove $marketplaceName --json
                 if ($LASTEXITCODE -ne 0) {
                     throw 'Unable to remove the Copilot Bridge marketplace.'
                 }
             }
-            else {
-                Write-Warning "Marketplace '$marketplaceName' points elsewhere and was not changed: $existingRoot"
+            catch {
+                $marketplaceError = $_
+                if ($pluginWasRemoved) {
+                    & codex plugin add $pluginSelector --json
+                    if ($LASTEXITCODE -ne 0) {
+                        throw "$($marketplaceError.Exception.Message) Plugin rollback also failed."
+                    }
+                }
+
+                throw $marketplaceError
             }
+        }
+        else {
+            Write-Warning "Marketplace '$marketplaceName' points elsewhere and was not changed: $existingRoot"
         }
     }
 }

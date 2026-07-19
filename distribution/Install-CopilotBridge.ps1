@@ -12,36 +12,6 @@ $appSource = Join-Path $PSScriptRoot 'app'
 $marketplaceSource = Join-Path $PSScriptRoot 'marketplace'
 $defaultInstallDirectory = Join-Path $env:LOCALAPPDATA 'Programs\CopilotBridge'
 
-function Get-ConfiguredMarketplaceRoot {
-    param(
-        [string[]]$Lines,
-        [string]$Name
-    )
-
-    $inlineLine = $Lines |
-        Where-Object { $_ -match "^$([regex]::Escape($Name))\s+" } |
-        Select-Object -First 1
-    if ($inlineLine) {
-        return ($inlineLine -replace "^$([regex]::Escape($Name))\s+", '').Trim()
-    }
-
-    $header = 'Marketplace `' + $Name + '`'
-    for ($index = 0; $index -lt $Lines.Count; $index++) {
-        if ($Lines[$index].Trim() -ne $header) {
-            continue
-        }
-
-        for ($candidate = $index + 1; $candidate -lt $Lines.Count; $candidate++) {
-            $value = $Lines[$candidate].Trim()
-            if ($value) {
-                return $value
-            }
-        }
-    }
-
-    return $null
-}
-
 if (-not $SkipCodexPlugin -and
     [IO.Path]::GetFullPath($InstallDirectory) -ne [IO.Path]::GetFullPath($defaultInstallDirectory)) {
     throw 'A custom install directory is supported only with -SkipCodexPlugin.'
@@ -102,11 +72,19 @@ try {
     if (-not $SkipCodexPlugin) {
         $installedMarketplace = Join-Path $InstallDirectory 'marketplace'
         # Codex CLI owns its plugin registration. This script never edits config.toml directly.
-        $marketplaceLines = @(& codex plugin marketplace list 2>&1)
+        $marketplaceOutput = @(& codex plugin marketplace list --json 2>&1)
         if ($LASTEXITCODE -ne 0) {
             throw 'Unable to read configured Codex plugin marketplaces.'
         }
-        $existingRoot = Get-ConfiguredMarketplaceRoot $marketplaceLines $marketplaceName
+        try {
+            $marketplaces = (($marketplaceOutput -join "`n") | ConvertFrom-Json).marketplaces
+        }
+        catch {
+            throw 'Codex returned an invalid marketplace list.'
+        }
+        $existingRoot = @($marketplaces) |
+            Where-Object name -eq $marketplaceName |
+            Select-Object -ExpandProperty root -First 1
         if ($existingRoot) {
             if ([IO.Path]::GetFullPath($existingRoot) -ne [IO.Path]::GetFullPath($installedMarketplace)) {
                 throw "Marketplace '$marketplaceName' already points to another location: $existingRoot"
@@ -120,12 +98,18 @@ try {
             $marketplaceWasAdded = $true
         }
 
-        $pluginLines = @(& codex plugin list 2>&1)
+        $pluginOutput = @(& codex plugin list --json 2>&1)
         if ($LASTEXITCODE -ne 0) {
             throw 'Unable to read installed Codex plugins.'
         }
-        $pluginWasInstalled = [bool]($pluginLines |
-            Where-Object { $_ -match "^$([regex]::Escape($pluginSelector))\s+installed" })
+        try {
+            $plugins = (($pluginOutput -join "`n") | ConvertFrom-Json).installed
+        }
+        catch {
+            throw 'Codex returned an invalid plugin list.'
+        }
+        $pluginWasInstalled = [bool](@($plugins) |
+            Where-Object { $_.pluginId -eq $pluginSelector -and $_.installed })
         if ($pluginWasInstalled) {
             & codex plugin remove $pluginSelector --json
             if ($LASTEXITCODE -ne 0) {

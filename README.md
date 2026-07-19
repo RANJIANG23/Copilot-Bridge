@@ -16,31 +16,31 @@ Routine consultations do not simulate physical input, take foreground focus, or 
 
 | 项目 / Item | 状态 / Status |
 |---|---|
-| 版本 / Version | `1.0.0-rc.3` |
+| 版本 / Version | `1.0.0-rc.4` |
 | 发布状态 / Release status | 内部发布候选版 / Internal release candidate |
 | 已通过 / Passed | Phase 0–5 and G1–G7 |
 | 未完成 / Pending | G8 配置保护、前台无抢占与卸载恢复检查 / G8 configuration protection, foreground non-interference, and uninstall recovery checks |
 | 平台 / Platform | Windows 11 x64 |
 
-RC3 尚未达到稳定团队版标准。RC3 is not yet a completed stable team release.
+RC4 尚未达到稳定团队版标准。RC4 is not yet a completed stable team release.
 
 ## 下载 / Download
 
-从 [GitHub Releases](https://github.com/RANJIANG23/CopilotBridge/releases/tag/v1.0.0-rc.3) 下载以下两个文件。Download both files from [GitHub Releases](https://github.com/RANJIANG23/CopilotBridge/releases/tag/v1.0.0-rc.3):
+从 [GitHub Releases](https://github.com/RANJIANG23/CopilotBridge/releases/tag/v1.0.0-rc.4) 下载以下两个文件。Download both files from [GitHub Releases](https://github.com/RANJIANG23/CopilotBridge/releases/tag/v1.0.0-rc.4):
 
-- `CopilotBridge-1.0.0-rc.3-win-x64.zip`
-- `CopilotBridge-1.0.0-rc.3-win-x64.zip.sha256`
+- `CopilotBridge-1.0.0-rc.4-win-x64.zip`
+- `CopilotBridge-1.0.0-rc.4-win-x64.zip.sha256`
 
 当前 ZIP SHA-256 / Current ZIP SHA-256:
 
 ```text
-b9ce35f6041b7f9b7c52d2532fbe4f21921a9a6d7b508522aef55897156b02e3
+d821448d0cc075ae06356b1c90b153a16766ae179c563dbe667378a8e7e6b734
 ```
 
 安装前可在 PowerShell 中核对。Verify it in PowerShell before installation:
 
 ```powershell
-(Get-FileHash .\CopilotBridge-1.0.0-rc.3-win-x64.zip -Algorithm SHA256).Hash.ToLowerInvariant()
+(Get-FileHash .\CopilotBridge-1.0.0-rc.4-win-x64.zip -Algorithm SHA256).Hash.ToLowerInvariant()
 ```
 
 ## 使用前提 / Requirements

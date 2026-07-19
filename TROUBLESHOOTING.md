@@ -69,4 +69,6 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\Install-CopilotBridge.
 
 修复或升级采用暂存目录；只有完整应用复制成功后才替换安装目录。替换后的 Plugin 注册若失败，安装器会恢复上一个应用版本和原 Plugin 注册，而不是留下半安装状态。
 
+卸载同样保护注册边界：无法读取 Codex marketplace 时不会继续删除应用；如果 marketplace 移除失败，会恢复刚刚移除的本项目 Plugin，并保留应用与快捷方式。
+
 不要手动删除 Codex 的全局配置，也不要复制其他成员的 Edge 配置档。

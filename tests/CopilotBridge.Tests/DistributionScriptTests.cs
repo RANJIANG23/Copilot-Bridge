@@ -31,7 +31,7 @@ public sealed class DistributionScriptTests
     }
 
     [Fact]
-    public async Task UninstallerRecognizesCurrentTwoLineMarketplaceOutput()
+    public async Task UninstallerUsesStructuredMarketplaceOutput()
     {
         using var fixture = DistributionFixture.Create();
         fixture.WritePreviousInstall();
@@ -45,6 +45,47 @@ public sealed class DistributionScriptTests
         var calls = File.ReadAllLines(fixture.CodexLogPath);
         Assert.Contains(calls, line => line.StartsWith("plugin remove ", StringComparison.Ordinal));
         Assert.Contains(calls, line => line.StartsWith("plugin marketplace remove ", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task MarketplaceDiscoveryFailureLeavesInstallationUntouched()
+    {
+        using var fixture = DistributionFixture.Create();
+        fixture.WritePreviousInstall();
+        File.WriteAllText(fixture.ShortcutPath, "test shortcut");
+
+        var result = await fixture.RunUninstallerAsync(failMarketplaceList: true);
+
+        Assert.True(
+            result.ExitCode != 0,
+            $"Expected marketplace discovery failure. Output: {result.Output} Error: {result.Error} Calls: {string.Join(" | ", File.ReadAllLines(fixture.CodexLogPath))}");
+        Assert.Contains("Unable to read configured Codex plugin marketplaces", result.Error);
+        Assert.True(File.Exists(fixture.InstalledExecutable));
+        Assert.True(File.Exists(fixture.ShortcutPath));
+        var calls = File.ReadAllLines(fixture.CodexLogPath);
+        Assert.Single(calls);
+        Assert.StartsWith("plugin marketplace list", calls[0], StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task FailedMarketplaceRemovalRestoresPluginAndLeavesInstallationUntouched()
+    {
+        using var fixture = DistributionFixture.Create();
+        fixture.WritePreviousInstall();
+        File.WriteAllText(fixture.ShortcutPath, "test shortcut");
+
+        var result = await fixture.RunUninstallerAsync(failMarketplaceRemove: true);
+
+        Assert.True(
+            result.ExitCode != 0,
+            $"Expected marketplace removal failure. Output: {result.Output} Error: {result.Error} Calls: {string.Join(" | ", File.ReadAllLines(fixture.CodexLogPath))}");
+        Assert.Contains("Unable to remove the Copilot Bridge marketplace", result.Error);
+        Assert.True(File.Exists(fixture.InstalledExecutable));
+        Assert.True(File.Exists(fixture.ShortcutPath));
+        var calls = File.ReadAllLines(fixture.CodexLogPath);
+        Assert.Contains(calls, line => line.StartsWith("plugin remove ", StringComparison.Ordinal));
+        Assert.Contains(calls, line => line.StartsWith("plugin marketplace remove ", StringComparison.Ordinal));
+        Assert.Contains(calls, line => line.StartsWith("plugin add ", StringComparison.Ordinal));
     }
 
     private sealed class DistributionFixture : IDisposable
@@ -120,9 +161,13 @@ public sealed class DistributionScriptTests
             Path.Combine(_packageDirectory, "Install-CopilotBridge.ps1"),
             failFirstPluginAdd);
 
-        internal Task<ProcessResult> RunUninstallerAsync() => RunPowerShellAsync(
+        internal Task<ProcessResult> RunUninstallerAsync(
+            bool failMarketplaceList = false,
+            bool failMarketplaceRemove = false) => RunPowerShellAsync(
             Path.Combine(_packageDirectory, "Uninstall-CopilotBridge.ps1"),
-            false);
+            false,
+            failMarketplaceList,
+            failMarketplaceRemove);
 
         public void Dispose()
         {
@@ -136,7 +181,11 @@ public sealed class DistributionScriptTests
             }
         }
 
-        private async Task<ProcessResult> RunPowerShellAsync(string script, bool failFirstPluginAdd)
+        private async Task<ProcessResult> RunPowerShellAsync(
+            string script,
+            bool failFirstPluginAdd,
+            bool failMarketplaceList = false,
+            bool failMarketplaceRemove = false)
         {
             var startInfo = new ProcessStartInfo
             {
@@ -162,10 +211,17 @@ public sealed class DistributionScriptTests
                                             Environment.GetEnvironmentVariable("PATH");
             startInfo.Environment["FAKE_CODEX_LOG"] = CodexLogPath;
             startInfo.Environment["FAKE_MARKETPLACE_ROOT"] = Path.Combine(
-                InstallDirectory,
-                "marketplace");
+                    InstallDirectory,
+                    "marketplace")
+                .Replace('\\', '/');
             startInfo.Environment["FAKE_ADD_COUNT"] = Path.Combine(_root, "plugin-add-count");
             startInfo.Environment["FAKE_FAIL_FIRST_ADD"] = failFirstPluginAdd ? "1" : "0";
+            var failMarketplaceListMarker = Path.Combine(_root, "fail-marketplace-list");
+            var failMarketplaceRemoveMarker = Path.Combine(_root, "fail-marketplace-remove");
+            if (failMarketplaceList) File.WriteAllText(failMarketplaceListMarker, "1");
+            if (failMarketplaceRemove) File.WriteAllText(failMarketplaceRemoveMarker, "1");
+            startInfo.Environment["FAKE_FAIL_MARKETPLACE_LIST"] = failMarketplaceListMarker;
+            startInfo.Environment["FAKE_FAIL_MARKETPLACE_REMOVE"] = failMarketplaceRemoveMarker;
 
             using var process = Process.Start(startInfo) ??
                                 throw new InvalidOperationException("Could not start PowerShell.");
@@ -196,20 +252,29 @@ public sealed class DistributionScriptTests
         private const string FakeCodexScript = """
             @echo off
             >>"%FAKE_CODEX_LOG%" echo %*
-            if "%~1 %~2 %~3"=="plugin marketplace list" (
-              echo Marketplace `copilot-bridge-team`
-              echo %FAKE_MARKETPLACE_ROOT%
+            if "%~1 %~2 %~3 %~4"=="plugin marketplace list --json" (
+              if exist "%FAKE_FAIL_MARKETPLACE_LIST%" goto fail_marketplace_list
+              echo {"marketplaces":[{"name":"copilot-bridge-team","root":"%FAKE_MARKETPLACE_ROOT%"}]}
               exit /b 0
             )
-            if "%~1 %~2 %~3"=="plugin marketplace remove" exit /b 0
+            if "%~1 %~2 %~3"=="plugin marketplace remove" (
+              if exist "%FAKE_FAIL_MARKETPLACE_REMOVE%" goto fail_marketplace_remove
+              exit /b 0
+            )
             if "%~1 %~2 %~3"=="plugin marketplace add" exit /b 0
-            if "%~1 %~2"=="plugin list" (
-              echo copilot-bridge@copilot-bridge-team  installed, enabled  1.0.0-rc.2  old
+            if "%~1 %~2 %~3"=="plugin list --json" (
+              echo {"installed":[{"pluginId":"copilot-bridge@copilot-bridge-team","installed":true}]}
               exit /b 0
             )
             if "%~1 %~2"=="plugin remove" exit /b 0
             if "%~1 %~2"=="plugin add" goto plugin_add
             exit /b 99
+
+            :fail_marketplace_list
+            exit /b 23
+
+            :fail_marketplace_remove
+            exit /b 29
 
             :plugin_add
             if not "%FAKE_FAIL_FIRST_ADD%"=="1" exit /b 0

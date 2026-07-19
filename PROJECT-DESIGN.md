@@ -2,7 +2,7 @@
 
 > 设计基线：v1.0
 > 日期：2026-07-18（Asia/Shanghai）
-> 状态：Phase 0–5 已通过；Phase 6 RC3 本地候选版完成，G8 第二台电脑核心闭环通过、完整保护检查待验证
+> 状态：Phase 0–5 已通过；Phase 6 RC4 本地候选版完成，G8 第二台电脑核心闭环通过、完整保护检查待验证
 > 工作名称：Copilot Bridge
 > 项目目录：`D:\WorkSpace\Microsoft Copilot`
 > 目标模式执行路线图：[EXECUTION-ROADMAP.md](./EXECUTION-ROADMAP.md)
