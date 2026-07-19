@@ -16,46 +16,11 @@ Every collaboration is governed by three independent control planes: **consultat
 
 Routine consultations do not simulate physical input, take foreground focus, or switch the user's active Edge tab. Copilot does not execute local actions and is not an authorization source.
 
-## 当前状态 / Current status
+## 快速开始 / Quick start
 
-| 项目 / Item | 状态 / Status |
-|---|---|
-| 开发版本 / Development version | `1.1.0-dev` |
-| 发布状态 / Release status | 团队 v1 已通过；v1.1 会话工作台开发中 / Team v1 passed; v1.1 conversation workspace in development |
-| 已通过 / Passed | Phase 0–6 and G1–G8（本机隔离验收 / local isolated acceptance） |
-| 后续试点 / Follow-up pilot | 不同硬件、账号和企业策略环境 / Different hardware, account, and enterprise-policy environments |
-| 平台 / Platform | Windows 11 x64 |
+### 下载 / Download
 
-RC5 已达到项目定义的本机团队 v1 门禁，但不把本机隔离验收描述为跨设备兼容性证明。`1.1.0-dev` 尚未发布安装包；现有 RC5 下载仍是最后一个发布包。RC5 satisfies the project's local team-v1 gates, but local isolated acceptance is not presented as proof of cross-device compatibility. `1.1.0-dev` has not been packaged for release.
-
-## v1.1 会话工作台目标 / Conversation workspace roadmap
-
-v1.1 的产品目标是把 Copilot Bridge 从“瞬时征询工具”升级为一个受控的本地会话工作台：用户和获授权的本地 Agent 可以按会话、项目和选定范围复用 Microsoft 365 Copilot 的 Markdown 上下文，同时继续使用用户自己的已登录 Edge，不采用反向代理、不绕过 Microsoft 验证，也不自动读取未授权的网页历史。
-
-The v1.1 goal is to evolve Copilot Bridge from a transient consultation tool into a controlled local conversation workspace. Users and authorized local agents can reuse Microsoft 365 Copilot context by conversation, project, and explicitly selected scope while continuing to use the user's signed-in Edge session—without reverse proxying, bypassing Microsoft authentication, or silently importing existing web history.
-
-### 已完成：Phase 7 / Delivered
-
-- 新即时咨询完整保存为一会话一份 Markdown，包括实际发送内容、Copilot 回复、角色、时间和已验证模型。New immediate consultations are stored as one Markdown file per conversation, including the actual request, Copilot response, role, timestamp, and verified model.
-- “历史对话”升级为项目、会话列表和详情三栏工作台。The History area is now a three-pane workspace for projects, conversations, and conversation details.
-- 支持创建项目、将会话下拉或拖拽到项目、本地重命名、会话内关键词检索和复制 Markdown。Users can create projects, move or drag conversations into project folders, rename conversations locally, search within a conversation, and copy its Markdown.
-- 会话使用稳定 ID 与 Copilot URL 关联；本地名称不会覆盖 Copilot 标题字段。Conversation identity is based on a stable ID and Copilot URL; local renaming does not overwrite Copilot title fields.
-- 默认工作区为 `%LOCALAPPDATA%\CopilotBridge\workspace`，也可以在 GUI 中改为用户指定目录。The default workspace is `%LOCALAPPDATA%\CopilotBridge\workspace`, and users can choose another local directory in the GUI.
-- 概览状态采用自适应刷新：概览前台每 10 秒、后台或其他页面每 60 秒；失败时按 30/60/120 秒退避。手动刷新仍可立即检查。Overview status now refreshes adaptively: every 10 seconds while the Overview is active, every 60 seconds in the background or on other pages, with 30/60/120-second retry backoff after failures. Manual refresh remains available for an immediate check.
-
-### 后续目标 / Next milestones
-
-- **历史模式**：由用户显式选择旧 Copilot 网页会话，预览范围后导入为 Markdown；不后台批量抓取。**History mode:** explicitly select an existing Copilot web conversation, preview the scope, and import it as Markdown—never silently scrape all history.
-- **双标题同步**：保留 Copilot 初始标题、当前标题和标题历史；本地重命名始终独立。**Dual-title sync:** preserve the initial, current, and historical Copilot titles while keeping the local display name independent.
-- **会话级模型控制**：允许在受控白名单内为新会话或下一次请求选择模型，并明确显示实际模型与回退。**Conversation-level model control:** choose an allowed model for a new conversation or next request, with the effective model and fallback shown explicitly.
-- **项目级受控调用**：本地 Agent 可以读取项目概览、项目内检索结果或用户确认的完整范围，不默认获得整个工作区。**Controlled project access:** local agents can read a project overview, search results, or a user-confirmed full scope without receiving the entire workspace by default.
-- **内容交接**：支持将选中消息、当前会话或项目检索结果复制或插入当前 Codex 任务。**Context handoff:** copy or insert selected messages, the current conversation, or project search results into the active Codex task.
-
-v1.1 仍保持一个生产项目、一个测试项目和一个生产可执行文件；不增加数据库、本地 Web 服务、后台守护进程或第二套浏览器自动化。v1.1 continues to use one production project, one test project, and one production executable, with no database, local web server, background daemon, or second browser-automation stack.
-
-## 下载 / Download
-
-从 [GitHub Releases](https://github.com/RANJIANG23/CopilotBridge/releases/tag/v1.0.0-rc.5) 下载以下两个文件。Download both files from [GitHub Releases](https://github.com/RANJIANG23/CopilotBridge/releases/tag/v1.0.0-rc.5):
+从 [GitHub Releases](https://github.com/RANJIANG23/Copilot-Bridge/releases/tag/v1.0.0-rc.5) 下载以下两个文件。Download both files from [GitHub Releases](https://github.com/RANJIANG23/Copilot-Bridge/releases/tag/v1.0.0-rc.5):
 
 - `CopilotBridge-1.0.0-rc.5-win-x64.zip`
 - `CopilotBridge-1.0.0-rc.5-win-x64.zip.sha256`
@@ -72,7 +37,7 @@ b31bb22178356fd94b707db77f29f8f00bee5aa450d3c751e4f791e6b9714a23
 (Get-FileHash .\CopilotBridge-1.0.0-rc.5-win-x64.zip -Algorithm SHA256).Hash.ToLowerInvariant()
 ```
 
-## 使用前提 / Requirements
+### 使用前提 / Requirements
 
 - Windows 11 x64
 - Microsoft Edge 已登录成员自己的 Microsoft 365 企业账号 / Microsoft Edge signed in with the team member's own Microsoft 365 work account
@@ -82,7 +47,7 @@ b31bb22178356fd94b707db77f29f8f00bee5aa450d3c751e4f791e6b9714a23
 
 Bridge 不保存或迁移账号、Cookie、令牌和 Microsoft 365 凭据。Bridge does not store or migrate accounts, cookies, tokens, or Microsoft 365 credentials.
 
-## 快速安装 / Quick install
+### 安装并开始协作 / Install and collaborate
 
 1. 完整解压 ZIP，不要只复制 EXE。Extract the complete ZIP; do not copy the EXE by itself.
 2. 在解压目录运行以下命令。Run the following command from the extracted directory:
@@ -103,34 +68,68 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\Install-CopilotBridge.
 
 See [Installation](./INSTALL.md) for the complete procedure. Release owners must also complete the [local isolated G8 acceptance](./TEAM-ROLLOUT.md#g8-本机隔离验收).
 
-## 协作模式 / Collaboration modes
+## v1.0 已完成内容 / v1.0 delivered
 
-| 模式 / Mode | 中文说明 | Description |
-|---|---|---|
-| Assist | Codex 主导，对局部问题取得一次聚焦的第二意见 | Codex leads and obtains a focused second opinion on a specific issue |
-| Outsource | Copilot 承担有限回合的开放式推理，Codex 最终核验 | Copilot performs bounded open-ended reasoning; Codex verifies the result |
-| Review | 两个隔离 reviewer 串行审查，Codex 按证据裁决 | Two isolated reviewers run serially; Codex adjudicates using evidence |
+v1.0 建立了从 Codex 到 Microsoft 365 Copilot 的完整、可验证闭环：用户绑定自己的专用 Edge 标签页，Bridge 在后台完成受控咨询，Codex 根据结果继续完成任务。
 
-协作模式只能在 GUI 中手动切换；v1 不自动选择或升级模式。
+v1.0 established a complete, verifiable path from Codex to Microsoft 365 Copilot: the user binds a dedicated Edge tab, Bridge performs a controlled background consultation, and Codex continues the task from the result.
 
-Collaboration modes can only be changed manually in the GUI. v1 does not select or escalate modes automatically.
+- **受控后台会话**：只操作用户明确绑定的 Copilot 标签页，连接、模型选择、发送和回复提取均通过 Edge CDP 与 DOM 完成。**Controlled background sessions:** only the user-bound Copilot tab is operated, with connection, model selection, submission, and reply extraction performed through Edge CDP and DOM.
+- **三种协作模式**：Assist 提供聚焦协助；Outsource 承担有限回合的开放式推理；Review 使用两个隔离会话审查复杂度、风险与证据。**Three collaboration modes:** Assist provides focused help; Outsource performs bounded open-ended reasoning; Review uses two isolated sessions to examine complexity, risk, and evidence.
+- **最小 MCP 接口**：只提供状态读取与咨询两个工具，协作模式和模型策略由 GUI 控制，调用方不能临时覆盖。**Minimal MCP surface:** only status and consultation tools are exposed; the GUI controls collaboration mode and model policy.
+- **一次性发送保护**：发送状态不确定时绝不自动重发；GUI 与 MCP 并发写入会立即返回 busy，而非排队。**One-time submission protection:** uncertain submissions are never retried; concurrent GUI and MCP writes return busy instead of queuing.
+- **本机团队门禁**：Phase 0–6 与 G1–G8 已完成；真实日常 Edge 后台 Assist、十次唯一发送、MCP 接入、本机隔离安装/卸载与前台无抢占均已验证。**Local team gates:** Phase 0–6 and G1–G8 are complete, including real daily-Edge background Assist, ten unique submissions, MCP integration, isolated local install/uninstall, and no foreground takeover.
 
-模型优先级 / Model priority:
+当前可下载的稳定发布包是 RC5。The currently downloadable stable release package is RC5.
 
-1. Opus
-2. GPT 5.6 Think deeper
-3. 深度思考 / Deep thinking
+## v1.1 会话工作台 / v1.1 conversation workspace
 
-自动、快速答复和 GPT 5.5 快速响应不会进入候选队列。Auto, Quick response, and GPT 5.5 fast response are never eligible fallbacks.
+v1.1 把 Copilot Bridge 从“瞬时征询工具”扩展为受控的本地会话工作台：用户和获授权的本地 Agent 可以按会话、项目和选定范围复用 Microsoft 365 Copilot 的 Markdown 上下文，同时继续使用用户自己的已登录 Edge，不采用反向代理、不绕过 Microsoft 验证，也不自动读取未授权的网页历史。
 
-## 安全与数据边界 / Security and data boundaries
+v1.1 evolves Copilot Bridge from a transient consultation tool into a controlled local conversation workspace. Users and authorized local agents can reuse Microsoft 365 Copilot context by conversation, project, and explicitly selected scope while continuing to use the user's signed-in Edge session—without reverse proxying, bypassing Microsoft authentication, or silently importing existing web history.
 
-- 浏览器交互只使用 Edge CDP 与专用 Copilot 标签页中的 DOM。Browser interaction uses Edge CDP and the DOM of the dedicated Copilot tab only.
-- 不使用 Computer Use、OCR、Windows UI Automation 或物理输入模拟作为生产兜底。Computer Use, OCR, Windows UI Automation, and physical input simulation are not production fallbacks.
-- 点击发送后的状态不确定时绝不自动重发。The bridge never resubmits after the submit state becomes uncertain.
-- v1.1 的即时会话会在用户选择的本地工作区保存 Bridge 发送和接收的 Markdown 正文，并附带实际模型与状态；不会自动导入旧网页历史。v1.1 immediate conversations persist Bridge-sent and received Markdown in the user-selected local workspace, including the effective model and status; existing web history is never imported automatically.
-- 页面 HTML、Cookie、令牌和其他 Edge 标签页正文仍不会保存。Page HTML, cookies, tokens, and content from other Edge tabs are never persisted.
-- 不提供在线更新、遥测后台、团队账号托管或管理员策略绕过。There is no online updater, telemetry backend, shared-account hosting, or administrator-policy bypass.
+### 已完成：Phase 7–9 / Delivered
+
+- 新即时咨询完整保存为一会话一份 Markdown，包括实际发送内容、Copilot 回复、角色、时间和已验证模型。New immediate consultations are stored as one Markdown file per conversation, including the actual request, Copilot response, role, timestamp, and verified model.
+- “历史对话”升级为项目、会话列表和详情三栏工作台；支持创建项目、移动、改名、会话内关键词检索和复制 Markdown。The History area is now a three-pane workspace for projects, conversations, and conversation details, with project creation, moving, renaming, in-conversation search, and Markdown copy.
+- 会话使用稳定 ID 与 Copilot URL 关联；本地名称不会覆盖 Copilot 标题字段。Conversation identity is based on a stable ID and Copilot URL; local renaming does not overwrite Copilot title fields.
+- 默认工作区为 `%LOCALAPPDATA%\CopilotBridge\workspace`，也可以在 GUI 中改为用户指定目录。The default workspace is `%LOCALAPPDATA%\CopilotBridge\workspace`, and users can choose another local directory in the GUI.
+- 概览状态采用自适应刷新：概览前台每 10 秒、后台或其他页面每 60 秒；失败时按 30/60/120 秒退避。手动刷新仍可立即检查。Overview status now refreshes adaptively: every 10 seconds while the Overview is active, every 60 seconds in the background or on other pages, with 30/60/120-second retry backoff after failures.
+- GUI 支持中文和 English，并将语言选择写入本地设置。The GUI supports Chinese and English, with the language choice persisted locally.
+
+### 后续目标 / Next milestones
+
+- **历史模式**：由用户显式选择旧 Copilot 网页会话，预览范围后导入为 Markdown；不后台批量抓取。**History mode:** explicitly select an existing Copilot web conversation, preview the scope, and import it as Markdown—never silently scrape all history.
+- **双标题同步**：保留 Copilot 初始标题、当前标题和标题历史；本地重命名始终独立。**Dual-title sync:** preserve the initial, current, and historical Copilot titles while keeping the local display name independent.
+- **会话级模型控制**：允许在受控白名单内为新会话或下一次请求选择模型，并明确显示实际模型与回退。**Conversation-level model control:** choose an allowed model for a new conversation or next request, with the effective model and fallback shown explicitly.
+- **项目级受控调用**：本地 Agent 可以读取项目概览、项目内检索结果或用户确认的完整范围，不默认获得整个工作区。**Controlled project access:** local agents can read a project overview, search results, or a user-confirmed full scope without receiving the entire workspace by default.
+- **内容交接**：支持将选中消息、当前会话或项目检索结果复制或插入当前 Codex 任务。**Context handoff:** copy or insert selected messages, the current conversation, or project search results into the active Codex task.
+
+## 当前状态与限制 / Current status and limits
+
+| 项目 / Item | 状态 / Status |
+|---|---|
+| 开发版本 / Development version | `1.1.0-dev` |
+| 发布状态 / Release status | 团队 v1 已通过；v1.1 会话工作台开发中 / Team v1 passed; v1.1 conversation workspace in development |
+| 已通过 / Passed | Phase 0–6 and G1–G8（本机隔离验收 / local isolated acceptance） |
+| 后续试点 / Follow-up pilot | 不同硬件、账号和企业策略环境 / Different hardware, account, and enterprise-policy environments |
+| 平台 / Platform | Windows 11 x64 |
+
+RC5 已达到项目定义的本机团队 v1 门禁，但不把本机隔离验收描述为跨设备兼容性证明。`1.1.0-dev` 尚未发布安装包；现有 RC5 下载仍是最后一个发布包。
+
+RC5 satisfies the project's local team-v1 gates, but local isolated acceptance is not presented as proof of cross-device compatibility. `1.1.0-dev` has not been packaged for release.
+
+## 架构开发思路 / Architecture and design rationale
+
+Bridge 的设计优先保证用户控制、可验证性与最小运行边界，而不是构建通用 Agent 或浏览器自动化平台。
+
+Bridge prioritizes user control, verifiability, and a minimal runtime boundary rather than becoming a general agent or browser-automation platform.
+
+- **单一运行单元**：只有一个生产项目、一个生产可执行文件 `CopilotBridge.exe`；GUI 与 STDIO MCP 共享业务代码。**One production unit:** one production project and one executable, `CopilotBridge.exe`, with shared GUI and STDIO MCP business logic.
+- **浏览器边界**：只经 Edge CDP 与绑定标签页 DOM 操作，不使用 Computer Use、OCR、Windows UI Automation、物理鼠标键盘模拟或前台窗口切换。**Browser boundary:** only Edge CDP and the bound-tab DOM are used; no Computer Use, OCR, Windows UI Automation, physical input simulation, or foreground switching.
+- **单标签串行写入**：所有咨询在一个专用标签页中串行执行；发送后状态不确定即停止，不自动再次提交。**Single-tab serial writes:** consultations execute serially in one dedicated tab; an uncertain post-submit state stops without another submission.
+- **本地数据边界**：不保存页面 HTML、Cookie、令牌或其他 Edge 标签页正文；即时会话仅在用户选择的本地工作区保存实际发送与接收的 Markdown。**Local data boundary:** page HTML, cookies, tokens, and other Edge-tab content are not persisted; immediate conversations save sent and received Markdown only in a user-selected local workspace.
+- **明确非目标**：不引入数据库、本地 Web 服务、后台守护进程、消息队列、通用 Provider 框架、在线更新、遥测后台、集中账号托管或管理员策略绕过。**Explicit non-goals:** no database, local web server, daemon, queue, generic provider framework, online updater, telemetry backend, shared-account hosting, or administrator-policy bypass.
 
 ## 文档 / Documentation
 
