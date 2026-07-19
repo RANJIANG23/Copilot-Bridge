@@ -2,7 +2,7 @@
 
 > 设计基线：v1.2.0-dev
 > 日期：2026-07-20（Asia/Shanghai）
-> 状态：v1.1.2 已发布；v1.2.0 Phase 15 已通过，核心主线为项目级受控会话复用
+> 状态：v1.1.2 已发布；v1.2.0 Phase 15–16 已通过，项目权限与本地查询核心已建立
 > 工作名称：Copilot Bridge
 > 项目目录：本仓库根目录
 > 目标模式执行路线图：[EXECUTION-ROADMAP.md](./EXECUTION-ROADMAP.md)

@@ -372,6 +372,7 @@ public partial class MainWindow : Window
     {
         if (ProjectListBox.SelectedItem is not WorkspaceProject project) return;
         _activeProjectId = project.Id;
+        ProjectAccessComboBox.SelectedIndex = (int)project.AccessLevel;
         await RefreshConversationListAsync();
     }
 
@@ -424,6 +425,23 @@ public partial class MainWindow : Window
             await RefreshWorkspaceAsync();
             SelectProject(updated.Id);
             ShowNotice(T(updated.IsPinned ? "项目已置顶。" : "已取消项目置顶。"), NoticeKind.Success);
+        }
+        catch (Exception exception) { ShowNotice(FriendlyMessage(exception), NoticeKind.Error); }
+    }
+
+    private async void SaveProjectAccess_Click(object sender, RoutedEventArgs e)
+    {
+        if (ProjectListBox.SelectedItem is not WorkspaceProject project ||
+            ProjectAccessComboBox.SelectedIndex is < 0 or > 3) return;
+        try
+        {
+            var updated = await _workspace.SetProjectAccessAsync(
+                project,
+                (ConversationAccessLevel)ProjectAccessComboBox.SelectedIndex);
+            _activeProjectId = updated.Id;
+            await RefreshWorkspaceAsync();
+            SelectProject(updated.Id);
+            ShowNotice(T("项目的 Agent 访问权限已保存。"), NoticeKind.Success);
         }
         catch (Exception exception) { ShowNotice(FriendlyMessage(exception), NoticeKind.Error); }
     }
@@ -1022,6 +1040,8 @@ public partial class MainWindow : Window
         LanguageComboBox.IsEnabled = !busy;
         ThemeComboBox.IsEnabled = !busy;
         NewProjectButton.IsEnabled = !busy;
+        ProjectAccessComboBox.IsEnabled = !busy;
+        SaveProjectAccessButton.IsEnabled = !busy;
         ImportConversationButton.IsEnabled = !busy;
         RenameConversationButton.IsEnabled = !busy;
         ConversationTitleTextBox.IsEnabled = !busy;

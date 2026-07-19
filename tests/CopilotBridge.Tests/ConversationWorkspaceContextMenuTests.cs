@@ -236,6 +236,194 @@ public sealed class ConversationWorkspaceContextMenuTests
                 .Single(candidate => candidate.Id == "旧项目");
 
             Assert.False(project.IsPinned);
+            Assert.Equal(ConversationAccessLevel.Off, project.AccessLevel);
+        }
+        finally { DeleteWorkspaceRoot(root); }
+    }
+
+    [Fact]
+    public async Task ProjectAccessDefaultsOffAndPersistsAcrossRename()
+    {
+        var root = CreateWorkspaceRoot();
+        try
+        {
+            var store = new ConversationWorkspaceStore(root);
+            var project = await store.CreateProjectAsync("待授权项目");
+
+            Assert.Equal(ConversationAccessLevel.Off, project.AccessLevel);
+            var authorized = await store.SetProjectAccessAsync(project, ConversationAccessLevel.Snippets);
+            authorized = await store.SetProjectPinnedAsync(authorized, true);
+            var renamed = await store.RenameProjectAsync(authorized, "已授权项目");
+            var restored = (await new ConversationWorkspaceStore(root).GetProjectsAsync())
+                .Single(candidate => candidate.Id == renamed.Id);
+
+            Assert.Equal(ConversationAccessLevel.Snippets, authorized.AccessLevel);
+            Assert.Equal(ConversationAccessLevel.Snippets, renamed.AccessLevel);
+            Assert.Equal(ConversationAccessLevel.Snippets, restored.AccessLevel);
+            Assert.True(restored.IsPinned);
+            Assert.False(File.Exists(Path.Combine(restored.DirectoryPath, ".bridge-project.md.tmp")));
+        }
+        finally { DeleteWorkspaceRoot(root); }
+    }
+
+    [Fact]
+    public async Task UnclassifiedProjectAccessPersistsWhileSystemProtectionRemains()
+    {
+        var root = CreateWorkspaceRoot();
+        try
+        {
+            var store = new ConversationWorkspaceStore(root);
+            var unclassified = Assert.Single(await store.GetProjectsAsync());
+
+            var authorized = await store.SetProjectAccessAsync(unclassified, ConversationAccessLevel.Full);
+            var restored = Assert.Single(await new ConversationWorkspaceStore(root).GetProjectsAsync());
+
+            Assert.True(authorized.IsSystem);
+            Assert.True(restored.IsSystem);
+            Assert.False(restored.IsPinned);
+            Assert.Equal(int.MaxValue, restored.SortOrder);
+            Assert.Equal(ConversationAccessLevel.Full, restored.AccessLevel);
+        }
+        finally { DeleteWorkspaceRoot(root); }
+    }
+
+    [Fact]
+    public async Task InvalidProjectAccessMarkerFailsClosed()
+    {
+        var root = CreateWorkspaceRoot();
+        try
+        {
+            var directory = Path.Combine(root, "异常权限项目");
+            Directory.CreateDirectory(directory);
+            var encoded = Convert.ToBase64String(System.Text.Encoding.UTF8.GetBytes(
+                "{\"isPinned\":false,\"sortOrder\":0,\"accessLevel\":99}"));
+            await File.WriteAllTextAsync(
+                Path.Combine(directory, ".bridge-project.md"),
+                $"<!-- copilot-bridge-project:{encoded} -->\n\n# 异常权限项目\n");
+
+            var project = (await new ConversationWorkspaceStore(root).GetProjectsAsync())
+                .Single(candidate => candidate.Id == "异常权限项目");
+
+            Assert.Equal(ConversationAccessLevel.Off, project.AccessLevel);
+        }
+        finally { DeleteWorkspaceRoot(root); }
+    }
+
+    [Fact]
+    public async Task AuthorizedSearchSeparatesMetadataSnippetsAndOffProjects()
+    {
+        var root = CreateWorkspaceRoot();
+        try
+        {
+            var store = new ConversationWorkspaceStore(root);
+            var metadataProject = await store.CreateProjectAsync("元数据项目");
+            var snippetsProject = await store.CreateProjectAsync("片段项目");
+            var offProject = await store.CreateProjectAsync("关闭项目");
+            await store.SetProjectAccessAsync(metadataProject, ConversationAccessLevel.Metadata);
+            snippetsProject = await store.SetProjectAccessAsync(snippetsProject, ConversationAccessLevel.Snippets);
+            var snippetsMarker = Path.Combine(snippetsProject.DirectoryPath, ".bridge-project.md");
+            var markerBeforeSearch = await File.ReadAllTextAsync(snippetsMarker);
+
+            var metadataConversation = await store.CreateConversationAsync(metadataProject.Id, "元数据标题");
+            await store.SaveAsync(metadataConversation with
+            {
+                Turns = [new ConversationTurn(DateTimeOffset.Now, "user", "正文 needle 不应被元数据权限命中")]
+            });
+            var snippetsConversation = await store.CreateConversationAsync(snippetsProject.Id, "普通标题");
+            await store.SaveAsync(snippetsConversation with
+            {
+                Turns = [new ConversationTurn(DateTimeOffset.Now, "copilot", "可检索的 needle 正文")]
+            });
+            var offConversation = await store.CreateConversationAsync(offProject.Id, "关闭标题");
+            await store.SaveAsync(offConversation with
+            {
+                Turns = [new ConversationTurn(DateTimeOffset.Now, "copilot", "关闭项目 needle")]
+            });
+
+            var contentMatches = await store.SearchAuthorizedConversationsAsync("needle");
+            var metadataMatches = await store.SearchAuthorizedConversationsAsync("元数据标题");
+
+            var content = Assert.Single(contentMatches);
+            Assert.Equal(snippetsConversation.Id, content.ConversationId);
+            Assert.Equal("content", content.MatchScope);
+            Assert.Equal("copilot", content.MatchRole);
+            Assert.Contains("needle", content.Snippet, StringComparison.OrdinalIgnoreCase);
+            Assert.Equal(metadataConversation.Id, Assert.Single(metadataMatches).ConversationId);
+            Assert.DoesNotContain(contentMatches, result => result.ConversationId == offConversation.Id);
+            Assert.Equal(markerBeforeSearch, await File.ReadAllTextAsync(snippetsMarker));
+
+            await store.SetProjectAccessAsync(snippetsProject, ConversationAccessLevel.Off);
+            Assert.Empty(await store.SearchAuthorizedConversationsAsync("needle"));
+        }
+        finally { DeleteWorkspaceRoot(root); }
+    }
+
+    [Fact]
+    public async Task AuthorizedSearchDoesNotCreateAMissingWorkspace()
+    {
+        var root = CreateWorkspaceRoot();
+        var store = new ConversationWorkspaceStore(root);
+
+        Assert.Empty(await store.SearchAuthorizedConversationsAsync());
+        Assert.False(Directory.Exists(root));
+    }
+
+    [Fact]
+    public async Task FullAccessReadsOnlyTheRequestedTurnPageAndDowngradeBlocksImmediately()
+    {
+        var root = CreateWorkspaceRoot();
+        try
+        {
+            var store = new ConversationWorkspaceStore(root);
+            var project = await store.CreateProjectAsync("分页项目");
+            project = await store.SetProjectAccessAsync(project, ConversationAccessLevel.Snippets);
+            var conversation = await store.CreateConversationAsync(project.Id, "分页会话");
+            await store.SaveAsync(conversation with
+            {
+                Turns =
+                [
+                    new ConversationTurn(DateTimeOffset.Now, "user", "第一轮"),
+                    new ConversationTurn(DateTimeOffset.Now, "copilot", "第二轮", "Opus", "verified"),
+                    new ConversationTurn(DateTimeOffset.Now, "user", "第三轮")
+                ]
+            });
+
+            var blocked = await Assert.ThrowsAsync<WorkspaceAccessException>(() =>
+                store.ReadAuthorizedConversationAsync(conversation.Id));
+            Assert.Equal("conversation_not_accessible", blocked.ErrorCode);
+
+            project = await store.SetProjectAccessAsync(project, ConversationAccessLevel.Full);
+            var page = await store.ReadAuthorizedConversationAsync(conversation.Id, startTurn: 1, maxTurns: 1);
+
+            Assert.Equal(1, page.StartTurn);
+            Assert.Equal(3, page.TotalTurns);
+            Assert.True(page.HasMore);
+            Assert.Equal("第二轮", Assert.Single(page.Turns).Markdown);
+
+            await store.SetProjectAccessAsync(project, ConversationAccessLevel.Metadata);
+            blocked = await Assert.ThrowsAsync<WorkspaceAccessException>(() =>
+                store.ReadAuthorizedConversationAsync(conversation.Id));
+            Assert.Equal("conversation_not_accessible", blocked.ErrorCode);
+        }
+        finally { DeleteWorkspaceRoot(root); }
+    }
+
+    [Fact]
+    public async Task ExplicitUnauthorizedProjectDoesNotRevealWhetherItExists()
+    {
+        var root = CreateWorkspaceRoot();
+        try
+        {
+            var store = new ConversationWorkspaceStore(root);
+            var project = await store.CreateProjectAsync("未授权项目");
+
+            var existing = await Assert.ThrowsAsync<WorkspaceAccessException>(() =>
+                store.SearchAuthorizedConversationsAsync(projectId: project.Id));
+            var missing = await Assert.ThrowsAsync<WorkspaceAccessException>(() =>
+                store.SearchAuthorizedConversationsAsync(projectId: "不存在项目"));
+
+            Assert.Equal("project_not_accessible", existing.ErrorCode);
+            Assert.Equal(existing.ErrorCode, missing.ErrorCode);
         }
         finally { DeleteWorkspaceRoot(root); }
     }

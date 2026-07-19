@@ -4,13 +4,22 @@ using CopilotBridge.Browser;
 
 namespace CopilotBridge.Core;
 
+internal enum ConversationAccessLevel
+{
+    Off,
+    Metadata,
+    Snippets,
+    Full
+}
+
 internal sealed record WorkspaceProject(
     string Id,
     string Name,
     bool IsSystem,
     string DirectoryPath,
     bool IsPinned = false,
-    int SortOrder = int.MaxValue);
+    int SortOrder = int.MaxValue,
+    ConversationAccessLevel AccessLevel = ConversationAccessLevel.Off);
 
 internal sealed record ConversationTurn(
     DateTimeOffset Timestamp,
@@ -53,6 +62,38 @@ internal sealed record ConversationSummary(
 internal sealed record ConversationSearchResult(
     ConversationTurn Turn,
     string Snippet);
+
+internal sealed record WorkspaceConversationMatch(
+    string ConversationId,
+    string ProjectId,
+    string DisplayTitle,
+    string CopilotTitle,
+    DateTimeOffset UpdatedAt,
+    string Mode,
+    string? LastModel,
+    int TurnCount,
+    ConversationAccessLevel AccessLevel,
+    string MatchScope,
+    string? MatchRole,
+    string? Snippet);
+
+internal sealed record WorkspaceConversationPage(
+    string ConversationId,
+    string ProjectId,
+    string DisplayTitle,
+    string CopilotTitle,
+    string? CopilotConversationUrl,
+    DateTimeOffset UpdatedAt,
+    string Mode,
+    int StartTurn,
+    int TotalTurns,
+    bool HasMore,
+    IReadOnlyList<ConversationTurn> Turns);
+
+internal sealed class WorkspaceAccessException(string errorCode) : InvalidOperationException(errorCode)
+{
+    internal string ErrorCode { get; } = errorCode;
+}
 
 internal sealed class ConversationWorkspaceStore
 {
@@ -106,7 +147,8 @@ internal sealed class ConversationWorkspaceStore
                 false,
                 directory,
                 metadata.IsPinned,
-                NormalizeSortOrder(metadata.SortOrder)));
+                NormalizeSortOrder(metadata.SortOrder),
+                metadata.AccessLevel));
         }
 
         return projects.OrderBy(project => SystemProjectOrder(project.Id))
@@ -136,6 +178,7 @@ internal sealed class ConversationWorkspaceStore
             project.Name,
             project.IsPinned,
             nextOrder,
+            project.AccessLevel,
             cancellationToken);
         return project with { SortOrder = nextOrder };
     }
@@ -168,6 +211,7 @@ internal sealed class ConversationWorkspaceStore
             newId,
             current.IsPinned,
             current.SortOrder,
+            current.AccessLevel,
             cancellationToken);
 
         foreach (var document in documents)
@@ -175,7 +219,14 @@ internal sealed class ConversationWorkspaceStore
             await SaveAsync(document with { ProjectId = newId, UpdatedAt = DateTimeOffset.Now }, cancellationToken);
         }
 
-        return new WorkspaceProject(newId, newId, false, destinationDirectory, current.IsPinned, current.SortOrder);
+        return new WorkspaceProject(
+            newId,
+            newId,
+            false,
+            destinationDirectory,
+            current.IsPinned,
+            current.SortOrder,
+            current.AccessLevel);
     }
 
     internal async Task<WorkspaceProject> SetProjectPinnedAsync(
@@ -189,8 +240,32 @@ internal sealed class ConversationWorkspaceStore
             current.Name,
             isPinned,
             current.SortOrder,
+            current.AccessLevel,
             cancellationToken);
         return current with { IsPinned = isPinned };
+    }
+
+    internal async Task<WorkspaceProject> SetProjectAccessAsync(
+        WorkspaceProject project,
+        ConversationAccessLevel accessLevel,
+        CancellationToken cancellationToken = default)
+    {
+        if (!Enum.IsDefined(accessLevel))
+        {
+            throw new InvalidDataException("项目访问级别无效。");
+        }
+
+        var current = (await GetProjectsAsync(cancellationToken))
+            .FirstOrDefault(candidate => candidate.Id.Equals(project.Id, StringComparison.Ordinal))
+            ?? throw new InvalidDataException("目标项目不存在。");
+        await WriteProjectMarkerAsync(
+            Path.Combine(current.DirectoryPath, ProjectMarker),
+            current.Name,
+            current.IsPinned,
+            current.SortOrder,
+            accessLevel,
+            cancellationToken);
+        return current with { AccessLevel = accessLevel };
     }
 
     internal async Task ReorderProjectAsync(
@@ -231,6 +306,7 @@ internal sealed class ConversationWorkspaceStore
                 project.Name,
                 project.IsPinned,
                 index,
+                project.AccessLevel,
                 cancellationToken);
         }
     }
@@ -351,6 +427,119 @@ internal sealed class ConversationWorkspaceStore
     {
         var path = FindPath(conversationId);
         return path is null ? null : await TryLoadPathAsync(path, cancellationToken);
+    }
+
+    internal async Task<IReadOnlyList<WorkspaceConversationMatch>> SearchAuthorizedConversationsAsync(
+        string? query = null,
+        string? projectId = null,
+        int limit = 10,
+        CancellationToken cancellationToken = default)
+    {
+        if (limit is < 1 or > 20)
+        {
+            throw new ArgumentOutOfRangeException(nameof(limit), "检索数量必须在 1–20 之间。");
+        }
+
+        var projects = (await GetProjectsForReadAsync(cancellationToken))
+            .Where(project => project.AccessLevel != ConversationAccessLevel.Off)
+            .ToArray();
+        if (!string.IsNullOrWhiteSpace(projectId))
+        {
+            var selected = projects.FirstOrDefault(project =>
+                project.Id.Equals(projectId.Trim(), StringComparison.Ordinal));
+            if (selected is null) throw new WorkspaceAccessException("project_not_accessible");
+            projects = [selected];
+        }
+
+        var accessByProject = projects.ToDictionary(
+            project => project.Id,
+            project => project.AccessLevel,
+            StringComparer.Ordinal);
+        if (accessByProject.Count == 0) return [];
+        var normalizedQuery = query?.Trim() ?? string.Empty;
+        var matches = new List<WorkspaceConversationMatch>();
+        foreach (var path in Directory.EnumerateFiles(_rootDirectory, "*.md", SearchOption.AllDirectories))
+        {
+            if (Path.GetFileName(path).Equals(ProjectMarker, StringComparison.OrdinalIgnoreCase)) continue;
+            var document = await TryLoadPathAsync(path, cancellationToken);
+            if (document is null || !accessByProject.TryGetValue(document.ProjectId, out var accessLevel)) continue;
+
+            var lastModel = document.Turns.LastOrDefault(turn => !string.IsNullOrWhiteSpace(turn.Model))?.Model;
+            var metadata = string.Join('\n',
+                document.DisplayTitle,
+                document.CopilotTitleInitial,
+                document.CopilotTitleCurrent,
+                document.Mode,
+                lastModel ?? string.Empty);
+            var metadataMatch = normalizedQuery.Length == 0 ||
+                                metadata.Contains(normalizedQuery, StringComparison.CurrentCultureIgnoreCase);
+            var contentMatch = metadataMatch || accessLevel == ConversationAccessLevel.Metadata
+                ? null
+                : document.Turns.FirstOrDefault(turn =>
+                    turn.Markdown.Contains(normalizedQuery, StringComparison.CurrentCultureIgnoreCase));
+            if (!metadataMatch && contentMatch is null) continue;
+
+            matches.Add(new WorkspaceConversationMatch(
+                document.Id,
+                document.ProjectId,
+                document.DisplayTitle,
+                document.CopilotTitleCurrent,
+                document.UpdatedAt,
+                document.Mode,
+                lastModel,
+                document.Turns.Count,
+                accessLevel,
+                metadataMatch ? "metadata" : "content",
+                contentMatch?.Role,
+                contentMatch is null ? null : BuildSnippet(contentMatch.Markdown, normalizedQuery)));
+        }
+
+        return matches
+            .OrderBy(match => match.MatchScope == "metadata" ? 0 : 1)
+            .ThenByDescending(match => match.UpdatedAt)
+            .ThenBy(match => match.ConversationId, StringComparer.Ordinal)
+            .Take(limit)
+            .ToArray();
+    }
+
+    internal async Task<WorkspaceConversationPage> ReadAuthorizedConversationAsync(
+        string conversationId,
+        int startTurn = 0,
+        int maxTurns = 10,
+        CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(conversationId))
+        {
+            throw new WorkspaceAccessException("conversation_not_accessible");
+        }
+        if (startTurn < 0) throw new ArgumentOutOfRangeException(nameof(startTurn));
+        if (maxTurns is < 1 or > 20)
+        {
+            throw new ArgumentOutOfRangeException(nameof(maxTurns), "读取轮次必须在 1–20 之间。");
+        }
+
+        var document = await FindAsync(conversationId.Trim(), cancellationToken);
+        if (document is null) throw new WorkspaceAccessException("conversation_not_accessible");
+        var project = (await GetProjectsForReadAsync(cancellationToken))
+            .FirstOrDefault(candidate => candidate.Id.Equals(document.ProjectId, StringComparison.Ordinal));
+        if (project?.AccessLevel != ConversationAccessLevel.Full)
+        {
+            throw new WorkspaceAccessException("conversation_not_accessible");
+        }
+
+        var turns = document.Turns.Skip(startTurn).Take(maxTurns).ToArray();
+        return new WorkspaceConversationPage(
+            document.Id,
+            document.ProjectId,
+            document.DisplayTitle,
+            document.CopilotTitleCurrent,
+            document.CopilotConversationUrl,
+            document.UpdatedAt,
+            document.Mode,
+            startTurn,
+            document.Turns.Count,
+            startTurn + turns.Length < document.Turns.Count,
+            turns);
     }
 
     internal async Task<ConversationDocument> RenameAsync(
@@ -532,18 +721,26 @@ internal sealed class ConversationWorkspaceStore
         var marker = Path.Combine(path, ProjectMarker);
         if (!File.Exists(marker))
         {
-            await WriteProjectMarkerAsync(marker, name, false, int.MaxValue, cancellationToken);
+            await WriteProjectMarkerAsync(
+                marker,
+                name,
+                false,
+                int.MaxValue,
+                ConversationAccessLevel.Off,
+                cancellationToken);
         }
+        var storedMetadata = await ReadProjectMarkerAsync(marker, cancellationToken);
         var metadata = isSystem
-            ? new ProjectMarkerMetadata(false, int.MaxValue)
-            : await ReadProjectMarkerAsync(marker, cancellationToken);
+            ? storedMetadata with { IsPinned = false, SortOrder = int.MaxValue }
+            : storedMetadata;
         return new WorkspaceProject(
             id,
             name,
             isSystem,
             path,
             metadata.IsPinned,
-            NormalizeSortOrder(metadata.SortOrder));
+            NormalizeSortOrder(metadata.SortOrder),
+            metadata.AccessLevel);
     }
 
     private async Task EnsureKnownProjectAsync(string projectId, CancellationToken cancellationToken)
@@ -553,6 +750,33 @@ internal sealed class ConversationWorkspaceStore
         {
             throw new InvalidDataException("目标项目不存在。");
         }
+    }
+
+    private async Task<IReadOnlyList<WorkspaceProject>> GetProjectsForReadAsync(
+        CancellationToken cancellationToken)
+    {
+        if (!Directory.Exists(_rootDirectory)) return [];
+        var projects = new List<WorkspaceProject>();
+        foreach (var directory in Directory.EnumerateDirectories(_rootDirectory))
+        {
+            var name = Path.GetFileName(directory);
+            if (name is LegacyInboxProjectId or LegacyStandaloneProjectId) continue;
+            var markerPath = Path.Combine(directory, ProjectMarker);
+            var isSystem = name == StandaloneProjectId;
+            if (!isSystem && !File.Exists(markerPath)) continue;
+            var metadata = File.Exists(markerPath)
+                ? await ReadProjectMarkerAsync(markerPath, cancellationToken)
+                : new ProjectMarkerMetadata(false, int.MaxValue, ConversationAccessLevel.Off);
+            projects.Add(new WorkspaceProject(
+                name,
+                name,
+                isSystem,
+                directory,
+                metadata.IsPinned,
+                NormalizeSortOrder(metadata.SortOrder),
+                metadata.AccessLevel));
+        }
+        return projects;
     }
 
     private async Task<WorkspaceProject> GetCustomProjectAsync(string projectId, CancellationToken cancellationToken)
@@ -600,18 +824,21 @@ internal sealed class ConversationWorkspaceStore
         var end = text.IndexOf(" -->", StringComparison.Ordinal);
         if (!text.StartsWith(ProjectMetadataPrefix, StringComparison.Ordinal) || end < 0)
         {
-            return new ProjectMarkerMetadata(false, int.MaxValue);
+            return new ProjectMarkerMetadata(false, int.MaxValue, ConversationAccessLevel.Off);
         }
 
         try
         {
             var encoded = text[ProjectMetadataPrefix.Length..end];
-            return JsonSerializer.Deserialize<ProjectMarkerMetadata>(Convert.FromBase64String(encoded), JsonOptions)
-                   ?? new ProjectMarkerMetadata(false, int.MaxValue);
+            var metadata = JsonSerializer.Deserialize<ProjectMarkerMetadata>(
+                               Convert.FromBase64String(encoded),
+                               JsonOptions)
+                           ?? new ProjectMarkerMetadata(false, int.MaxValue, ConversationAccessLevel.Off);
+            return metadata with { AccessLevel = NormalizeAccessLevel(metadata.AccessLevel) };
         }
         catch (Exception exception) when (exception is FormatException or JsonException)
         {
-            return new ProjectMarkerMetadata(false, int.MaxValue);
+            return new ProjectMarkerMetadata(false, int.MaxValue, ConversationAccessLevel.Off);
         }
     }
 
@@ -620,10 +847,11 @@ internal sealed class ConversationWorkspaceStore
         string name,
         bool isPinned,
         int sortOrder,
+        ConversationAccessLevel accessLevel,
         CancellationToken cancellationToken)
     {
         var encoded = Convert.ToBase64String(JsonSerializer.SerializeToUtf8Bytes(
-            new ProjectMarkerMetadata(isPinned, sortOrder), JsonOptions));
+            new ProjectMarkerMetadata(isPinned, sortOrder, accessLevel), JsonOptions));
         var temporaryPath = markerPath + ".tmp";
         var contents = $"{ProjectMetadataPrefix}{encoded} -->\n\n# {name}\n\nCopilot Bridge 项目目录。\n";
         try
@@ -732,6 +960,7 @@ internal sealed class ConversationWorkspaceStore
                 StandaloneProjectId,
                 false,
                 int.MaxValue,
+                ConversationAccessLevel.Off,
                 cancellationToken);
         }
     }
@@ -740,7 +969,13 @@ internal sealed class ConversationWorkspaceStore
 
     private static int NormalizeSortOrder(int sortOrder) => sortOrder < 0 ? int.MaxValue : sortOrder;
 
-    private sealed record ProjectMarkerMetadata(bool IsPinned, int SortOrder = int.MaxValue);
+    private static ConversationAccessLevel NormalizeAccessLevel(ConversationAccessLevel accessLevel) =>
+        Enum.IsDefined(accessLevel) ? accessLevel : ConversationAccessLevel.Off;
+
+    private sealed record ProjectMarkerMetadata(
+        bool IsPinned,
+        int SortOrder = int.MaxValue,
+        ConversationAccessLevel AccessLevel = ConversationAccessLevel.Off);
 
     private static string? ExtractConversationId(string? url)
     {

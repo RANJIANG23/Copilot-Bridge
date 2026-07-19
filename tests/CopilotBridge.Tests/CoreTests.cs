@@ -236,6 +236,7 @@ public sealed class CoreTests
         Assert.Equal("Project name", UiText.Get("Project name", AppLanguage.English));
         Assert.Equal("Theme", UiText.Get("主题", AppLanguage.English));
         Assert.Equal("Open", UiText.Get("打开", AppLanguage.English));
+        Assert.Equal("Agent access", UiText.Get("Agent 访问权限", AppLanguage.English));
     }
 
     [Fact]
