@@ -37,6 +37,7 @@ The v1.1 goal is to evolve Copilot Bridge from a transient consultation tool int
 - 支持创建项目、将会话下拉或拖拽到项目、本地重命名、会话内关键词检索和复制 Markdown。Users can create projects, move or drag conversations into project folders, rename conversations locally, search within a conversation, and copy its Markdown.
 - 会话使用稳定 ID 与 Copilot URL 关联；本地名称不会覆盖 Copilot 标题字段。Conversation identity is based on a stable ID and Copilot URL; local renaming does not overwrite Copilot title fields.
 - 默认工作区为 `%LOCALAPPDATA%\CopilotBridge\workspace`，也可以在 GUI 中改为用户指定目录。The default workspace is `%LOCALAPPDATA%\CopilotBridge\workspace`, and users can choose another local directory in the GUI.
+- 概览状态采用自适应刷新：概览前台每 10 秒、后台或其他页面每 60 秒；失败时按 30/60/120 秒退避。手动刷新仍可立即检查。Overview status now refreshes adaptively: every 10 seconds while the Overview is active, every 60 seconds in the background or on other pages, with 30/60/120-second retry backoff after failures. Manual refresh remains available for an immediate check.
 
 ### 后续目标 / Next milestones
 

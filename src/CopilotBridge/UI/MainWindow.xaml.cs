@@ -2,6 +2,7 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
+using System.Windows.Threading;
 using CopilotBridge.Browser;
 using CopilotBridge.Core;
 
@@ -12,6 +13,7 @@ public partial class MainWindow : Window
     private readonly SettingsStore _settingsStore = new();
     private readonly ConsultationStateStore _stateStore = new();
     private readonly ProviderSelectors _selectors = ProviderSelectors.Load();
+    private readonly DispatcherTimer _statusRefreshTimer = new();
     private BridgeSettings _settings = new();
     private ConversationWorkspaceStore _workspace = new();
     private IReadOnlyList<WorkspaceProject> _projects = [];
@@ -20,18 +22,31 @@ public partial class MainWindow : Window
     private EdgeSessionAdapter? _session;
     private bool _busy;
     private Point _conversationDragStart;
+    private string _activePage = "overview";
+    private bool _windowIsActive;
+    private int _consecutiveStatusRefreshFailures;
+    private DateTimeOffset? _lastStatusRefresh;
 
-    public MainWindow() => InitializeComponent();
+    public MainWindow()
+    {
+        InitializeComponent();
+        _statusRefreshTimer.Tick += StatusRefreshTimer_Tick;
+        Activated += Window_Activated;
+        Deactivated += Window_Deactivated;
+        StateChanged += Window_StateChanged;
+    }
 
     private async void Window_Loaded(object sender, RoutedEventArgs e)
     {
         try
         {
+            _windowIsActive = IsActive;
             _settings = await _settingsStore.LoadAsync();
             _workspace = new ConversationWorkspaceStore(_settings.ConversationWorkspaceDirectory);
             ApplySettingsToControls();
             await RefreshWorkspaceAsync();
             await RefreshStatusAsync();
+            ScheduleStatusRefresh();
         }
         catch (Exception exception)
         {
@@ -43,6 +58,7 @@ public partial class MainWindow : Window
     private async void Navigation_Click(object sender, RoutedEventArgs e)
     {
         if (sender is not Button button || button.Tag is not string page) return;
+        _activePage = page;
         OverviewPanel.Visibility = page == "overview" ? Visibility.Visible : Visibility.Collapsed;
         HistoryPanel.Visibility = page == "history" ? Visibility.Visible : Visibility.Collapsed;
         CollaborationPanel.Visibility = page == "collaboration" ? Visibility.Visible : Visibility.Collapsed;
@@ -52,6 +68,11 @@ public partial class MainWindow : Window
         SetNavState(CollaborationNav, page == "collaboration");
         SetNavState(BrowserNav, page == "browser");
         if (page == "history") await RefreshWorkspaceAsync();
+        ScheduleStatusRefresh();
+        if (page == "overview" && !_busy)
+        {
+            await RefreshStatusAsync(automatic: true);
+        }
     }
 
     private async void Refresh_Click(object sender, RoutedEventArgs e) => await RefreshStatusAsync();
@@ -346,22 +367,57 @@ public partial class MainWindow : Window
         SearchResultsText.Text = "";
     }
 
-    private async Task RefreshStatusAsync()
+    private async void StatusRefreshTimer_Tick(object? sender, EventArgs e)
     {
-        if (_busy) return;
+        _statusRefreshTimer.Stop();
+        await RefreshStatusAsync(automatic: true);
+    }
+
+    private void Window_Activated(object? sender, EventArgs e)
+    {
+        _windowIsActive = true;
+        ScheduleStatusRefresh();
+        if (_activePage == "overview" && !_busy)
+        {
+            _ = RefreshStatusAsync(automatic: true);
+        }
+    }
+
+    private void Window_Deactivated(object? sender, EventArgs e)
+    {
+        _windowIsActive = false;
+        ScheduleStatusRefresh();
+    }
+
+    private void Window_StateChanged(object? sender, EventArgs e) => ScheduleStatusRefresh();
+
+    private async Task RefreshStatusAsync(bool automatic = false)
+    {
+        if (_busy)
+        {
+            if (automatic) ScheduleStatusRefresh();
+            return;
+        }
         SetBusy(true, _session is null ? "等待 Edge 授权" : "正在刷新状态");
         try
         {
             var session = await GetSessionAsync();
             await ReadConnectedStatusAsync(session);
-            ClearNotice();
+            _consecutiveStatusRefreshFailures = 0;
+            _lastStatusRefresh = DateTimeOffset.Now;
+            if (!automatic) ClearNotice();
         }
         catch (Exception exception)
         {
             SetDisconnectedState();
-            ShowNotice(FriendlyMessage(exception), NoticeKind.Error);
+            _consecutiveStatusRefreshFailures++;
+            if (!automatic) ShowNotice(FriendlyMessage(exception), NoticeKind.Error);
         }
-        finally { SetBusy(false, EdgeStatusText.Text == "已连接" ? "Edge 已连接" : "需要设置"); }
+        finally
+        {
+            SetBusy(false, EdgeStatusText.Text == "已连接" ? "Edge 已连接" : "需要设置");
+            ScheduleStatusRefresh();
+        }
     }
 
     private async Task ReadConnectedStatusAsync(EdgeSessionAdapter session)
@@ -392,6 +448,7 @@ public partial class MainWindow : Window
 
     protected override async void OnClosed(EventArgs e)
     {
+        _statusRefreshTimer.Stop();
         base.OnClosed(e);
         await ResetSessionAsync();
     }
@@ -455,6 +512,25 @@ public partial class MainWindow : Window
         SaveBrowserButton.IsEnabled = !busy;
         NewProjectButton.IsEnabled = !busy;
         NewConversationButton.IsEnabled = !busy;
+    }
+
+    private void ScheduleStatusRefresh()
+    {
+        if (!IsLoaded) return;
+        var interval = StatusRefreshSchedule.NextInterval(
+            _activePage == "overview",
+            _windowIsActive,
+            WindowState == WindowState.Minimized,
+            _consecutiveStatusRefreshFailures);
+        _statusRefreshTimer.Stop();
+        _statusRefreshTimer.Interval = interval;
+        _statusRefreshTimer.Start();
+
+        AutoRefreshStatusText.Text = _consecutiveStatusRefreshFailures > 0
+            ? $"自动刷新失败 {_consecutiveStatusRefreshFailures} 次；将在 {interval.TotalSeconds:0} 秒后重试。"
+            : _lastStatusRefresh is null
+                ? $"自动刷新已开启：概览前台每 10 秒，后台每 60 秒。"
+                : $"自动刷新已开启 · 上次检查 {_lastStatusRefresh.Value.LocalDateTime:HH:mm:ss} · 下次约 {interval.TotalSeconds:0} 秒后。";
     }
 
     private void ShowNotice(string message, NoticeKind kind)

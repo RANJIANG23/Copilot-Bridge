@@ -466,6 +466,31 @@ public sealed class CoreTests
         }
     }
 
+    [Theory]
+    [InlineData(true, true, false, 0, 10)]
+    [InlineData(false, true, false, 0, 60)]
+    [InlineData(true, false, false, 0, 60)]
+    [InlineData(true, true, true, 0, 60)]
+    [InlineData(true, true, false, 1, 30)]
+    [InlineData(true, true, false, 2, 60)]
+    [InlineData(true, true, false, 3, 120)]
+    [InlineData(true, true, false, 8, 120)]
+    public void StatusRefreshScheduleUsesAdaptiveIntervals(
+        bool overviewIsVisible,
+        bool windowIsActive,
+        bool windowIsMinimized,
+        int failures,
+        int expectedSeconds)
+    {
+        Assert.Equal(
+            TimeSpan.FromSeconds(expectedSeconds),
+            StatusRefreshSchedule.NextInterval(
+                overviewIsVisible,
+                windowIsActive,
+                windowIsMinimized,
+                failures));
+    }
+
     [Fact]
     public void DefaultConsultationStateIsPerUserLocalData()
     {
