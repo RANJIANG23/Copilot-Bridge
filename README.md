@@ -78,24 +78,6 @@ v1.0 established a complete, verifiable path from Codex to Microsoft 365 Copilot
 
 当前已发布团队安装包为 1.1.2。每次安装前均应核对同名 `.sha256` 文件。The current released team installer is 1.1.2. Verify its matching `.sha256` file before installation.
 
-## v1.1.2 对话管理与发布加固 / v1.1.2 conversation management and release hardening
-
-v1.1.2 聚焦对话管理、Copilot 风格界面与桌面可靠性，不扩大 MCP 或浏览器自动化边界。它继续只使用用户已登录 Edge 的 CDP 与 DOM，不增加数据库、后台服务、第二浏览器栈或自动重发。
-
-v1.1.2 focuses on conversation management, a Copilot-inspired interface, and desktop reliability without expanding the MCP or browser-automation boundary. It continues to use only CDP and DOM in the user's signed-in Edge session, and adds no database, background service, second browser stack, or automatic resend.
-
-### 1.1.2 更新 / Highlights
-
-- “历史对话”更名为“对话管理”；“收件箱/独立对话”迁移为唯一、固定且受保护的“未分类对话”，显式导入默认进入该项目。Conversation History is renamed Conversation Management; Inbox/Standalone conversations migrate to one fixed, protected Unclassified conversations project, which also receives explicit imports by default.
-- 自定义项目支持置顶和持久化拖拽排序；项目、模型和会话拖拽使用统一轻量动效，并修复拖拽源被悬停项替换的问题。Custom projects support pinning and persistent drag sorting; project, model, and conversation drag flows share lightweight motion and correctly retain the item pressed at drag start.
-- 沟通轮次不设应用级上限；旧 1–20 配置会在读取时移除。Conversation turns have no application-level cap, and legacy 1–20 settings are removed during load.
-- 设置与对话管理采用一致的 Copilot 式明暗主题、卡片操作位和 Fluent 图标；中文界面使用随包分发的 Noto Sans SC，并附 SIL OFL 1.1 许可证。Settings and Conversation Management now share Copilot-inspired light/dark themes, consistent card actions, and Fluent icons; Chinese UI uses bundled Noto Sans SC with its SIL OFL 1.1 license.
-- 新增后台常驻开关与安全的 GUI 关闭语义，只处理当前可执行文件登记的 MCP 进程。A background-resident setting adds explicit GUI-close behavior and only handles MCP processes registered by the current executable.
-- 设置页新增任务栏、“开始”和桌面快捷方式入口；本地工作区可直接打开；即时咨询主入口移至概览。Settings adds taskbar, Start, and desktop shortcut actions; the local workspace can be opened directly; the primary immediate-consultation entry moves to Overview.
-- 自动状态刷新改为静默更新：不再进入全局忙碌态、不禁用导航或普通操作，失败时保留上次成功状态。Automatic status refresh is now silent: it does not enter the global busy state or disable navigation and normal actions, and failures retain the last successful state.
-- 对话详情不再显示内部 Base64 元数据注释，但磁盘上的 Markdown 与兼容元数据保持不变。Conversation details no longer expose the internal Base64 metadata comment, while stored Markdown and compatibility metadata remain unchanged.
-- Windows x64 自包含包已通过 77/77 测试、60 秒静默刷新观察、包内哈希清单校验及隔离的 1.1.1→1.1.2 升级/卸载验收。The Windows x64 self-contained package passed 77/77 tests, a 60-second silent-refresh observation, archive-manifest verification, and an isolated 1.1.1→1.1.2 upgrade/uninstall gate.
-
 ## v1.1.1 会话工作台与体验更新 / v1.1.1 workspace and usability update
 
 v1.1.1 将 v1.1 的会话工作台整理为可供团队安装的版本：在继续使用用户已登录 Edge、仅通过 Edge CDP 与 DOM 操作明确绑定标签页的前提下，补齐了本地会话管理、模型与轮次设置、深浅主题可用性和团队诊断能力。它不使用反向代理、不绕过 Microsoft 验证，也不自动读取未授权的网页历史。
@@ -117,6 +99,24 @@ v1.1.1 packages the v1.1 conversation workspace for team installation. It retain
 - 深色主题下的右键菜单与文字保持可读；提示条可手动关闭且会自动消失；标签页绑定移至概览，工作区与即时咨询收拢到设置页。Dark-theme context menus and text remain readable; notices can be closed manually and dismiss automatically; tab binding is on Overview, while workspace and immediate consultation are consolidated in Settings.
 - MCP 诊断日志会复用同一长期运行进程的上下文，便于定位重复出现的 Edge 授权提示。MCP diagnostic logs retain context across the same long-running process to help identify repeated Edge authorization prompts.
 - 已发布 Windows x64 自包含安装包 `CopilotBridge-1.1.1-win-x64.zip`，并附带同名 SHA-256 校验文件。The Windows x64 self-contained package `CopilotBridge-1.1.1-win-x64.zip` is released with its matching SHA-256 file.
+
+## v1.1.2 对话管理与发布加固 / v1.1.2 conversation management and release hardening
+
+v1.1.2 聚焦对话管理、Copilot 风格界面与桌面可靠性，不扩大 MCP 或浏览器自动化边界。它继续只使用用户已登录 Edge 的 CDP 与 DOM，不增加数据库、后台服务、第二浏览器栈或自动重发。
+
+v1.1.2 focuses on conversation management, a Copilot-inspired interface, and desktop reliability without expanding the MCP or browser-automation boundary. It continues to use only CDP and DOM in the user's signed-in Edge session, and adds no database, background service, second browser stack, or automatic resend.
+
+### 1.1.2 更新 / Highlights
+
+- “历史对话”更名为“对话管理”；“收件箱/独立对话”迁移为唯一、固定且受保护的“未分类对话”，显式导入默认进入该项目。Conversation History is renamed Conversation Management; Inbox/Standalone conversations migrate to one fixed, protected Unclassified conversations project, which also receives explicit imports by default.
+- 自定义项目支持置顶和持久化拖拽排序；项目、模型和会话拖拽使用统一轻量动效，并修复拖拽源被悬停项替换的问题。Custom projects support pinning and persistent drag sorting; project, model, and conversation drag flows share lightweight motion and correctly retain the item pressed at drag start.
+- 沟通轮次不设应用级上限；旧 1–20 配置会在读取时移除。Conversation turns have no application-level cap, and legacy 1–20 settings are removed during load.
+- 设置与对话管理采用一致的 Copilot 式明暗主题、卡片操作位和 Fluent 图标；中文界面使用随包分发的 Noto Sans SC，并附 SIL OFL 1.1 许可证。Settings and Conversation Management now share Copilot-inspired light/dark themes, consistent card actions, and Fluent icons; Chinese UI uses bundled Noto Sans SC with its SIL OFL 1.1 license.
+- 新增后台常驻开关与安全的 GUI 关闭语义，只处理当前可执行文件登记的 MCP 进程。A background-resident setting adds explicit GUI-close behavior and only handles MCP processes registered by the current executable.
+- 设置页新增任务栏、“开始”和桌面快捷方式入口；本地工作区可直接打开；即时咨询主入口移至概览。Settings adds taskbar, Start, and desktop shortcut actions; the local workspace can be opened directly; the primary immediate-consultation entry moves to Overview.
+- 自动状态刷新改为静默更新：不再进入全局忙碌态、不禁用导航或普通操作，失败时保留上次成功状态。Automatic status refresh is now silent: it does not enter the global busy state or disable navigation and normal actions, and failures retain the last successful state.
+- 对话详情不再显示内部 Base64 元数据注释，但磁盘上的 Markdown 与兼容元数据保持不变。Conversation details no longer expose the internal Base64 metadata comment, while stored Markdown and compatibility metadata remain unchanged.
+- Windows x64 自包含包已通过 77/77 测试、60 秒静默刷新观察、包内哈希清单校验及隔离的 1.1.1→1.1.2 升级/卸载验收。The Windows x64 self-contained package passed 77/77 tests, a 60-second silent-refresh observation, archive-manifest verification, and an isolated 1.1.1→1.1.2 upgrade/uninstall gate.
 
 ### 后续目标 / Next milestones
 
