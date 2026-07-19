@@ -3,6 +3,7 @@ obj/
 .vs/
 TestResults/
 artifacts/
+.codex/config.toml
 *.user
 *.suo
 *.log

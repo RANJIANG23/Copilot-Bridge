@@ -1,0 +1,12 @@
+# Copy this file to .codex/config.toml on your own machine, then replace the
+# placeholders. Do not commit the resulting local configuration.
+[mcp_servers.copilot_bridge]
+command = '<absolute path to CopilotBridge.exe>'
+args = ["--mcp"]
+cwd = '<repository root>'
+startup_timeout_sec = 15
+tool_timeout_sec = 360
+default_tools_approval_mode = "prompt"
+
+# Keep consult_copilot subject to your normal approval policy. Do not add a
+# repository-wide automatic approval rule for browser-backed consultations.

@@ -26,7 +26,7 @@ Before working in this repository, read `PROJECT-DESIGN.md` and `EXECUTION-ROADM
 
 ## Frozen project boundary
 
-- Do not restore, build, modify, reference, or copy runtime code from `D:\WorkSpace\ChatGPT`.
+- Do not restore, build, modify, reference, or copy runtime code from the frozen ChatGPT project.
 - Reimplement only the small ideas explicitly allowed by `PROJECT-DESIGN.md`.
 
 ## Verification

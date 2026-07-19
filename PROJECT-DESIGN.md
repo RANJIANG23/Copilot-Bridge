@@ -4,7 +4,7 @@
 > 日期：2026-07-19（Asia/Shanghai）
 > 状态：团队 v1 已通过；v1.1 会话工作台 Phase 7–8 已通过
 > 工作名称：Copilot Bridge
-> 项目目录：`D:\WorkSpace\Microsoft Copilot`
+> 项目目录：本仓库根目录
 > 目标模式执行路线图：[EXECUTION-ROADMAP.md](./EXECUTION-ROADMAP.md)
 
 ## 1. 项目结论
@@ -733,7 +733,7 @@ Microsoft Copilot\
 
 ## 17. Frozen 项目迁移边界
 
-`D:\WorkSpace\ChatGPT` 继续保持冻结，绝不引用其 `.csproj`、DLL 或运行时组件。
+Frozen ChatGPT 项目继续保持冻结，绝不引用其 `.csproj`、DLL 或运行时组件。
 
 只允许重新实现以下经过验证仍有价值的思路：
 
