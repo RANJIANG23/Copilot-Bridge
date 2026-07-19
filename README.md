@@ -110,15 +110,15 @@ v1.1 evolves Copilot Bridge from a transient consultation tool into a controlled
 
 | 项目 / Item | 状态 / Status |
 |---|---|
-| 开发版本 / Development version | `1.1.0-dev` |
-| 发布状态 / Release status | 团队 v1 已通过；v1.1 会话工作台开发中 / Team v1 passed; v1.1 conversation workspace in development |
+| 当前源码版本 / Current source version | `1.1.1` |
+| 发布状态 / Release status | 团队 v1 已通过；v1.1.1 源码已验证，安装包尚未发布 / Team v1 passed; v1.1.1 source verified, installer package not yet published |
 | 已通过 / Passed | Phase 0–6 and G1–G8（本机隔离验收 / local isolated acceptance） |
 | 后续试点 / Follow-up pilot | 不同硬件、账号和企业策略环境 / Different hardware, account, and enterprise-policy environments |
 | 平台 / Platform | Windows 11 x64 |
 
-RC5 已达到项目定义的本机团队 v1 门禁，但不把本机隔离验收描述为跨设备兼容性证明。`1.1.0-dev` 尚未发布安装包；现有 RC5 下载仍是最后一个发布包。
+RC5 已达到项目定义的本机团队 v1 门禁，但不把本机隔离验收描述为跨设备兼容性证明。`1.1.1` 尚未发布安装包；现有 RC5 下载仍是最后一个发布包。
 
-RC5 satisfies the project's local team-v1 gates, but local isolated acceptance is not presented as proof of cross-device compatibility. `1.1.0-dev` has not been packaged for release.
+RC5 satisfies the project's local team-v1 gates, but local isolated acceptance is not presented as proof of cross-device compatibility. `1.1.1` has not been packaged for release.
 
 ## 架构开发思路 / Architecture and design rationale
 

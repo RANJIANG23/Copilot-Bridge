@@ -1,6 +1,7 @@
 using System.Reflection;
 using System.Text.Json;
 using System.Text.Json.Serialization.Metadata;
+using CopilotBridge.Core;
 using Microsoft.Extensions.Logging.Abstractions;
 using ModelContextProtocol.Protocol;
 using ModelContextProtocol.Server;
@@ -15,6 +16,9 @@ internal static class McpHost
     internal static async Task<int> RunAsync()
     {
         await using var tools = new CopilotBridgeTools();
+        DiagnosticLog.WriteInfo(
+            "mcp_server_started",
+            $"process_id={Environment.ProcessId} server_instance={tools.ServerInstanceId}");
         var jsonOptions = new JsonSerializerOptions(JsonSerializerDefaults.Web)
         {
             TypeInfoResolver = new DefaultJsonTypeInfoResolver()

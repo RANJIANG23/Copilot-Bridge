@@ -42,6 +42,7 @@ internal sealed class CollaborationRunner
     private const int ReviewLimit = 2;
     private readonly Func<AssistRequest, Task<AssistResult>> _execute;
     private readonly string _newConversationUrl;
+    private readonly int? _configuredTurnLimit;
 
     internal CollaborationRunner(
         BridgeSettings settings,
@@ -51,19 +52,22 @@ internal sealed class CollaborationRunner
         var coordinator = new ConsultationCoordinator(settings, selectors);
         _execute = request => coordinator.AssistOnPageAsync(page, request);
         _newConversationUrl = $"https://{selectors.AllowedHost}/chat/";
+        _configuredTurnLimit = settings.ConversationTurnLimit;
     }
 
     internal CollaborationRunner(
         Func<AssistRequest, Task<AssistResult>> execute,
-        string newConversationUrl = "https://m365.cloud.microsoft/chat/")
+        string newConversationUrl = "https://m365.cloud.microsoft/chat/",
+        int? configuredTurnLimit = null)
     {
         _execute = execute;
         _newConversationUrl = newConversationUrl;
+        _configuredTurnLimit = configuredTurnLimit;
     }
 
     internal async Task<CollaborationRunResult> RunAsync(CollaborationContext context)
     {
-        var limit = context.Mode switch
+        var limit = _configuredTurnLimit ?? context.Mode switch
         {
             CollaborationMode.Assist => AssistLimit,
             CollaborationMode.Outsource => OutsourceLimit,

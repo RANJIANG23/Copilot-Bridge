@@ -1,4 +1,5 @@
 using System.Windows;
+using System.Windows.Automation;
 using System.Windows.Controls;
 using System.Windows.Media;
 using CopilotBridge.Core;
@@ -19,6 +20,7 @@ internal static class UiText
         ["数据保存在你的本地工作区"] = "Your data stays in your local workspace",
         ["正在初始化"] = "Initializing",
         ["检查后台连接，并将新产生的即时咨询完整写入本地 Markdown 会话。"] = "Check the background connection and save each new immediate consultation as a complete local Markdown conversation.",
+        ["检查后台连接状态，并管理专用 Copilot 标签页绑定。"] = "Check the background connection and manage the dedicated Copilot tab binding.",
         ["Edge 连接"] = "Edge connection",
         ["尚未检查"] = "Not checked",
         ["专用标签页"] = "Dedicated tab",
@@ -28,20 +30,23 @@ internal static class UiText
         ["页面当前模型"] = "Current page model",
         ["刷新状态"] = "Refresh status",
         ["绑定当前 Copilot 标签页"] = "Bind current Copilot tab",
+        ["将 Bridge 绑定到当前已登录的专用 Copilot 标签页。"] = "Bind Bridge to the current signed-in dedicated Copilot tab.",
+        ["关闭提示"] = "Close notification",
         ["自动刷新正在准备。"] = "Automatic refresh is preparing.",
         ["即时咨询"] = "Immediate consultation",
         ["发送后会保存发送内容、Copilot 回复和已验证的实际模型；不会自动导入旧网页历史。"] = "After sending, the prompt, Copilot reply, and verified model are saved; existing web history is never imported automatically.",
         ["这是 Copilot Bridge v1.1 即时会话测试。请只回复：COPILOT_BRIDGE_V11_OK"] = "This is a Copilot Bridge v1.1 immediate-conversation test. Reply only: COPILOT_BRIDGE_V11_OK",
         ["发送并记录即时咨询"] = "Send and record consultation",
         ["可显式导入当前打开的旧网页对话；只读取页面当前已加载内容。"] = "Explicitly import the currently open web conversation; only currently loaded page content is read.",
-        ["导入当前旧对话"] = "Import current web conversation",
-        ["+ 新建即时对话"] = "+ New immediate conversation",
+        ["导入对话"] = "Import conversation",
         ["项目与分类"] = "Projects & categories",
+        ["项目名称"] = "Project name",
         ["输入项目名称"] = "Enter a project name",
         ["创建项目"] = "Create project",
         ["可将会话拖到项目中归类"] = "Drag conversations into projects to categorize them",
         ["会话（可拖入项目）"] = "Conversations (drag into a project)",
         ["选择或创建一个即时会话"] = "Select or create an immediate conversation",
+        ["本地显示名称"] = "Local display name",
         ["保存名称"] = "Save name",
         ["移动到："] = "Move to:",
         ["移动"] = "Move",
@@ -62,18 +67,29 @@ internal static class UiText
         ["保存协作默认设置"] = "Save collaboration defaults",
         ["浏览器、模型与本地工作区"] = "Browser, models & local workspace",
         ["模型队列是默认回退策略；会话正文仅写入你选择的本地工作区。"] = "The model queue is the default fallback strategy; conversation content is written only to your chosen local workspace.",
+        ["浏览器与模型"] = "Browser & models",
+        ["配置模型回退顺序、菜单等待与回复超时。"] = "Configure model fallback order, menu wait, and reply timeout.",
         ["标签页绑定"] = "Tab binding",
         ["当前绑定"] = "Currently bound",
         ["重新绑定"] = "Rebind",
         ["本地会话工作区"] = "Local conversation workspace",
         ["即时会话以一会话一 Markdown 文件保存在此处；旧网页历史不会自动导入。"] = "Immediate conversations are stored here as one Markdown file each; existing web history is never imported automatically.",
+        ["浏览"] = "Browse",
         ["模型优先级"] = "Model priority",
         ["Opus → GPT 5.6 Think deeper → 深度思考。仅在高优先级不可用时回退。"] = "Opus → GPT 5.6 Think deeper → Deep thinking. Fallback occurs only when a higher-priority model is unavailable.",
+        ["拖动选项卡排序；仅在上方模型不可用时回退。"] = "Drag cards to reorder. Fallback occurs only when a higher model is unavailable.",
         ["菜单最短等待（ms）"] = "Minimum menu wait (ms)",
         ["菜单最大等待（ms）"] = "Maximum menu wait (ms)",
         ["回复超时（秒）"] = "Reply timeout (seconds)",
+        ["沟通轮次上限"] = "Conversation turn limit",
+        ["每个协作模式最多执行的沟通轮次（1–20）。"] = "Maximum consultation turns for each collaboration mode (1–20).",
         ["保存浏览器与工作区设置"] = "Save browser and workspace settings",
+        ["保存浏览器与模型设置"] = "Save browser and model settings",
         ["显示语言"] = "Display language",
+        ["主题"] = "Theme",
+        ["浅色（默认）"] = "Light (default)",
+        ["深色（Codex）"] = "Dark (Codex)",
+        ["深色主题采用 Codex 风格的低眩光深色画布。"] = "Dark theme uses a low-glare canvas inspired by Codex.",
         ["立即切换应用界面语言；该偏好会保存在本机设置中。"] = "Switch the application interface language immediately; this preference is saved in local settings.",
         ["中文"] = "Chinese",
         ["保存设置"] = "Save settings",
@@ -86,6 +102,7 @@ internal static class UiText
         ["正在读取旧对话预览"] = "Reading conversation import preview",
         ["正在刷新状态"] = "Refreshing status",
         ["已连接"] = "Connected",
+        ["已绑定专用 Copilot 标签页"] = "Dedicated Copilot tab is bound",
         ["Edge 已连接"] = "Edge connected",
         ["已登录"] = "Signed in",
         ["未连接"] = "Disconnected",
@@ -93,6 +110,7 @@ internal static class UiText
         ["Review 使用两个隔离会话"] = "Review uses two isolated conversations",
         ["需要检查"] = "Needs attention",
         ["设置已保存，将从下一次咨询开始生效。"] = "Settings saved and will apply to the next consultation.",
+        ["正在处理当前咨询；会话改名和移动会暂时不可用。"] = "The current consultation is running; renaming and moving this conversation are temporarily unavailable.",
         ["已绑定当前专用 Copilot 标签页。"] = "The current dedicated Copilot tab is bound.",
         ["请先输入即时咨询内容。"] = "Enter an immediate consultation first.",
         ["已有一个咨询正在执行，请等待其完成。"] = "A consultation is already running. Please wait for it to finish.",
@@ -106,6 +124,20 @@ internal static class UiText
         ["请输入关键词。"] = "Enter a keyword.",
         ["未命中当前会话。"] = "No matches in this conversation.",
         ["当前会话 Markdown 已复制，可粘贴到 Codex 或其他工具。"] = "The current conversation Markdown was copied. You can paste it into Codex or another tool.",
+        ["重命名"] = "Rename",
+        ["删除"] = "Delete",
+        ["重命名项目"] = "Rename project",
+        ["删除项目"] = "Delete project",
+        ["重命名会话"] = "Rename conversation",
+        ["删除会话"] = "Delete conversation",
+        ["保存"] = "Save",
+        ["取消"] = "Cancel",
+        ["请输入名称"] = "Enter a name",
+        ["项目已重命名。"] = "Project renamed.",
+        ["仅可删除不含会话的项目。确定删除此项目吗？"] = "Only an empty project can be deleted. Delete this project?",
+        ["项目已删除。"] = "Project deleted.",
+        ["将永久删除此本地 Markdown 会话，Copilot 网页对话不会受影响。确定删除吗？"] = "This permanently deletes the local Markdown conversation. The Copilot web conversation is unaffected. Delete it?",
+        ["会话已删除。"] = "Conversation deleted.",
         ["将只读取并保存当前页面已加载的消息，不会发送、滚动、导航或改写 Copilot 对话。"] = "Only messages currently loaded on this page will be read and saved. Copilot will not be sent to, scrolled, navigated, or modified.",
         ["Copilot 标题"] = "Copilot title",
         ["已加载消息"] = "Loaded messages",
@@ -117,7 +149,9 @@ internal static class UiText
         ["旧对话已保存为本地 Markdown；历史回复模型保持未知。"] = "The web conversation was saved as local Markdown; historic reply models remain unknown.",
         ["当前 Copilot 对话已经导入过，不会创建重复 Markdown。"] = "This Copilot conversation was already imported; no duplicate Markdown was created.",
         ["等待时间无效：最大等待必须大于或等于最短等待，回复超时必须大于 0。"] = "Invalid wait values: maximum wait must be at least the minimum wait, and reply timeout must be greater than 0.",
+        ["设置数值无效：请检查等待时间、回复超时和沟通轮次上限。"] = "Invalid values: check wait times, reply timeout, and conversation turn limit.",
         ["本地会话工作区不能为空。"] = "The local conversation workspace cannot be empty.",
+        ["选择本地会话工作区"] = "Choose local conversation workspace",
         ["Edge 远程调试尚未开启。请在 edge://inspect 的 Remote debugging 页面允许当前浏览器实例。"] = "Edge remote debugging is not enabled. Allow this browser instance from edge://inspect's Remote debugging page.",
         ["没有发现可用的 Microsoft 365 Copilot 聊天标签页。请先打开 https://m365.cloud.microsoft/chat/。"] = "No eligible Microsoft 365 Copilot chat tab was found. Open https://m365.cloud.microsoft/chat/ first.",
         ["发现多个 Copilot 聊天标签页。请只保留一个专用标签页后重试。"] = "Multiple Copilot chat tabs were found. Keep only one dedicated tab, then try again.",
@@ -152,6 +186,9 @@ internal static class UiText
                 case Button button when button.Content is string content:
                     button.Content = Translate(content, language);
                     break;
+                case MenuItem menuItem when menuItem.Header is string header:
+                    menuItem.Header = Translate(header, language);
+                    break;
                 case ComboBoxItem item when item.Content is string content:
                     item.Content = Translate(content, language);
                     break;
@@ -169,6 +206,14 @@ internal static class UiText
             if (child is FrameworkElement element && element.ToolTip is string tooltip)
             {
                 element.ToolTip = Translate(tooltip, language);
+            }
+
+            if (child is FrameworkElement automationElement &&
+                !string.IsNullOrWhiteSpace(AutomationProperties.GetName(automationElement)))
+            {
+                AutomationProperties.SetName(
+                    automationElement,
+                    Translate(AutomationProperties.GetName(automationElement), language));
             }
 
             ApplyElement(child, language);

@@ -79,21 +79,33 @@ internal sealed class CopilotPageDriver
             await Task.Delay(50);
         }
 
-        string selected;
-        if (await TryClickExactAsync(_selectors.Opus))
+        string? selected = null;
+        foreach (var preferredModel in ModelPriorityOptions.Parse(_settings.ModelPriority))
         {
-            selected = _selectors.Opus;
+            if (preferredModel.Equals(_selectors.Opus, StringComparison.Ordinal) &&
+                await TryClickExactAsync(_selectors.Opus))
+            {
+                selected = _selectors.Opus;
+                break;
+            }
+
+            if (preferredModel.Equals(_selectors.Gpt56, StringComparison.Ordinal) &&
+                await TrySelectGpt56Async())
+            {
+                selected = _selectors.Gpt56;
+                break;
+            }
+
+            if (preferredModel.Equals(_selectors.DeepThinkingChinese, StringComparison.Ordinal) &&
+                (await TryClickExactAsync(_selectors.DeepThinkingChinese) ||
+                 await TryClickExactAsync(_selectors.DeepThinkingEnglish)))
+            {
+                selected = _selectors.DeepThinkingChinese;
+                break;
+            }
         }
-        else if (await TrySelectGpt56Async())
-        {
-            selected = _selectors.Gpt56;
-        }
-        else if (await TryClickExactAsync(_selectors.DeepThinkingChinese) ||
-                 await TryClickExactAsync(_selectors.DeepThinkingEnglish))
-        {
-            selected = _selectors.DeepThinkingChinese;
-        }
-        else
+
+        if (selected is null)
         {
             throw new InvalidOperationException(
                 "No allowed model is available. Automatic and fast modes are intentionally forbidden.");
