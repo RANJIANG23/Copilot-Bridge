@@ -32,14 +32,14 @@ public sealed record ConsultResponse(
 
 internal sealed class CopilotBridgeTools : IAsyncDisposable
 {
-    private static readonly IReadOnlyList<string> ModelPriority =
-        ["opus", "gpt_5_6_think_deeper", "deep_thinking"];
-
     private readonly SettingsStore _settingsStore = new();
     private readonly ConsultationStateStore _stateStore = new();
     private readonly ProviderSelectors _selectors = ProviderSelectors.Load();
+    private readonly string _serverInstanceId = Guid.NewGuid().ToString("N");
     private EdgeSessionAdapter? _session;
     private string? _sessionUserDataDirectory;
+
+    internal string ServerInstanceId => _serverInstanceId;
 
     [McpServerTool(
         Name = "copilot_bridge_status",
@@ -61,7 +61,7 @@ internal sealed class CopilotBridgeTools : IAsyncDisposable
             connected ? "authenticated" : "not_checked",
             SnakeCase(settings.ConsultationPolicy),
             SnakeCase(settings.CollaborationMode),
-            ModelPriority,
+            ModelPriorityOptions.Parse(settings.ModelPriority),
             ConsultationLease.IsBusy());
     }
 
@@ -225,6 +225,9 @@ internal sealed class CopilotBridgeTools : IAsyncDisposable
                 settings.EdgeUserDataDirectory,
                 StringComparison.OrdinalIgnoreCase))
         {
+            DiagnosticLog.WriteInfo(
+                "mcp_cdp_session_reused",
+                $"process_id={Environment.ProcessId} server_instance={_serverInstanceId}");
             return _session;
         }
 
@@ -238,6 +241,9 @@ internal sealed class CopilotBridgeTools : IAsyncDisposable
             _selectors,
             timeoutMilliseconds: 120_000);
         _sessionUserDataDirectory = settings.EdgeUserDataDirectory;
+        DiagnosticLog.WriteInfo(
+            "mcp_cdp_session_created",
+            $"process_id={Environment.ProcessId} server_instance={_serverInstanceId}");
         return _session;
     }
 

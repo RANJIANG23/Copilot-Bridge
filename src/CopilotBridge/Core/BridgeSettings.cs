@@ -24,6 +24,33 @@ internal enum AppLanguage
     English
 }
 
+internal enum AppTheme
+{
+    Light,
+    Dark
+}
+
+internal static class ModelPriorityOptions
+{
+    internal static readonly IReadOnlyList<string> Default =
+        ["Opus", "GPT 5.6 Think deeper", "深度思考"];
+
+    internal static string Serialize(IEnumerable<string> priority) => string.Join("|", priority);
+
+    internal static IReadOnlyList<string> Parse(string? priority) =>
+        string.IsNullOrWhiteSpace(priority)
+            ? Default
+            : priority.Split('|', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries);
+
+    internal static bool IsValid(string? priority)
+    {
+        var values = Parse(priority);
+        return values.Count == Default.Count &&
+               values.OrderBy(value => value, StringComparer.Ordinal)
+            .SequenceEqual(Default.OrderBy(value => value, StringComparer.Ordinal), StringComparer.Ordinal);
+    }
+}
+
 internal sealed record BridgeSettings
 {
     public string EdgeUserDataDirectory { get; init; } = Path.Combine(
@@ -38,11 +65,17 @@ internal sealed record BridgeSettings
 
     public int ReplyTimeoutSeconds { get; init; } = 300;
 
+    public int ConversationTurnLimit { get; init; } = 6;
+
+    public string ModelPriority { get; init; } = ModelPriorityOptions.Serialize(ModelPriorityOptions.Default);
+
     public ConsultationPolicy ConsultationPolicy { get; init; } = ConsultationPolicy.ManualOnly;
 
     public CollaborationMode CollaborationMode { get; init; } = CollaborationMode.Assist;
 
     public AppLanguage DisplayLanguage { get; init; } = AppLanguage.Chinese;
+
+    public AppTheme Theme { get; init; } = AppTheme.Light;
 
     public string? BoundConversationUrl { get; init; }
 
@@ -139,9 +172,15 @@ internal sealed class SettingsStore
 
         if (settings.MenuMinimumWaitMilliseconds < 0 ||
             settings.MenuMaximumWaitMilliseconds < settings.MenuMinimumWaitMilliseconds ||
-            settings.ReplyTimeoutSeconds <= 0)
+            settings.ReplyTimeoutSeconds <= 0 ||
+            settings.ConversationTurnLimit is < 1 or > 20)
         {
             throw new InvalidDataException("Settings contain invalid timeout values.");
+        }
+
+        if (!ModelPriorityOptions.IsValid(settings.ModelPriority))
+        {
+            throw new InvalidDataException("Settings contain an invalid model priority.");
         }
 
         return settings;

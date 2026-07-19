@@ -1,3 +1,4 @@
+using System.Collections.ObjectModel;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
@@ -5,6 +6,7 @@ using System.Windows.Media;
 using System.Windows.Threading;
 using CopilotBridge.Browser;
 using CopilotBridge.Core;
+using Microsoft.Win32;
 
 namespace CopilotBridge.UI;
 
@@ -14,6 +16,8 @@ public partial class MainWindow : Window
     private readonly ConsultationStateStore _stateStore = new();
     private readonly ProviderSelectors _selectors = ProviderSelectors.Load();
     private readonly DispatcherTimer _statusRefreshTimer = new();
+    private readonly DispatcherTimer _noticeTimer = new() { Interval = TimeSpan.FromSeconds(5) };
+    private readonly ObservableCollection<string> _modelPriority = [];
     private BridgeSettings _settings = new();
     private ConversationWorkspaceStore _workspace = new();
     private IReadOnlyList<WorkspaceProject> _projects = [];
@@ -22,6 +26,7 @@ public partial class MainWindow : Window
     private EdgeSessionAdapter? _session;
     private bool _busy;
     private Point _conversationDragStart;
+    private Point _modelPriorityDragStart;
     private string _activePage = "overview";
     private bool _windowIsActive;
     private int _consecutiveStatusRefreshFailures;
@@ -32,9 +37,11 @@ public partial class MainWindow : Window
     {
         InitializeComponent();
         _statusRefreshTimer.Tick += StatusRefreshTimer_Tick;
+        _noticeTimer.Tick += NoticeTimer_Tick;
         Activated += Window_Activated;
         Deactivated += Window_Deactivated;
         StateChanged += Window_StateChanged;
+        SizeChanged += Window_SizeChanged;
     }
 
     private async void Window_Loaded(object sender, RoutedEventArgs e)
@@ -44,9 +51,12 @@ public partial class MainWindow : Window
             _windowIsActive = IsActive;
             _settings = await _settingsStore.LoadAsync();
             _workspace = new ConversationWorkspaceStore(_settings.ConversationWorkspaceDirectory);
+            ModelPriorityListBox.ItemsSource = _modelPriority;
+            ApplyTheme();
             ApplySettingsToControls();
             _settingsAreLoaded = true;
             ApplyUiLanguage();
+            UpdateHistoryColumns();
             await RefreshWorkspaceAsync();
             await RefreshStatusAsync();
             ScheduleStatusRefresh();
@@ -82,6 +92,20 @@ public partial class MainWindow : Window
 
     private async void Refresh_Click(object sender, RoutedEventArgs e) => await RefreshStatusAsync();
 
+    private void BrowseWorkspace_Click(object sender, RoutedEventArgs e)
+    {
+        var initialDirectory = WorkspaceDirectoryTextBox.Text.Trim();
+        var dialog = new OpenFolderDialog
+        {
+            Title = T("选择本地会话工作区"),
+            InitialDirectory = Directory.Exists(initialDirectory) ? initialDirectory : null
+        };
+        if (dialog.ShowDialog(this) == true)
+        {
+            WorkspaceDirectoryTextBox.Text = dialog.FolderName;
+        }
+    }
+
     private async void Language_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
         if (!_settingsAreLoaded) return;
@@ -102,6 +126,31 @@ public partial class MainWindow : Window
         }
     }
 
+    private async void Theme_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (!_settingsAreLoaded) return;
+        var theme = ThemeComboBox.SelectedIndex == (int)AppTheme.Dark ? AppTheme.Dark : AppTheme.Light;
+        if (_settings.Theme == theme) return;
+
+        var previous = _settings;
+        try
+        {
+            _settings = _settings with { Theme = theme };
+            await _settingsStore.SaveAsync(_settings);
+            ApplyTheme();
+            ApplyUiLanguage();
+            ShowNotice(T("设置已保存，将从下一次咨询开始生效。"), NoticeKind.Success);
+            HeaderStatusText.Text = T("设置已保存");
+        }
+        catch (Exception exception)
+        {
+            _settings = previous;
+            ThemeComboBox.SelectedIndex = (int)previous.Theme;
+            ApplyTheme();
+            ShowNotice(FriendlyMessage(exception), NoticeKind.Error);
+        }
+    }
+
     private async void Bind_Click(object sender, RoutedEventArgs e)
     {
         if (_busy) return;
@@ -112,7 +161,7 @@ public partial class MainWindow : Window
             _settings = _settings with { BoundConversationUrl = session.Page.Url };
             await _settingsStore.SaveAsync(_settings);
             BoundUrlText.Text = session.Page.Url;
-            TabStatusText.Text = session.Page.Url;
+            TabStatusText.Text = T("已绑定专用 Copilot 标签页");
             ShowNotice(T("已绑定当前专用 Copilot 标签页。"), NoticeKind.Success);
             await ReadConnectedStatusAsync(session);
         }
@@ -130,6 +179,7 @@ public partial class MainWindow : Window
         try
         {
             await SaveSettingsFromControlsAsync();
+            ApplyTheme();
             ApplyUiLanguage();
             ShowNotice(T("设置已保存，将从下一次咨询开始生效。"), NoticeKind.Success);
             HeaderStatusText.Text = T("设置已保存");
@@ -201,7 +251,7 @@ public partial class MainWindow : Window
             }
 
             BoundUrlText.Text = _settings.BoundConversationUrl ?? T("Review 使用两个隔离会话");
-            TabStatusText.Text = session.Page.Url;
+            TabStatusText.Text = T("已绑定专用 Copilot 标签页");
             ModelStatusText.Text = last.Result.Model;
             await RefreshWorkspaceAsync(_selectedConversation.Id);
             ShowNotice(T("即时会话已保存为本地 Markdown；不会自动读取旧网页历史。"), NoticeKind.Success);
@@ -235,17 +285,6 @@ public partial class MainWindow : Window
         catch (Exception exception) { ShowNotice(FriendlyMessage(exception), NoticeKind.Error); }
     }
 
-    private async void NewConversation_Click(object sender, RoutedEventArgs e)
-    {
-        try
-        {
-            _selectedConversation = await CreateImmediateConversationAsync();
-            await RefreshWorkspaceAsync(_selectedConversation.Id);
-            ShowNotice(T("已创建即时会话。输入内容后在概览页发送，正文会写入该会话。"), NoticeKind.Success);
-        }
-        catch (Exception exception) { ShowNotice(FriendlyMessage(exception), NoticeKind.Error); }
-    }
-
     private async void Project_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
         if (ProjectListBox.SelectedItem is not WorkspaceProject project) return;
@@ -253,8 +292,68 @@ public partial class MainWindow : Window
         await RefreshConversationListAsync();
     }
 
+    private void ProjectListBox_PreviewMouseRightButtonDown(object sender, MouseButtonEventArgs e)
+    {
+        if (FindParent<ListBoxItem>(e.OriginalSource as DependencyObject)?.DataContext is WorkspaceProject project)
+        {
+            ProjectListBox.SelectedItem = project;
+        }
+    }
+
+    private void ProjectListBox_ContextMenuOpening(object sender, ContextMenuEventArgs e)
+    {
+        var canModify = ProjectListBox.SelectedItem is WorkspaceProject project && !project.IsSystem;
+        RenameProjectMenuItem.IsEnabled = canModify;
+        DeleteProjectMenuItem.IsEnabled = canModify;
+    }
+
+    private async void RenameProjectMenuItem_Click(object sender, RoutedEventArgs e)
+    {
+        if (ProjectListBox.SelectedItem is not WorkspaceProject project || project.IsSystem) return;
+        var name = PromptForName(T("重命名项目"), project.Name);
+        if (name is null) return;
+
+        try
+        {
+            var renamed = await _workspace.RenameProjectAsync(project, name);
+            _activeProjectId = renamed.Id;
+            await RefreshWorkspaceAsync();
+            SelectProject(renamed.Id);
+            ShowNotice(T("项目已重命名。"), NoticeKind.Success);
+        }
+        catch (Exception exception) { ShowNotice(FriendlyMessage(exception), NoticeKind.Error); }
+    }
+
+    private async void DeleteProjectMenuItem_Click(object sender, RoutedEventArgs e)
+    {
+        if (ProjectListBox.SelectedItem is not WorkspaceProject project || project.IsSystem) return;
+        var confirmation = MessageBox.Show(
+            T("仅可删除不含会话的项目。确定删除此项目吗？"),
+            T("删除项目"),
+            MessageBoxButton.YesNo,
+            MessageBoxImage.Warning);
+        if (confirmation != MessageBoxResult.Yes) return;
+
+        try
+        {
+            await _workspace.DeleteProjectAsync(project);
+            _activeProjectId = ConversationWorkspaceStore.InboxProjectId;
+            await RefreshWorkspaceAsync();
+            ShowNotice(T("项目已删除。"), NoticeKind.Success);
+        }
+        catch (Exception exception) { ShowNotice(FriendlyMessage(exception), NoticeKind.Error); }
+    }
+
     private void ConversationListBox_PreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e) =>
         _conversationDragStart = e.GetPosition(ConversationListBox);
+
+    private void ConversationListBox_PreviewMouseRightButtonDown(object sender, MouseButtonEventArgs e)
+    {
+        if (FindParent<ListBoxItem>(e.OriginalSource as DependencyObject)?.DataContext is ConversationSummary summary)
+        {
+            ConversationListBox.SelectedItem = summary;
+        }
+    }
 
     private void ConversationListBox_PreviewMouseMove(object sender, MouseEventArgs e)
     {
@@ -263,6 +362,35 @@ public partial class MainWindow : Window
         if (Math.Abs(position.X - _conversationDragStart.X) < SystemParameters.MinimumHorizontalDragDistance &&
             Math.Abs(position.Y - _conversationDragStart.Y) < SystemParameters.MinimumVerticalDragDistance) return;
         DragDrop.DoDragDrop(ConversationListBox, summary.Id, DragDropEffects.Move);
+    }
+
+    private void ModelPriorityListBox_PreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e) =>
+        _modelPriorityDragStart = e.GetPosition(ModelPriorityListBox);
+
+    private void ModelPriorityListBox_PreviewMouseMove(object sender, MouseEventArgs e)
+    {
+        if (e.LeftButton != MouseButtonState.Pressed || ModelPriorityListBox.SelectedItem is not string model) return;
+        var position = e.GetPosition(ModelPriorityListBox);
+        if (Math.Abs(position.X - _modelPriorityDragStart.X) < SystemParameters.MinimumHorizontalDragDistance &&
+            Math.Abs(position.Y - _modelPriorityDragStart.Y) < SystemParameters.MinimumVerticalDragDistance) return;
+        DragDrop.DoDragDrop(ModelPriorityListBox, model, DragDropEffects.Move);
+    }
+
+    private void ModelPriorityListBox_Drop(object sender, DragEventArgs e)
+    {
+        if (!e.Data.GetDataPresent(DataFormats.StringFormat) ||
+            e.Data.GetData(DataFormats.StringFormat) is not string model) return;
+        var sourceIndex = _modelPriority.IndexOf(model);
+        if (sourceIndex < 0) return;
+        var targetModel = FindParent<ListBoxItem>(e.OriginalSource as DependencyObject)?.DataContext as string;
+        var targetIndex = targetModel is null ? _modelPriority.Count : _modelPriority.IndexOf(targetModel);
+        if (targetIndex < 0) targetIndex = _modelPriority.Count;
+        if (sourceIndex < targetIndex) targetIndex--;
+        if (sourceIndex == targetIndex) return;
+
+        _modelPriority.RemoveAt(sourceIndex);
+        _modelPriority.Insert(targetIndex, model);
+        ModelPriorityListBox.SelectedItem = model;
     }
 
     private async void ProjectListBox_Drop(object sender, DragEventArgs e)
@@ -298,6 +426,43 @@ public partial class MainWindow : Window
         catch (Exception exception) { ShowNotice(FriendlyMessage(exception), NoticeKind.Error); }
     }
 
+    private async void RenameConversationMenuItem_Click(object sender, RoutedEventArgs e)
+    {
+        var conversation = await GetSelectedConversationAsync();
+        if (conversation is null) return;
+        var title = PromptForName(T("重命名会话"), conversation.DisplayTitle);
+        if (title is null) return;
+
+        try
+        {
+            _selectedConversation = await _workspace.RenameAsync(conversation, title);
+            await RefreshWorkspaceAsync(_selectedConversation.Id);
+            ShowNotice(T("本地显示名称已更新；Copilot 网页标题仍被保留。"), NoticeKind.Success);
+        }
+        catch (Exception exception) { ShowNotice(FriendlyMessage(exception), NoticeKind.Error); }
+    }
+
+    private async void DeleteConversationMenuItem_Click(object sender, RoutedEventArgs e)
+    {
+        var conversation = await GetSelectedConversationAsync();
+        if (conversation is null) return;
+        var confirmation = MessageBox.Show(
+            T("将永久删除此本地 Markdown 会话，Copilot 网页对话不会受影响。确定删除吗？"),
+            T("删除会话"),
+            MessageBoxButton.YesNo,
+            MessageBoxImage.Warning);
+        if (confirmation != MessageBoxResult.Yes) return;
+
+        try
+        {
+            await _workspace.DeleteConversationAsync(conversation);
+            _selectedConversation = null;
+            await RefreshWorkspaceAsync();
+            ShowNotice(T("会话已删除。"), NoticeKind.Success);
+        }
+        catch (Exception exception) { ShowNotice(FriendlyMessage(exception), NoticeKind.Error); }
+    }
+
     private async void MoveConversation_Click(object sender, RoutedEventArgs e)
     {
         if (_selectedConversation is null || MoveProjectComboBox.SelectedValue is not string projectId) return;
@@ -328,6 +493,54 @@ public partial class MainWindow : Window
         if (_selectedConversation is null) return;
         Clipboard.SetText(_workspace.Render(_selectedConversation));
         ShowNotice(T("当前会话 Markdown 已复制，可粘贴到 Codex 或其他工具。"), NoticeKind.Success);
+    }
+
+    private async Task<ConversationDocument?> GetSelectedConversationAsync()
+    {
+        if (ConversationListBox.SelectedItem is not ConversationSummary summary) return null;
+        if (_selectedConversation?.Id == summary.Id) return _selectedConversation;
+        _selectedConversation = await _workspace.FindAsync(summary.Id);
+        return _selectedConversation;
+    }
+
+    private string? PromptForName(string title, string initialValue)
+    {
+        var input = new TextBox { Text = initialValue, MinWidth = 300, Margin = new Thickness(0, 0, 0, 16) };
+        var dialog = new Window
+        {
+            Title = title,
+            Owner = this,
+            Width = 420,
+            Height = 170,
+            WindowStartupLocation = WindowStartupLocation.CenterOwner,
+            ResizeMode = ResizeMode.NoResize,
+            ShowInTaskbar = false
+        };
+        var confirm = new Button { Content = T("保存"), IsDefault = true, MinWidth = 76, Margin = new Thickness(8, 0, 0, 0) };
+        confirm.Click += (_, _) => dialog.DialogResult = true;
+        var cancel = new Button { Content = T("取消"), IsCancel = true, MinWidth = 76 };
+        dialog.Content = new StackPanel
+        {
+            Margin = new Thickness(20),
+            Children =
+            {
+                new TextBlock { Text = T("请输入名称"), Margin = new Thickness(0, 0, 0, 6) },
+                input,
+                new StackPanel
+                {
+                    Orientation = Orientation.Horizontal,
+                    HorizontalAlignment = HorizontalAlignment.Right,
+                    Children = { cancel, confirm }
+                }
+            }
+        };
+        dialog.Loaded += (_, _) =>
+        {
+            input.Focus();
+            input.SelectAll();
+        };
+
+        return dialog.ShowDialog() == true ? input.Text : null;
     }
 
     private async Task<ConversationDocument> CreateImmediateConversationAsync()
@@ -455,6 +668,7 @@ public partial class MainWindow : Window
     }
 
     private void Window_StateChanged(object? sender, EventArgs e) => ScheduleStatusRefresh();
+    private void Window_SizeChanged(object sender, SizeChangedEventArgs e) => UpdateHistoryColumns();
 
     private async Task RefreshStatusAsync(bool automatic = false)
     {
@@ -492,7 +706,7 @@ public partial class MainWindow : Window
         EdgeStatusDot.Fill = Brush("#31C76A");
         LoginStatusText.Text = T("已登录");
         ModelStatusText.Text = await driver.ReadCurrentModelAsync();
-        TabStatusText.Text = session.Page.Url;
+        TabStatusText.Text = T("已绑定专用 Copilot 标签页");
         HeaderStatusText.Text = T("Edge 已连接");
     }
 
@@ -514,6 +728,7 @@ public partial class MainWindow : Window
     protected override async void OnClosed(EventArgs e)
     {
         _statusRefreshTimer.Stop();
+        _noticeTimer.Stop();
         base.OnClosed(e);
         await ResetSessionAsync();
     }
@@ -531,9 +746,10 @@ public partial class MainWindow : Window
     {
         if (!int.TryParse(MenuMinimumTextBox.Text, out var menuMinimum) || menuMinimum < 0 ||
             !int.TryParse(MenuMaximumTextBox.Text, out var menuMaximum) || menuMaximum < menuMinimum ||
-            !int.TryParse(ReplyTimeoutTextBox.Text, out var replyTimeout) || replyTimeout <= 0)
+            !int.TryParse(ReplyTimeoutTextBox.Text, out var replyTimeout) || replyTimeout <= 0 ||
+            !int.TryParse(ConversationTurnLimitTextBox.Text, out var turnLimit) || turnLimit is < 1 or > 20)
         {
-            throw new InvalidDataException(T("等待时间无效：最大等待必须大于或等于最短等待，回复超时必须大于 0。"));
+            throw new InvalidDataException(T("设置数值无效：请检查等待时间、回复超时和沟通轮次上限。"));
         }
         var workspaceDirectory = WorkspaceDirectoryTextBox.Text.Trim();
         if (workspaceDirectory.Length == 0) throw new InvalidDataException(T("本地会话工作区不能为空。"));
@@ -542,10 +758,13 @@ public partial class MainWindow : Window
             MenuMinimumWaitMilliseconds = menuMinimum,
             MenuMaximumWaitMilliseconds = menuMaximum,
             ReplyTimeoutSeconds = replyTimeout,
+            ConversationTurnLimit = turnLimit,
+            ModelPriority = ModelPriorityOptions.Serialize(_modelPriority),
             ConsultationPolicy = (ConsultationPolicy)Math.Max(0, PolicyComboBox.SelectedIndex),
             CollaborationMode = ReviewRadio.IsChecked == true ? CollaborationMode.Review :
                 OutsourceRadio.IsChecked == true ? CollaborationMode.Outsource : CollaborationMode.Assist,
             DisplayLanguage = LanguageComboBox.SelectedIndex == 1 ? AppLanguage.English : AppLanguage.Chinese,
+            Theme = ThemeComboBox.SelectedIndex == (int)AppTheme.Dark ? AppTheme.Dark : AppTheme.Light,
             ConversationWorkspaceDirectory = workspaceDirectory
         };
         await _settingsStore.SaveAsync(_settings);
@@ -562,15 +781,21 @@ public partial class MainWindow : Window
         MenuMinimumTextBox.Text = _settings.MenuMinimumWaitMilliseconds.ToString();
         MenuMaximumTextBox.Text = _settings.MenuMaximumWaitMilliseconds.ToString();
         ReplyTimeoutTextBox.Text = _settings.ReplyTimeoutSeconds.ToString();
+        ConversationTurnLimitTextBox.Text = _settings.ConversationTurnLimit.ToString();
         WorkspaceDirectoryTextBox.Text = _settings.ConversationWorkspaceDirectory;
+        _modelPriority.Clear();
+        foreach (var model in ModelPriorityOptions.Parse(_settings.ModelPriority)) _modelPriority.Add(model);
         BoundUrlText.Text = _settings.BoundConversationUrl ?? T("未绑定");
         LanguageComboBox.SelectedIndex = (int)_settings.DisplayLanguage;
+        ThemeComboBox.SelectedIndex = (int)_settings.Theme;
     }
 
     private void SetBusy(bool busy, string status)
     {
         _busy = busy;
         BusyProgress.Visibility = busy ? Visibility.Visible : Visibility.Collapsed;
+        BusyHintText.Text = busy ? T("正在处理当前咨询；会话改名和移动会暂时不可用。") : string.Empty;
+        BusyHintText.Visibility = busy ? Visibility.Visible : Visibility.Collapsed;
         HeaderStatusText.Text = T(status);
         RefreshButton.IsEnabled = !busy;
         BindButton.IsEnabled = !busy;
@@ -578,9 +803,17 @@ public partial class MainWindow : Window
         SaveCollaborationButton.IsEnabled = !busy;
         SaveBrowserButton.IsEnabled = !busy;
         SaveSettingsButton.IsEnabled = !busy;
+        BrowseWorkspaceButton.IsEnabled = !busy;
+        ModelPriorityListBox.IsEnabled = !busy;
+        ConversationTurnLimitTextBox.IsEnabled = !busy;
+        LanguageComboBox.IsEnabled = !busy;
+        ThemeComboBox.IsEnabled = !busy;
         NewProjectButton.IsEnabled = !busy;
-        NewConversationButton.IsEnabled = !busy;
         ImportConversationButton.IsEnabled = !busy;
+        RenameConversationButton.IsEnabled = !busy;
+        ConversationTitleTextBox.IsEnabled = !busy;
+        MoveProjectComboBox.IsEnabled = !busy;
+        MoveConversationButton.IsEnabled = !busy;
     }
 
     private void ScheduleStatusRefresh()
@@ -610,15 +843,87 @@ public partial class MainWindow : Window
 
     private void ShowNotice(string message, NoticeKind kind)
     {
+        _noticeTimer.Stop();
         NoticeText.Text = message;
         NoticeBorder.Visibility = Visibility.Visible;
-        NoticeBorder.Background = Brush(kind switch { NoticeKind.Success => "#EAF7EF", NoticeKind.Error => "#FFF0F0", _ => "#FFF4E5" });
-        NoticeBorder.BorderBrush = Brush(kind switch { NoticeKind.Success => "#B9E5C9", NoticeKind.Error => "#F3C0C0", _ => "#FFD7A3" });
-        NoticeText.Foreground = Brush(kind switch { NoticeKind.Success => "#176B3A", NoticeKind.Error => "#9B2C2C", _ => "#7A4A0A" });
+        NoticeBorder.Background = ThemeBrush(kind switch { NoticeKind.Success => "NoticeSuccessBackgroundBrush", NoticeKind.Error => "NoticeErrorBackgroundBrush", _ => "NoticeInfoBackgroundBrush" });
+        NoticeBorder.BorderBrush = ThemeBrush(kind switch { NoticeKind.Success => "NoticeSuccessBorderBrush", NoticeKind.Error => "NoticeErrorBorderBrush", _ => "NoticeInfoBorderBrush" });
+        NoticeText.Foreground = ThemeBrush(kind switch { NoticeKind.Success => "NoticeSuccessTextBrush", NoticeKind.Error => "NoticeErrorTextBrush", _ => "NoticeInfoTextBrush" });
+        NoticeCloseButton.Foreground = NoticeText.Foreground;
+        _noticeTimer.Start();
     }
 
-    private void ClearNotice() => NoticeBorder.Visibility = Visibility.Collapsed;
-    private static void SetNavState(Button button, bool selected) { button.Background = Brush(selected ? "#EAF3FF" : "#00FFFFFF"); button.Foreground = Brush(selected ? "#0A6CFF" : "#4D5868"); }
+    private void NoticeClose_Click(object sender, RoutedEventArgs e) => ClearNotice();
+    private void NoticeTimer_Tick(object? sender, EventArgs e) => ClearNotice();
+    private void ClearNotice()
+    {
+        _noticeTimer.Stop();
+        NoticeBorder.Visibility = Visibility.Collapsed;
+    }
+
+    private void UpdateHistoryColumns()
+    {
+        if (HistoryProjectColumn is null || HistoryConversationColumn is null) return;
+        var compact = ActualWidth < 1180;
+        HistoryProjectColumn.Width = new GridLength(compact ? 170 : 220);
+        HistoryConversationColumn.Width = new GridLength(compact ? 210 : 280);
+    }
+    private void SetNavState(Button button, bool selected)
+    {
+        button.Background = selected ? ThemeBrush("NavSelectedBrush") : Brushes.Transparent;
+        button.Foreground = ThemeBrush(selected ? "NavSelectedTextBrush" : "NavTextBrush");
+    }
+
+    private void ApplyTheme()
+    {
+        var dark = _settings.Theme == AppTheme.Dark;
+        SetThemeBrush("CanvasBrush", dark ? "#1E1E1E" : "#F5F6F8");
+        SetThemeBrush("SurfaceBrush", dark ? "#252526" : "#FFFFFF");
+        SetThemeBrush("TextPrimaryBrush", dark ? "#F3F4F6" : "#1D232F");
+        SetThemeBrush("AccentBrush", "#0A6CFF");
+        SetThemeBrush("AccentTextBrush", dark ? "#8AB4F8" : "#0A6CFF");
+        SetThemeBrush("OnAccentBrush", "#FFFFFF");
+        SetThemeBrush("SubtleTextBrush", dark ? "#B5BDCA" : "#667085");
+        SetThemeBrush("MutedTextBrush", dark ? "#98A2B3" : "#667085");
+        SetThemeBrush("LineBrush", dark ? "#3A3A3A" : "#E4E7EC");
+        SetThemeBrush("ControlBorderBrush", dark ? "#4B5563" : "#D7DCE3");
+        SetThemeBrush("NavTextBrush", dark ? "#C9D1D9" : "#4D5868");
+        SetThemeBrush("NavHoverBrush", dark ? "#30343B" : "#EDF0F4");
+        SetThemeBrush("NavSelectedBrush", dark ? "#233B5A" : "#EAF3FF");
+        SetThemeBrush("NavSelectedTextBrush", dark ? "#8AB4F8" : "#0A6CFF");
+        SetThemeBrush("SecondaryActionBrush", dark ? "#E5E7EB" : "#344054");
+        SetThemeBrush("StatusUnknownBrush", dark ? "#6B7280" : "#A8B0BC");
+        SetThemeBrush("NoticeInfoBackgroundBrush", dark ? "#3B2F1B" : "#FFF4E5");
+        SetThemeBrush("NoticeInfoBorderBrush", dark ? "#765E2A" : "#FFD7A3");
+        SetThemeBrush("NoticeInfoTextBrush", dark ? "#F6C66B" : "#7A4A0A");
+        SetThemeBrush("NoticeSuccessBackgroundBrush", dark ? "#173524" : "#EAF7EF");
+        SetThemeBrush("NoticeSuccessBorderBrush", dark ? "#2B6A40" : "#B9E5C9");
+        SetThemeBrush("NoticeSuccessTextBrush", dark ? "#9BE0AE" : "#176B3A");
+        SetThemeBrush("NoticeErrorBackgroundBrush", dark ? "#3C2026" : "#FFF0F0");
+        SetThemeBrush("NoticeErrorBorderBrush", dark ? "#7A3440" : "#F3C0C0");
+        SetThemeBrush("NoticeErrorTextBrush", dark ? "#FFB4AB" : "#9B2C2C");
+        SetSystemBrush(SystemColors.WindowBrushKey, dark ? "#252526" : "#FFFFFF");
+        SetSystemBrush(SystemColors.WindowTextBrushKey, dark ? "#F3F4F6" : "#1D232F");
+        SetSystemBrush(SystemColors.ControlBrushKey, dark ? "#252526" : "#FFFFFF");
+        SetSystemBrush(SystemColors.ControlTextBrushKey, dark ? "#F3F4F6" : "#1D232F");
+        SetSystemBrush(SystemColors.MenuBrushKey, dark ? "#252526" : "#FFFFFF");
+        SetSystemBrush(SystemColors.MenuTextBrushKey, dark ? "#F3F4F6" : "#1D232F");
+        SetNavState(OverviewNav, _activePage == "overview");
+        SetNavState(HistoryNav, _activePage == "history");
+        SetNavState(CollaborationNav, _activePage == "collaboration");
+        SetNavState(BrowserNav, _activePage == "browser");
+        SetNavState(SettingsNav, _activePage == "settings");
+    }
+
+    private SolidColorBrush ThemeBrush(string key) => (SolidColorBrush)Resources[key];
+    private void SetThemeBrush(string key, string color)
+    {
+        var brush = Brush(color);
+        Resources[key] = brush;
+        Application.Current.Resources[key] = brush;
+    }
+
+    private static void SetSystemBrush(object key, string color) => Application.Current.Resources[key] = Brush(color);
     private static SolidColorBrush Brush(string value) => new((Color)ColorConverter.ConvertFromString(value));
     private static T? FindParent<T>(DependencyObject? current) where T : DependencyObject
     {
@@ -632,6 +937,10 @@ public partial class MainWindow : Window
     private void ApplyUiLanguage()
     {
         UiText.Apply(this, _settings.DisplayLanguage);
+        RenameProjectMenuItem.Header = T("重命名");
+        DeleteProjectMenuItem.Header = T("删除");
+        RenameConversationMenuItem.Header = T("重命名");
+        DeleteConversationMenuItem.Header = T("删除");
         ScheduleStatusRefresh();
     }
 

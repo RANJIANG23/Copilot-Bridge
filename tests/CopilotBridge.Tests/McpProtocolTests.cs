@@ -44,6 +44,31 @@ public sealed class McpProtocolTests
     }
 
     [Fact]
+    public async Task StdioServerRemainsAvailableForMultipleRequestsFromOneClient()
+    {
+        var transport = new StdioClientTransport(new StdioClientTransportOptions
+        {
+            Name = "CopilotBridge lifecycle test",
+            Command = ServerExecutablePath(),
+            Arguments = ["--mcp"],
+            WorkingDirectory = AppContext.BaseDirectory,
+            ShutdownTimeout = TimeSpan.FromSeconds(1)
+        });
+        await using var client = await McpClient.CreateAsync(transport);
+        var status = Assert.Single(
+            await client.ListToolsAsync(),
+            tool => tool.Name == "copilot_bridge_status");
+
+        var first = await status.CallAsync(new Dictionary<string, object?>());
+        var second = await status.CallAsync(new Dictionary<string, object?>());
+
+        Assert.NotEqual(true, first.IsError);
+        Assert.NotEqual(true, second.IsError);
+        Assert.NotNull(first.StructuredContent);
+        Assert.NotNull(second.StructuredContent);
+    }
+
+    [Fact]
     public async Task StdioServerExitsWhenClientClosesInput()
     {
         using var process = Process.Start(new ProcessStartInfo

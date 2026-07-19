@@ -115,6 +115,58 @@ internal sealed class ConversationWorkspaceStore
         return await EnsureProjectAsync(candidate, candidate, false, cancellationToken);
     }
 
+    internal async Task<WorkspaceProject> RenameProjectAsync(
+        WorkspaceProject project,
+        string requestedName,
+        CancellationToken cancellationToken = default)
+    {
+        var current = await GetCustomProjectAsync(project.Id, cancellationToken);
+        var newId = NormalizeProjectName(requestedName);
+        if (newId.Equals(current.Id, StringComparison.Ordinal)) return current;
+
+        var destinationDirectory = Path.Combine(_rootDirectory, newId);
+        if (Directory.Exists(destinationDirectory))
+        {
+            throw new InvalidDataException("项目名称已存在。");
+        }
+
+        var documents = new List<ConversationDocument>();
+        foreach (var path in Directory.EnumerateFiles(current.DirectoryPath, "conversation-*.md"))
+        {
+            var document = await TryLoadPathAsync(path, cancellationToken);
+            if (document is not null) documents.Add(document);
+        }
+
+        Directory.Move(current.DirectoryPath, destinationDirectory);
+        await File.WriteAllTextAsync(
+            Path.Combine(destinationDirectory, ProjectMarker),
+            $"# {newId}\n\nCopilot Bridge 项目目录。\n",
+            new UTF8Encoding(false),
+            cancellationToken);
+
+        foreach (var document in documents)
+        {
+            await SaveAsync(document with { ProjectId = newId, UpdatedAt = DateTimeOffset.Now }, cancellationToken);
+        }
+
+        return new WorkspaceProject(newId, newId, false, destinationDirectory);
+    }
+
+    internal async Task DeleteProjectAsync(
+        WorkspaceProject project,
+        CancellationToken cancellationToken = default)
+    {
+        var current = await GetCustomProjectAsync(project.Id, cancellationToken);
+        if (Directory.EnumerateFiles(current.DirectoryPath, "conversation-*.md").Any())
+        {
+            throw new InvalidOperationException("项目中仍有会话。请先移走或删除这些会话。");
+        }
+
+        var markerPath = Path.Combine(current.DirectoryPath, ProjectMarker);
+        if (File.Exists(markerPath)) File.Delete(markerPath);
+        Directory.Delete(current.DirectoryPath, false);
+    }
+
     internal async Task<ConversationDocument> CreateConversationAsync(
         string projectId,
         string? localTitle = null,
@@ -257,6 +309,18 @@ internal sealed class ConversationWorkspaceStore
         return document;
     }
 
+    internal Task DeleteConversationAsync(ConversationDocument document)
+    {
+        var path = FindPath(document.Id);
+        if (path is null || !File.Exists(path))
+        {
+            throw new FileNotFoundException("本地会话文件不存在。", path);
+        }
+
+        File.Delete(path);
+        return Task.CompletedTask;
+    }
+
     internal async Task<ConversationDocument> AppendRunAsync(
         ConversationDocument document,
         CollaborationRunResult result,
@@ -387,6 +451,15 @@ internal sealed class ConversationWorkspaceStore
         {
             throw new InvalidDataException("目标项目不存在。");
         }
+    }
+
+    private async Task<WorkspaceProject> GetCustomProjectAsync(string projectId, CancellationToken cancellationToken)
+    {
+        var project = (await GetProjectsAsync(cancellationToken))
+            .FirstOrDefault(candidate => candidate.Id.Equals(projectId, StringComparison.Ordinal));
+        if (project is null) throw new InvalidDataException("目标项目不存在。");
+        if (project.IsSystem) throw new InvalidOperationException("系统项目不能重命名或删除。");
+        return project;
     }
 
     private string PathFor(ConversationDocument document) => Path.Combine(

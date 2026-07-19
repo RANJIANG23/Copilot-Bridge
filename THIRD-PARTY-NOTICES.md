@@ -1,7 +1,7 @@
 # Third-party notices
 
 This file records the production NuGet dependency inventory resolved for
-Copilot Bridge `1.1.0-dev`. It is included with release archives together
+Copilot Bridge `1.1.1`. It is included with release archives together
 with `LICENSE` and `NOTICE`.
 
 ## Direct production dependencies

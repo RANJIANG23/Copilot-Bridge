@@ -165,7 +165,8 @@ public sealed class CoreTests
             MenuMinimumWaitMilliseconds = 25,
             MenuMaximumWaitMilliseconds = 250,
             ReplyTimeoutSeconds = 42,
-            DisplayLanguage = AppLanguage.English
+            DisplayLanguage = AppLanguage.English,
+            Theme = AppTheme.Dark
         };
 
         try
@@ -196,6 +197,7 @@ public sealed class CoreTests
         Assert.Equal("Settings", UiText.Get("设置", AppLanguage.English));
         Assert.Equal("设置", UiText.Get("设置", AppLanguage.Chinese));
         Assert.Equal("Project name", UiText.Get("Project name", AppLanguage.English));
+        Assert.Equal("Theme", UiText.Get("主题", AppLanguage.English));
     }
 
     [Fact]

@@ -20,6 +20,15 @@
 3. 打开 `edge://inspect`，进入 Remote debugging，并允许当前浏览器实例。
 4. 等待页面明确显示 `127.0.0.1:9222`，再回到 Copilot Bridge 绑定。
 
+## 每次咨询都重复要求允许 Remote access
+
+同一 Edge 浏览器实例授权后，Bridge 在同一 Codex 任务内应复用同一个 MCP/CDP 会话；重复提示不是预期行为。
+
+1. 保持日常 Edge 与专用 Copilot 标签页打开，不要在两次咨询之间重启 Edge。
+2. 在同一个 Codex 任务内连续执行两次咨询；不要把每次咨询放到新的任务中。
+3. 将 `%LOCALAPPDATA%\CopilotBridge\logs\bridge-YYYYMMDD.log` 中的以下行一并提供：`mcp_server_started`、`mcp_cdp_session_created`、`mcp_cdp_session_reused`。日志只包含本地进程和会话标识，不记录 prompt 或回复正文。
+4. 如果每次咨询都有不同的 `process_id` 或 `server_instance`，说明 MCP 被宿主重启；如果相同进程反复记录 `mcp_cdp_session_created`，说明 Edge/CDP 连接被中断。两种情况都不要通过自动点击“允许”规避。
+
 Microsoft Edge 通用文档同时提供命令行参数和运行中浏览器页面授权两种方式，但 Copilot Bridge 团队 v1 的实测只把后一种作为支持路径。不要为绕过 `Starting` 修改 user-data 目录、企业策略或增加另一套浏览器自动化。
 
 ## Copilot 未登录
