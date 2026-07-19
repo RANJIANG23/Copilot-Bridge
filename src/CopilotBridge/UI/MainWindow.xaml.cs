@@ -26,6 +26,7 @@ public partial class MainWindow : Window
     private bool _windowIsActive;
     private int _consecutiveStatusRefreshFailures;
     private DateTimeOffset? _lastStatusRefresh;
+    private bool _settingsAreLoaded;
 
     public MainWindow()
     {
@@ -44,6 +45,8 @@ public partial class MainWindow : Window
             _settings = await _settingsStore.LoadAsync();
             _workspace = new ConversationWorkspaceStore(_settings.ConversationWorkspaceDirectory);
             ApplySettingsToControls();
+            _settingsAreLoaded = true;
+            ApplyUiLanguage();
             await RefreshWorkspaceAsync();
             await RefreshStatusAsync();
             ScheduleStatusRefresh();
@@ -51,7 +54,7 @@ public partial class MainWindow : Window
         catch (Exception exception)
         {
             ShowNotice(FriendlyMessage(exception), NoticeKind.Error);
-            HeaderStatusText.Text = "需要检查";
+            HeaderStatusText.Text = T("需要检查");
         }
     }
 
@@ -63,10 +66,12 @@ public partial class MainWindow : Window
         HistoryPanel.Visibility = page == "history" ? Visibility.Visible : Visibility.Collapsed;
         CollaborationPanel.Visibility = page == "collaboration" ? Visibility.Visible : Visibility.Collapsed;
         BrowserPanel.Visibility = page == "browser" ? Visibility.Visible : Visibility.Collapsed;
+        SettingsPanel.Visibility = page == "settings" ? Visibility.Visible : Visibility.Collapsed;
         SetNavState(OverviewNav, page == "overview");
         SetNavState(HistoryNav, page == "history");
         SetNavState(CollaborationNav, page == "collaboration");
         SetNavState(BrowserNav, page == "browser");
+        SetNavState(SettingsNav, page == "settings");
         if (page == "history") await RefreshWorkspaceAsync();
         ScheduleStatusRefresh();
         if (page == "overview" && !_busy)
@@ -76,6 +81,26 @@ public partial class MainWindow : Window
     }
 
     private async void Refresh_Click(object sender, RoutedEventArgs e) => await RefreshStatusAsync();
+
+    private async void Language_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (!_settingsAreLoaded) return;
+        var language = LanguageComboBox.SelectedIndex == 1 ? AppLanguage.English : AppLanguage.Chinese;
+        if (_settings.DisplayLanguage == language) return;
+
+        try
+        {
+            _settings = _settings with { DisplayLanguage = language };
+            await _settingsStore.SaveAsync(_settings);
+            ApplyUiLanguage();
+            ShowNotice(T("设置已保存，将从下一次咨询开始生效。"), NoticeKind.Success);
+            HeaderStatusText.Text = T("设置已保存");
+        }
+        catch (Exception exception)
+        {
+            ShowNotice(FriendlyMessage(exception), NoticeKind.Error);
+        }
+    }
 
     private async void Bind_Click(object sender, RoutedEventArgs e)
     {
@@ -88,7 +113,7 @@ public partial class MainWindow : Window
             await _settingsStore.SaveAsync(_settings);
             BoundUrlText.Text = session.Page.Url;
             TabStatusText.Text = session.Page.Url;
-            ShowNotice("已绑定当前专用 Copilot 标签页。", NoticeKind.Success);
+            ShowNotice(T("已绑定当前专用 Copilot 标签页。"), NoticeKind.Success);
             await ReadConnectedStatusAsync(session);
         }
         catch (Exception exception)
@@ -105,8 +130,9 @@ public partial class MainWindow : Window
         try
         {
             await SaveSettingsFromControlsAsync();
-            ShowNotice("设置已保存，将从下一次咨询开始生效。", NoticeKind.Success);
-            HeaderStatusText.Text = "设置已保存";
+            ApplyUiLanguage();
+            ShowNotice(T("设置已保存，将从下一次咨询开始生效。"), NoticeKind.Success);
+            HeaderStatusText.Text = T("设置已保存");
         }
         catch (Exception exception) { ShowNotice(FriendlyMessage(exception), NoticeKind.Error); }
     }
@@ -117,14 +143,14 @@ public partial class MainWindow : Window
         var prompt = TestPromptTextBox.Text.Trim();
         if (prompt.Length == 0)
         {
-            ShowNotice("请先输入即时咨询内容。", NoticeKind.Error);
+            ShowNotice(T("请先输入即时咨询内容。"), NoticeKind.Error);
             return;
         }
 
         using var lease = ConsultationLease.TryAcquire();
         if (lease is null)
         {
-            ShowNotice("已有一个咨询正在执行，请等待其完成。", NoticeKind.Error);
+            ShowNotice(T("已有一个咨询正在执行，请等待其完成。"), NoticeKind.Error);
             return;
         }
 
@@ -134,14 +160,14 @@ public partial class MainWindow : Window
             await SaveSettingsFromControlsAsync();
             if (_settings.ConsultationPolicy == ConsultationPolicy.Disabled)
             {
-                throw new InvalidOperationException("征询策略当前为“关闭”，请先在协作页调整。");
+                throw new InvalidOperationException(T("征询策略当前为“关闭”，请先在协作页调整。"));
             }
 
             var conversation = _selectedConversation ?? await CreateImmediateConversationAsync();
             var primaryUrl = conversation.CopilotConversationUrl ?? _settings.BoundConversationUrl;
             if (_settings.CollaborationMode != CollaborationMode.Review && string.IsNullOrWhiteSpace(primaryUrl))
             {
-                throw new InvalidOperationException("请先绑定一个专用 Copilot 标签页。 ");
+                throw new InvalidOperationException(T("请先绑定一个专用 Copilot 标签页。 "));
             }
 
             var session = await GetSessionAsync();
@@ -174,11 +200,11 @@ public partial class MainWindow : Window
                 await _settingsStore.SaveAsync(_settings);
             }
 
-            BoundUrlText.Text = _settings.BoundConversationUrl ?? "Review 使用两个隔离会话";
+            BoundUrlText.Text = _settings.BoundConversationUrl ?? T("Review 使用两个隔离会话");
             TabStatusText.Text = session.Page.Url;
             ModelStatusText.Text = last.Result.Model;
             await RefreshWorkspaceAsync(_selectedConversation.Id);
-            ShowNotice("即时会话已保存为本地 Markdown；不会自动读取旧网页历史。", NoticeKind.Success);
+            ShowNotice(T("即时会话已保存为本地 Markdown；不会自动读取旧网页历史。"), NoticeKind.Success);
         }
         catch (ReplyTimeoutException exception)
         {
@@ -215,7 +241,7 @@ public partial class MainWindow : Window
         {
             _selectedConversation = await CreateImmediateConversationAsync();
             await RefreshWorkspaceAsync(_selectedConversation.Id);
-            ShowNotice("已创建即时会话。输入内容后在概览页发送，正文会写入该会话。", NoticeKind.Success);
+            ShowNotice(T("已创建即时会话。输入内容后在概览页发送，正文会写入该会话。"), NoticeKind.Success);
         }
         catch (Exception exception) { ShowNotice(FriendlyMessage(exception), NoticeKind.Error); }
     }
@@ -250,7 +276,7 @@ public partial class MainWindow : Window
         _selectedConversation = await _workspace.MoveAsync(document, target.Id);
         _activeProjectId = target.Id;
         await RefreshWorkspaceAsync(_selectedConversation.Id);
-        ShowNotice("会话 Markdown 已拖入项目文件夹。", NoticeKind.Success);
+        ShowNotice(T("会话 Markdown 已拖入项目文件夹。"), NoticeKind.Success);
     }
 
     private async void Conversation_SelectionChanged(object sender, SelectionChangedEventArgs e)
@@ -267,7 +293,7 @@ public partial class MainWindow : Window
         {
             _selectedConversation = await _workspace.RenameAsync(_selectedConversation, ConversationTitleTextBox.Text);
             await RefreshWorkspaceAsync(_selectedConversation.Id);
-            ShowNotice("本地显示名称已更新；Copilot 网页标题仍被保留。", NoticeKind.Success);
+            ShowNotice(T("本地显示名称已更新；Copilot 网页标题仍被保留。"), NoticeKind.Success);
         }
         catch (Exception exception) { ShowNotice(FriendlyMessage(exception), NoticeKind.Error); }
     }
@@ -280,7 +306,7 @@ public partial class MainWindow : Window
             _selectedConversation = await _workspace.MoveAsync(_selectedConversation, projectId);
             _activeProjectId = projectId;
             await RefreshWorkspaceAsync(_selectedConversation.Id);
-            ShowNotice("会话 Markdown 已移动到所选项目文件夹。", NoticeKind.Success);
+            ShowNotice(T("会话 Markdown 已移动到所选项目文件夹。"), NoticeKind.Success);
         }
         catch (Exception exception) { ShowNotice(FriendlyMessage(exception), NoticeKind.Error); }
     }
@@ -291,7 +317,7 @@ public partial class MainWindow : Window
         var query = ConversationSearchTextBox.Text.Trim();
         var results = _workspace.Search(_selectedConversation, query);
         SearchResultsText.Text = results.Count == 0
-            ? (query.Length == 0 ? "请输入关键词。" : "未命中当前会话。")
+            ? (query.Length == 0 ? T("请输入关键词。") : T("未命中当前会话。"))
             : string.Join(Environment.NewLine + Environment.NewLine, results.Select(result =>
                 $"{result.Turn.Timestamp.LocalDateTime:MM-dd HH:mm} · {result.Turn.Role} · " +
                 $"{result.Turn.Model ?? "—"}{Environment.NewLine}{result.Snippet}"));
@@ -301,7 +327,7 @@ public partial class MainWindow : Window
     {
         if (_selectedConversation is null) return;
         Clipboard.SetText(_workspace.Render(_selectedConversation));
-        ShowNotice("当前会话 Markdown 已复制，可粘贴到 Codex 或其他工具。", NoticeKind.Success);
+        ShowNotice(T("当前会话 Markdown 已复制，可粘贴到 Codex 或其他工具。"), NoticeKind.Success);
     }
 
     private async Task<ConversationDocument> CreateImmediateConversationAsync()
@@ -360,7 +386,9 @@ public partial class MainWindow : Window
         CopilotTitleHistoryText.Text = document.CopilotTitleHistory.Count == 0
             ? document.CopilotTitleInitial
             : string.Join(" → ", document.CopilotTitleHistory);
-        ConversationMetaText.Text = $"{document.Mode} · {document.Turns.Count} 条记录 · {document.UpdatedAt.LocalDateTime:yyyy-MM-dd HH:mm}";
+        ConversationMetaText.Text = _settings.DisplayLanguage == AppLanguage.English
+            ? $"{document.Mode} · {document.Turns.Count} records · {document.UpdatedAt.LocalDateTime:yyyy-MM-dd HH:mm}"
+            : $"{document.Mode} · {document.Turns.Count} 条记录 · {document.UpdatedAt.LocalDateTime:yyyy-MM-dd HH:mm}";
         ConversationMarkdownTextBox.Text = _workspace.Render(document);
         MoveProjectComboBox.SelectedValue = document.ProjectId;
         ConversationSearchTextBox.Text = string.Empty;
@@ -415,7 +443,7 @@ public partial class MainWindow : Window
         }
         finally
         {
-            SetBusy(false, EdgeStatusText.Text == "已连接" ? "Edge 已连接" : "需要设置");
+            SetBusy(false, EdgeStatusText.Text == T("已连接") ? "Edge 已连接" : "需要设置");
             ScheduleStatusRefresh();
         }
     }
@@ -423,12 +451,12 @@ public partial class MainWindow : Window
     private async Task ReadConnectedStatusAsync(EdgeSessionAdapter session)
     {
         var driver = new CopilotPageDriver(session.Page, _selectors, _settings);
-        EdgeStatusText.Text = "已连接";
+        EdgeStatusText.Text = T("已连接");
         EdgeStatusDot.Fill = Brush("#31C76A");
-        LoginStatusText.Text = "已登录";
+        LoginStatusText.Text = T("已登录");
         ModelStatusText.Text = await driver.ReadCurrentModelAsync();
         TabStatusText.Text = session.Page.Url;
-        HeaderStatusText.Text = "Edge 已连接";
+        HeaderStatusText.Text = T("Edge 已连接");
     }
 
     private async Task<EdgeSessionAdapter> GetSessionAsync()
@@ -455,11 +483,11 @@ public partial class MainWindow : Window
 
     private void SetDisconnectedState()
     {
-        EdgeStatusText.Text = "未连接";
+        EdgeStatusText.Text = T("未连接");
         EdgeStatusDot.Fill = Brush("#E55757");
-        LoginStatusText.Text = "无法确认";
-        ModelStatusText.Text = "未知";
-        HeaderStatusText.Text = "需要设置";
+        LoginStatusText.Text = T("无法确认");
+        ModelStatusText.Text = T("未知");
+        HeaderStatusText.Text = T("需要设置");
     }
 
     private async Task SaveSettingsFromControlsAsync()
@@ -468,10 +496,10 @@ public partial class MainWindow : Window
             !int.TryParse(MenuMaximumTextBox.Text, out var menuMaximum) || menuMaximum < menuMinimum ||
             !int.TryParse(ReplyTimeoutTextBox.Text, out var replyTimeout) || replyTimeout <= 0)
         {
-            throw new InvalidDataException("等待时间无效：最大等待必须大于或等于最短等待，回复超时必须大于 0。");
+            throw new InvalidDataException(T("等待时间无效：最大等待必须大于或等于最短等待，回复超时必须大于 0。"));
         }
         var workspaceDirectory = WorkspaceDirectoryTextBox.Text.Trim();
-        if (workspaceDirectory.Length == 0) throw new InvalidDataException("本地会话工作区不能为空。");
+        if (workspaceDirectory.Length == 0) throw new InvalidDataException(T("本地会话工作区不能为空。"));
         _settings = _settings with
         {
             MenuMinimumWaitMilliseconds = menuMinimum,
@@ -480,6 +508,7 @@ public partial class MainWindow : Window
             ConsultationPolicy = (ConsultationPolicy)Math.Max(0, PolicyComboBox.SelectedIndex),
             CollaborationMode = ReviewRadio.IsChecked == true ? CollaborationMode.Review :
                 OutsourceRadio.IsChecked == true ? CollaborationMode.Outsource : CollaborationMode.Assist,
+            DisplayLanguage = LanguageComboBox.SelectedIndex == 1 ? AppLanguage.English : AppLanguage.Chinese,
             ConversationWorkspaceDirectory = workspaceDirectory
         };
         await _settingsStore.SaveAsync(_settings);
@@ -497,19 +526,21 @@ public partial class MainWindow : Window
         MenuMaximumTextBox.Text = _settings.MenuMaximumWaitMilliseconds.ToString();
         ReplyTimeoutTextBox.Text = _settings.ReplyTimeoutSeconds.ToString();
         WorkspaceDirectoryTextBox.Text = _settings.ConversationWorkspaceDirectory;
-        BoundUrlText.Text = _settings.BoundConversationUrl ?? "未绑定";
+        BoundUrlText.Text = _settings.BoundConversationUrl ?? T("未绑定");
+        LanguageComboBox.SelectedIndex = (int)_settings.DisplayLanguage;
     }
 
     private void SetBusy(bool busy, string status)
     {
         _busy = busy;
         BusyProgress.Visibility = busy ? Visibility.Visible : Visibility.Collapsed;
-        HeaderStatusText.Text = status;
+        HeaderStatusText.Text = T(status);
         RefreshButton.IsEnabled = !busy;
         BindButton.IsEnabled = !busy;
         TestButton.IsEnabled = !busy;
         SaveCollaborationButton.IsEnabled = !busy;
         SaveBrowserButton.IsEnabled = !busy;
+        SaveSettingsButton.IsEnabled = !busy;
         NewProjectButton.IsEnabled = !busy;
         NewConversationButton.IsEnabled = !busy;
     }
@@ -526,11 +557,17 @@ public partial class MainWindow : Window
         _statusRefreshTimer.Interval = interval;
         _statusRefreshTimer.Start();
 
-        AutoRefreshStatusText.Text = _consecutiveStatusRefreshFailures > 0
-            ? $"自动刷新失败 {_consecutiveStatusRefreshFailures} 次；将在 {interval.TotalSeconds:0} 秒后重试。"
-            : _lastStatusRefresh is null
-                ? $"自动刷新已开启：概览前台每 10 秒，后台每 60 秒。"
-                : $"自动刷新已开启 · 上次检查 {_lastStatusRefresh.Value.LocalDateTime:HH:mm:ss} · 下次约 {interval.TotalSeconds:0} 秒后。";
+        AutoRefreshStatusText.Text = _settings.DisplayLanguage == AppLanguage.English
+            ? _consecutiveStatusRefreshFailures > 0
+                ? $"Automatic refresh failed {_consecutiveStatusRefreshFailures} time(s); retrying in {interval.TotalSeconds:0} seconds."
+                : _lastStatusRefresh is null
+                    ? "Automatic refresh is on: every 10 seconds while Overview is active, otherwise every 60 seconds."
+                    : $"Automatic refresh is on · last checked {_lastStatusRefresh.Value.LocalDateTime:HH:mm:ss} · next check in about {interval.TotalSeconds:0} seconds."
+            : _consecutiveStatusRefreshFailures > 0
+                ? $"自动刷新失败 {_consecutiveStatusRefreshFailures} 次；将在 {interval.TotalSeconds:0} 秒后重试。"
+                : _lastStatusRefresh is null
+                    ? "自动刷新已开启：概览前台每 10 秒，后台每 60 秒。"
+                    : $"自动刷新已开启 · 上次检查 {_lastStatusRefresh.Value.LocalDateTime:HH:mm:ss} · 下次约 {interval.TotalSeconds:0} 秒后。";
     }
 
     private void ShowNotice(string message, NoticeKind kind)
@@ -554,12 +591,20 @@ public partial class MainWindow : Window
         }
         return null;
     }
-    private static string FriendlyMessage(Exception exception) => exception.Message switch
+    private void ApplyUiLanguage()
     {
-        var message when message.Contains("DevToolsActivePort", StringComparison.OrdinalIgnoreCase) => "Edge 远程调试尚未开启。请在 edge://inspect 的 Remote debugging 页面允许当前浏览器实例。",
-        var message when message.Contains("No eligible", StringComparison.OrdinalIgnoreCase) => "没有发现可用的 Microsoft 365 Copilot 聊天标签页。请先打开 https://m365.cloud.microsoft/chat/。",
-        var message when message.Contains("Found", StringComparison.OrdinalIgnoreCase) && message.Contains("eligible Copilot tabs", StringComparison.OrdinalIgnoreCase) => "发现多个 Copilot 聊天标签页。请只保留一个专用标签页后重试。",
-        var message when message.Contains("Timeout", StringComparison.OrdinalIgnoreCase) && message.Contains("ws connecting", StringComparison.OrdinalIgnoreCase) => "等待 Edge 允许远程访问超时。请在 Edge 中选择“允许”，然后点击刷新状态；本次运行的后续操作会复用同一连接。",
+        UiText.Apply(this, _settings.DisplayLanguage);
+        ScheduleStatusRefresh();
+    }
+
+    private string T(string chinese) => UiText.Get(chinese, _settings.DisplayLanguage);
+
+    private string FriendlyMessage(Exception exception) => exception.Message switch
+    {
+        var message when message.Contains("DevToolsActivePort", StringComparison.OrdinalIgnoreCase) => T("Edge 远程调试尚未开启。请在 edge://inspect 的 Remote debugging 页面允许当前浏览器实例。"),
+        var message when message.Contains("No eligible", StringComparison.OrdinalIgnoreCase) => T("没有发现可用的 Microsoft 365 Copilot 聊天标签页。请先打开 https://m365.cloud.microsoft/chat/。"),
+        var message when message.Contains("Found", StringComparison.OrdinalIgnoreCase) && message.Contains("eligible Copilot tabs", StringComparison.OrdinalIgnoreCase) => T("发现多个 Copilot 聊天标签页。请只保留一个专用标签页后重试。"),
+        var message when message.Contains("Timeout", StringComparison.OrdinalIgnoreCase) && message.Contains("ws connecting", StringComparison.OrdinalIgnoreCase) => T("等待 Edge 允许远程访问超时。请在 Edge 中选择“允许”，然后点击刷新状态；本次运行的后续操作会复用同一连接。"),
         _ => exception.Message
     };
 

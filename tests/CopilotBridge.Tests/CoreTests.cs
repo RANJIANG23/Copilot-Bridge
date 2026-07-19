@@ -1,5 +1,6 @@
 using CopilotBridge.Browser;
 using CopilotBridge.Core;
+using CopilotBridge.UI;
 using Microsoft.Playwright;
 using System.Text.Json;
 using Xunit;
@@ -163,7 +164,8 @@ public sealed class CoreTests
             EdgeUserDataDirectory = @"C:\EdgeData",
             MenuMinimumWaitMilliseconds = 25,
             MenuMaximumWaitMilliseconds = 250,
-            ReplyTimeoutSeconds = 42
+            ReplyTimeoutSeconds = 42,
+            DisplayLanguage = AppLanguage.English
         };
 
         try
@@ -186,6 +188,14 @@ public sealed class CoreTests
                 Directory.Delete(directory, false);
             }
         }
+    }
+
+    [Fact]
+    public void UiTextUsesSelectedDisplayLanguageWithoutChangingStoredContent()
+    {
+        Assert.Equal("Settings", UiText.Get("设置", AppLanguage.English));
+        Assert.Equal("设置", UiText.Get("设置", AppLanguage.Chinese));
+        Assert.Equal("Project name", UiText.Get("Project name", AppLanguage.English));
     }
 
     [Fact]

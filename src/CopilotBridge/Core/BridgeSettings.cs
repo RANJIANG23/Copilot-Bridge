@@ -18,6 +18,12 @@ internal enum CollaborationMode
     Review
 }
 
+internal enum AppLanguage
+{
+    Chinese,
+    English
+}
+
 internal sealed record BridgeSettings
 {
     public string EdgeUserDataDirectory { get; init; } = Path.Combine(
@@ -35,6 +41,8 @@ internal sealed record BridgeSettings
     public ConsultationPolicy ConsultationPolicy { get; init; } = ConsultationPolicy.ManualOnly;
 
     public CollaborationMode CollaborationMode { get; init; } = CollaborationMode.Assist;
+
+    public AppLanguage DisplayLanguage { get; init; } = AppLanguage.Chinese;
 
     public string? BoundConversationUrl { get; init; }
 
