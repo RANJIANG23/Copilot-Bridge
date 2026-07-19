@@ -20,12 +20,6 @@ internal sealed record CollaborationRunResult(
     string? ComplexityConversationUrl,
     string? EvidenceConversationUrl);
 
-internal sealed class TurnBudgetExceededException : Exception
-{
-    internal TurnBudgetExceededException(string mode, int limit)
-        : base($"{mode} reached its {limit}-turn budget.") { }
-}
-
 internal sealed class PartialReviewException : Exception
 {
     internal PartialReviewException(ReviewerResult completed, Exception innerException)
@@ -37,12 +31,8 @@ internal sealed class PartialReviewException : Exception
 
 internal sealed class CollaborationRunner
 {
-    private const int AssistLimit = 2;
-    private const int OutsourceLimit = 6;
-    private const int ReviewLimit = 2;
     private readonly Func<AssistRequest, Task<AssistResult>> _execute;
     private readonly string _newConversationUrl;
-    private readonly int? _configuredTurnLimit;
 
     internal CollaborationRunner(
         BridgeSettings settings,
@@ -52,32 +42,18 @@ internal sealed class CollaborationRunner
         var coordinator = new ConsultationCoordinator(settings, selectors);
         _execute = request => coordinator.AssistOnPageAsync(page, request);
         _newConversationUrl = $"https://{selectors.AllowedHost}/chat/";
-        _configuredTurnLimit = settings.ConversationTurnLimit;
     }
 
     internal CollaborationRunner(
         Func<AssistRequest, Task<AssistResult>> execute,
-        string newConversationUrl = "https://m365.cloud.microsoft/chat/",
-        int? configuredTurnLimit = null)
+        string newConversationUrl = "https://m365.cloud.microsoft/chat/")
     {
         _execute = execute;
         _newConversationUrl = newConversationUrl;
-        _configuredTurnLimit = configuredTurnLimit;
     }
 
     internal async Task<CollaborationRunResult> RunAsync(CollaborationContext context)
     {
-        var limit = _configuredTurnLimit ?? context.Mode switch
-        {
-            CollaborationMode.Assist => AssistLimit,
-            CollaborationMode.Outsource => OutsourceLimit,
-            _ => ReviewLimit
-        };
-        if (context.TurnCount >= limit)
-        {
-            throw new TurnBudgetExceededException(context.Mode.ToString(), limit);
-        }
-
         return context.Mode == CollaborationMode.Review
             ? await RunReviewAsync(context)
             : await RunSingleAsync(context);

@@ -4,7 +4,13 @@ using CopilotBridge.Browser;
 
 namespace CopilotBridge.Core;
 
-internal sealed record WorkspaceProject(string Id, string Name, bool IsSystem, string DirectoryPath, bool IsPinned = false);
+internal sealed record WorkspaceProject(
+    string Id,
+    string Name,
+    bool IsSystem,
+    string DirectoryPath,
+    bool IsPinned = false,
+    int SortOrder = int.MaxValue);
 
 internal sealed record ConversationTurn(
     DateTimeOffset Timestamp,
@@ -17,7 +23,7 @@ internal sealed record ConversationTurn(
 internal sealed record ConversationDocument
 {
     public string Id { get; init; } = Guid.NewGuid().ToString("N");
-    public string ProjectId { get; init; } = ConversationWorkspaceStore.InboxProjectId;
+    public string ProjectId { get; init; } = ConversationWorkspaceStore.StandaloneProjectId;
     public string? CopilotConversationId { get; init; }
     public string? CopilotConversationUrl { get; init; }
     public string CopilotTitleInitial { get; init; } = "未命名 Copilot 对话";
@@ -50,8 +56,9 @@ internal sealed record ConversationSearchResult(
 
 internal sealed class ConversationWorkspaceStore
 {
-    internal const string InboxProjectId = "收件箱";
-    internal const string StandaloneProjectId = "独立对话";
+    internal const string StandaloneProjectId = "未分类对话";
+    private const string LegacyInboxProjectId = "收件箱";
+    private const string LegacyStandaloneProjectId = "独立对话";
     private const string ProjectMarker = ".bridge-project.md";
     private const string ProjectMetadataPrefix = "<!-- copilot-bridge-project:";
     private const string MetadataPrefix = "<!-- copilot-bridge-conversation:";
@@ -77,27 +84,34 @@ internal sealed class ConversationWorkspaceStore
         CancellationToken cancellationToken = default)
     {
         Directory.CreateDirectory(_rootDirectory);
+        await MigrateSystemProjectsAsync(cancellationToken);
         var projects = new List<WorkspaceProject>
         {
-            await EnsureProjectAsync(InboxProjectId, InboxProjectId, true, cancellationToken),
             await EnsureProjectAsync(StandaloneProjectId, StandaloneProjectId, true, cancellationToken)
         };
 
         foreach (var directory in Directory.EnumerateDirectories(_rootDirectory))
         {
             var name = Path.GetFileName(directory);
-            if (name is InboxProjectId or StandaloneProjectId ||
+            if (name is LegacyInboxProjectId or StandaloneProjectId or LegacyStandaloneProjectId ||
                 !File.Exists(Path.Combine(directory, ProjectMarker)))
             {
                 continue;
             }
 
             var metadata = await ReadProjectMarkerAsync(Path.Combine(directory, ProjectMarker), cancellationToken);
-            projects.Add(new WorkspaceProject(name, name, false, directory, metadata.IsPinned));
+            projects.Add(new WorkspaceProject(
+                name,
+                name,
+                false,
+                directory,
+                metadata.IsPinned,
+                NormalizeSortOrder(metadata.SortOrder)));
         }
 
-        return projects.OrderBy(project => project.IsSystem ? 0 : 1)
+        return projects.OrderBy(project => SystemProjectOrder(project.Id))
             .ThenByDescending(project => project.IsPinned)
+            .ThenBy(project => project.SortOrder)
             .ThenBy(project => project.Name, StringComparer.CurrentCultureIgnoreCase)
             .ToArray();
     }
@@ -115,7 +129,15 @@ internal sealed class ConversationWorkspaceStore
             candidate = $"{name} {suffix++}";
         }
 
-        return await EnsureProjectAsync(candidate, candidate, false, cancellationToken);
+        var project = await EnsureProjectAsync(candidate, candidate, false, cancellationToken);
+        var nextOrder = await GetNextProjectSortOrderAsync(cancellationToken);
+        await WriteProjectMarkerAsync(
+            Path.Combine(project.DirectoryPath, ProjectMarker),
+            project.Name,
+            project.IsPinned,
+            nextOrder,
+            cancellationToken);
+        return project with { SortOrder = nextOrder };
     }
 
     internal async Task<WorkspaceProject> RenameProjectAsync(
@@ -145,6 +167,7 @@ internal sealed class ConversationWorkspaceStore
             Path.Combine(destinationDirectory, ProjectMarker),
             newId,
             current.IsPinned,
+            current.SortOrder,
             cancellationToken);
 
         foreach (var document in documents)
@@ -152,7 +175,7 @@ internal sealed class ConversationWorkspaceStore
             await SaveAsync(document with { ProjectId = newId, UpdatedAt = DateTimeOffset.Now }, cancellationToken);
         }
 
-        return new WorkspaceProject(newId, newId, false, destinationDirectory, current.IsPinned);
+        return new WorkspaceProject(newId, newId, false, destinationDirectory, current.IsPinned, current.SortOrder);
     }
 
     internal async Task<WorkspaceProject> SetProjectPinnedAsync(
@@ -165,8 +188,51 @@ internal sealed class ConversationWorkspaceStore
             Path.Combine(current.DirectoryPath, ProjectMarker),
             current.Name,
             isPinned,
+            current.SortOrder,
             cancellationToken);
         return current with { IsPinned = isPinned };
+    }
+
+    internal async Task ReorderProjectAsync(
+        WorkspaceProject source,
+        WorkspaceProject target,
+        CancellationToken cancellationToken = default)
+    {
+        var currentProjects = await GetProjectsAsync(cancellationToken);
+        var currentSource = currentProjects.SingleOrDefault(project => project.Id == source.Id)
+            ?? throw new InvalidDataException("源项目不存在。");
+        var currentTarget = currentProjects.SingleOrDefault(project => project.Id == target.Id)
+            ?? throw new InvalidDataException("目标项目不存在。");
+        if (currentSource.IsSystem || currentTarget.IsSystem)
+        {
+            throw new InvalidOperationException("系统项目位置已锁定。");
+        }
+        if (currentSource.IsPinned != currentTarget.IsPinned)
+        {
+            throw new InvalidOperationException("置顶项目与普通项目请在各自分组内排序。");
+        }
+
+        var group = currentProjects
+            .Where(project => !project.IsSystem && project.IsPinned == currentSource.IsPinned)
+            .OrderBy(project => project.SortOrder)
+            .ThenBy(project => project.Name, StringComparer.CurrentCultureIgnoreCase)
+            .ToList();
+        var sourceIndex = group.FindIndex(project => project.Id == currentSource.Id);
+        var targetIndex = group.FindIndex(project => project.Id == currentTarget.Id);
+        if (sourceIndex == targetIndex) return;
+        group.RemoveAt(sourceIndex);
+        group.Insert(targetIndex, currentSource);
+
+        for (var index = 0; index < group.Count; index++)
+        {
+            var project = group[index];
+            await WriteProjectMarkerAsync(
+                Path.Combine(project.DirectoryPath, ProjectMarker),
+                project.Name,
+                project.IsPinned,
+                index,
+                cancellationToken);
+        }
     }
 
     internal async Task DeleteProjectAsync(
@@ -220,7 +286,6 @@ internal sealed class ConversationWorkspaceStore
     }
 
     internal async Task<ConversationDocument> ImportHistoricalConversationAsync(
-        string projectId,
         HistoricalConversationSnapshot snapshot,
         CancellationToken cancellationToken = default)
     {
@@ -232,7 +297,7 @@ internal sealed class ConversationWorkspaceStore
         var importedAt = DateTimeOffset.Now;
         var document = new ConversationDocument
         {
-            ProjectId = projectId,
+            ProjectId = StandaloneProjectId,
             CopilotConversationUrl = snapshot.ConversationUrl,
             CopilotConversationId = ExtractConversationId(snapshot.ConversationUrl),
             CopilotTitleInitial = NormalizeTitle(snapshot.CopilotTitle),
@@ -445,6 +510,17 @@ internal sealed class ConversationWorkspaceStore
         return builder.ToString();
     }
 
+    internal string RenderForDisplay(ConversationDocument document)
+    {
+        var markdown = Render(document);
+        if (!markdown.StartsWith(MetadataPrefix, StringComparison.Ordinal)) return markdown;
+
+        var metadataEnd = markdown.IndexOf("-->", MetadataPrefix.Length, StringComparison.Ordinal);
+        if (metadataEnd < 0) return markdown;
+
+        return markdown[(metadataEnd + 3)..].TrimStart('\r', '\n');
+    }
+
     private async Task<WorkspaceProject> EnsureProjectAsync(
         string id,
         string name,
@@ -456,10 +532,18 @@ internal sealed class ConversationWorkspaceStore
         var marker = Path.Combine(path, ProjectMarker);
         if (!File.Exists(marker))
         {
-            await WriteProjectMarkerAsync(marker, name, false, cancellationToken);
+            await WriteProjectMarkerAsync(marker, name, false, int.MaxValue, cancellationToken);
         }
-        var metadata = isSystem ? new ProjectMarkerMetadata(false) : await ReadProjectMarkerAsync(marker, cancellationToken);
-        return new WorkspaceProject(id, name, isSystem, path, metadata.IsPinned);
+        var metadata = isSystem
+            ? new ProjectMarkerMetadata(false, int.MaxValue)
+            : await ReadProjectMarkerAsync(marker, cancellationToken);
+        return new WorkspaceProject(
+            id,
+            name,
+            isSystem,
+            path,
+            metadata.IsPinned,
+            NormalizeSortOrder(metadata.SortOrder));
     }
 
     private async Task EnsureKnownProjectAsync(string projectId, CancellationToken cancellationToken)
@@ -516,18 +600,18 @@ internal sealed class ConversationWorkspaceStore
         var end = text.IndexOf(" -->", StringComparison.Ordinal);
         if (!text.StartsWith(ProjectMetadataPrefix, StringComparison.Ordinal) || end < 0)
         {
-            return new ProjectMarkerMetadata(false);
+            return new ProjectMarkerMetadata(false, int.MaxValue);
         }
 
         try
         {
             var encoded = text[ProjectMetadataPrefix.Length..end];
             return JsonSerializer.Deserialize<ProjectMarkerMetadata>(Convert.FromBase64String(encoded), JsonOptions)
-                   ?? new ProjectMarkerMetadata(false);
+                   ?? new ProjectMarkerMetadata(false, int.MaxValue);
         }
         catch (Exception exception) when (exception is FormatException or JsonException)
         {
-            return new ProjectMarkerMetadata(false);
+            return new ProjectMarkerMetadata(false, int.MaxValue);
         }
     }
 
@@ -535,10 +619,11 @@ internal sealed class ConversationWorkspaceStore
         string markerPath,
         string name,
         bool isPinned,
+        int sortOrder,
         CancellationToken cancellationToken)
     {
         var encoded = Convert.ToBase64String(JsonSerializer.SerializeToUtf8Bytes(
-            new ProjectMarkerMetadata(isPinned), JsonOptions));
+            new ProjectMarkerMetadata(isPinned, sortOrder), JsonOptions));
         var temporaryPath = markerPath + ".tmp";
         var contents = $"{ProjectMetadataPrefix}{encoded} -->\n\n# {name}\n\nCopilot Bridge 项目目录。\n";
         try
@@ -562,7 +647,100 @@ internal sealed class ConversationWorkspaceStore
         return name.Length > 80 ? name[..80] : name;
     }
 
-    private sealed record ProjectMarkerMetadata(bool IsPinned);
+    private async Task<int> GetNextProjectSortOrderAsync(CancellationToken cancellationToken)
+    {
+        var maximum = -1;
+        foreach (var directory in Directory.EnumerateDirectories(_rootDirectory))
+        {
+            var name = Path.GetFileName(directory);
+            if (name is LegacyInboxProjectId or StandaloneProjectId or LegacyStandaloneProjectId) continue;
+            var markerPath = Path.Combine(directory, ProjectMarker);
+            if (!File.Exists(markerPath)) continue;
+            var metadata = await ReadProjectMarkerAsync(markerPath, cancellationToken);
+            var order = NormalizeSortOrder(metadata.SortOrder);
+            if (order != int.MaxValue) maximum = Math.Max(maximum, order);
+        }
+        return maximum + 1;
+    }
+
+    private async Task MigrateSystemProjectsAsync(CancellationToken cancellationToken)
+    {
+        var destinationDirectory = Path.Combine(_rootDirectory, StandaloneProjectId);
+        Directory.CreateDirectory(destinationDirectory);
+        foreach (var legacyProjectId in new[] { LegacyStandaloneProjectId, LegacyInboxProjectId })
+        {
+            var legacyDirectory = Path.Combine(_rootDirectory, legacyProjectId);
+            if (!Directory.Exists(legacyDirectory)) continue;
+
+            foreach (var sourcePath in Directory.EnumerateFiles(legacyDirectory, "conversation-*.md"))
+            {
+                var destinationPath = Path.Combine(destinationDirectory, Path.GetFileName(sourcePath));
+                var document = await TryLoadPathAsync(sourcePath, cancellationToken);
+                if (document is null)
+                {
+                    if (File.Exists(destinationPath))
+                    {
+                        destinationPath = Path.Combine(
+                            destinationDirectory,
+                            $"legacy-{legacyProjectId}-{Path.GetFileName(sourcePath)}");
+                    }
+                    File.Move(sourcePath, destinationPath, true);
+                    continue;
+                }
+
+                var updated = document with { ProjectId = StandaloneProjectId };
+                var temporaryPath = destinationPath + ".tmp";
+                try
+                {
+                    await File.WriteAllTextAsync(temporaryPath, Render(updated), new UTF8Encoding(false), cancellationToken);
+                    File.Move(temporaryPath, destinationPath, true);
+                }
+                finally
+                {
+                    if (File.Exists(temporaryPath)) File.Delete(temporaryPath);
+                }
+                if (File.Exists(sourcePath)) File.Delete(sourcePath);
+            }
+            foreach (var path in Directory.EnumerateFiles(legacyDirectory))
+            {
+                if (File.Exists(path)) File.Delete(path);
+            }
+            Directory.Delete(legacyDirectory, false);
+        }
+
+        foreach (var path in Directory.EnumerateFiles(destinationDirectory, "conversation-*.md"))
+        {
+            var document = await TryLoadPathAsync(path, cancellationToken);
+            if (document is null || document.ProjectId is not (LegacyStandaloneProjectId or LegacyInboxProjectId)) continue;
+            var updated = document with { ProjectId = StandaloneProjectId };
+            var temporaryPath = path + ".tmp";
+            try
+            {
+                await File.WriteAllTextAsync(temporaryPath, Render(updated), new UTF8Encoding(false), cancellationToken);
+                File.Move(temporaryPath, path, true);
+            }
+            finally
+            {
+                if (File.Exists(temporaryPath)) File.Delete(temporaryPath);
+            }
+        }
+        var markerPath = Path.Combine(destinationDirectory, ProjectMarker);
+        if (!File.Exists(markerPath))
+        {
+            await WriteProjectMarkerAsync(
+                markerPath,
+                StandaloneProjectId,
+                false,
+                int.MaxValue,
+                cancellationToken);
+        }
+    }
+
+    private static int SystemProjectOrder(string projectId) => projectId == StandaloneProjectId ? 0 : 1;
+
+    private static int NormalizeSortOrder(int sortOrder) => sortOrder < 0 ? int.MaxValue : sortOrder;
+
+    private sealed record ProjectMarkerMetadata(bool IsPinned, int SortOrder = int.MaxValue);
 
     private static string? ExtractConversationId(string? url)
     {

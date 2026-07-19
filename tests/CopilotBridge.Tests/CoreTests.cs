@@ -461,7 +461,7 @@ public sealed class CoreTests
         try
         {
             var project = await store.CreateProjectAsync("项目一");
-            var conversation = await store.CreateConversationAsync(ConversationWorkspaceStore.InboxProjectId);
+            var conversation = await store.CreateConversationAsync(ConversationWorkspaceStore.StandaloneProjectId);
             conversation = conversation with
             {
                 CopilotConversationUrl = "https://m365.cloud.microsoft/chat/conversation/conversation-1",
@@ -491,7 +491,7 @@ public sealed class CoreTests
             Assert.Equal("conversation-1", conversation.CopilotConversationId);
             Assert.Equal(2, conversation.Turns.Count);
             Assert.Single(store.Search(conversation, "方案可行"));
-            var beforeMove = Path.Combine(root, ConversationWorkspaceStore.InboxProjectId, $"conversation-{conversation.Id}.md");
+            var beforeMove = Path.Combine(root, ConversationWorkspaceStore.StandaloneProjectId, $"conversation-{conversation.Id}.md");
             var markdown = await File.ReadAllTextAsync(beforeMove);
             Assert.Contains("# 任务", markdown);
             Assert.Contains("# 结论", markdown);
@@ -516,6 +516,27 @@ public sealed class CoreTests
     }
 
     [Fact]
+    public void ConversationWorkspaceDisplayMarkdownHidesInternalMetadata()
+    {
+        var store = new ConversationWorkspaceStore(Path.Combine(Path.GetTempPath(), "CopilotBridge.Tests", Guid.NewGuid().ToString("N")));
+        var conversation = new ConversationDocument
+        {
+            CopilotTitleInitial = "网页原标题",
+            CopilotTitleCurrent = "网页当前标题",
+            Turns = [new ConversationTurn(DateTimeOffset.Now, "user", "正文内容")]
+        };
+
+        var stored = store.Render(conversation);
+        var displayed = store.RenderForDisplay(conversation);
+
+        Assert.StartsWith("<!-- copilot-bridge-conversation:", stored, StringComparison.Ordinal);
+        Assert.DoesNotContain("copilot-bridge-conversation:", displayed, StringComparison.Ordinal);
+        Assert.StartsWith("---", displayed, StringComparison.Ordinal);
+        Assert.Contains("# 网页当前标题", displayed, StringComparison.Ordinal);
+        Assert.Contains("正文内容", displayed, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task HistoricalImportKeepsCopilotTitleAndUnknownModelsWithoutDuplicateUrl()
     {
         var root = Path.Combine(Path.GetTempPath(), "CopilotBridge.Tests", Guid.NewGuid().ToString("N"));
@@ -530,9 +551,9 @@ public sealed class CoreTests
             ]);
         try
         {
-            var imported = await store.ImportHistoricalConversationAsync(
-                ConversationWorkspaceStore.StandaloneProjectId, snapshot);
+            var imported = await store.ImportHistoricalConversationAsync(snapshot);
 
+            Assert.Equal(ConversationWorkspaceStore.StandaloneProjectId, imported.ProjectId);
             Assert.Equal("网页旧对话标题", imported.CopilotTitleInitial);
             Assert.Equal("网页旧对话标题", imported.DisplayTitle);
             Assert.Equal(["user", "copilot"], imported.Turns.Select(turn => turn.Role));
@@ -540,8 +561,7 @@ public sealed class CoreTests
             Assert.Null(imported.Turns[1].Model);
             Assert.Contains("模型状态：`unknown`", await File.ReadAllTextAsync(
                 Path.Combine(root, ConversationWorkspaceStore.StandaloneProjectId, $"conversation-{imported.Id}.md")));
-            await Assert.ThrowsAsync<InvalidOperationException>(() => store.ImportHistoricalConversationAsync(
-                ConversationWorkspaceStore.StandaloneProjectId, snapshot));
+            await Assert.ThrowsAsync<InvalidOperationException>(() => store.ImportHistoricalConversationAsync(snapshot));
         }
         finally
         {
@@ -588,21 +608,34 @@ public sealed class CoreTests
     }
 
     [Theory]
-    [InlineData((int)CollaborationMode.Assist, 2)]
-    [InlineData((int)CollaborationMode.Outsource, 6)]
-    [InlineData((int)CollaborationMode.Review, 2)]
-    public async Task CollaborationModesStopAtTheirTurnBudgets(int mode, int limit)
+    [InlineData((int)CollaborationMode.Assist)]
+    [InlineData((int)CollaborationMode.Outsource)]
+    public async Task CollaborationModesContinueWithoutATurnLimit(int mode)
     {
-        var runner = new CollaborationRunner(_ => throw new InvalidOperationException("must not execute"));
+        var calls = 0;
+        var runner = new CollaborationRunner(request =>
+        {
+            calls++;
+            return Task.FromResult(new AssistResult(
+                "Opus",
+                "reply",
+                request.ConversationUrl ?? "https://m365.cloud.microsoft/chat/",
+                1,
+                1,
+                false));
+        });
         var context = new CollaborationContext(
             "request",
             (CollaborationMode)mode,
-            limit,
+            10_000,
             "https://m365.cloud.microsoft/chat/primary",
             null,
             null);
 
-        await Assert.ThrowsAsync<TurnBudgetExceededException>(() => runner.RunAsync(context));
+        var result = await runner.RunAsync(context);
+
+        Assert.Equal(1, calls);
+        Assert.Equal(10_001, result.TurnCount);
     }
 
     [Fact]

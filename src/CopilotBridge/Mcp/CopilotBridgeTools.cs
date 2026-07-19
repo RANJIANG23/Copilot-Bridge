@@ -168,11 +168,6 @@ internal sealed class CopilotBridgeTools : IAsyncDisposable
                     response.Result.ReplyMarkdown)).ToArray(),
                 false);
         }
-        catch (TurnBudgetExceededException exception)
-        {
-            DiagnosticLog.Write("turn_budget_exhausted", exception);
-            return Failure("blocked", "turn_budget_exhausted", id, mode, false);
-        }
         catch (PartialReviewException exception)
         {
             DiagnosticLog.Write("submission_unknown", exception);

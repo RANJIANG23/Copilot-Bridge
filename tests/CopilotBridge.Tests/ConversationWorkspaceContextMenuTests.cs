@@ -48,17 +48,119 @@ public sealed class ConversationWorkspaceContextMenuTests
     }
 
     [Fact]
-    public async Task SystemProjectsCannotBeRenamedOrDeleted()
+    public async Task UnclassifiedProjectCannotBeRenamedOrDeleted()
     {
         var root = CreateWorkspaceRoot();
         try
         {
             var store = new ConversationWorkspaceStore(root);
-            var inbox = (await store.GetProjectsAsync()).Single(project => project.Id == ConversationWorkspaceStore.InboxProjectId);
+            var unclassified = Assert.Single(await store.GetProjectsAsync());
 
-            await Assert.ThrowsAsync<InvalidOperationException>(() => store.RenameProjectAsync(inbox, "其他名称"));
-            await Assert.ThrowsAsync<InvalidOperationException>(() => store.DeleteProjectAsync(inbox));
-            Assert.True(Directory.Exists(inbox.DirectoryPath));
+            await Assert.ThrowsAsync<InvalidOperationException>(() => store.RenameProjectAsync(unclassified, "其他名称"));
+            await Assert.ThrowsAsync<InvalidOperationException>(() => store.DeleteProjectAsync(unclassified));
+            Assert.True(Directory.Exists(unclassified.DirectoryPath));
+        }
+        finally { DeleteWorkspaceRoot(root); }
+    }
+
+    [Fact]
+    public async Task UnclassifiedConversationIsTheOnlyLockedSystemProject()
+    {
+        var root = CreateWorkspaceRoot();
+        try
+        {
+            var store = new ConversationWorkspaceStore(root);
+            var projects = await store.GetProjectsAsync();
+            var unclassified = Assert.Single(projects);
+
+            Assert.Equal("未分类对话", ConversationWorkspaceStore.StandaloneProjectId);
+            Assert.Equal(ConversationWorkspaceStore.StandaloneProjectId, unclassified.Id);
+            Assert.True(unclassified.IsSystem);
+            await Assert.ThrowsAsync<InvalidOperationException>(() => store.RenameProjectAsync(unclassified, "其他名称"));
+            await Assert.ThrowsAsync<InvalidOperationException>(() => store.DeleteProjectAsync(unclassified));
+            await Assert.ThrowsAsync<InvalidOperationException>(() => store.SetProjectPinnedAsync(unclassified, true));
+            await Assert.ThrowsAsync<InvalidOperationException>(() => store.ReorderProjectAsync(unclassified, unclassified));
+        }
+        finally { DeleteWorkspaceRoot(root); }
+    }
+
+    [Fact]
+    public async Task LegacyStandaloneFolderMigratesToUnclassifiedConversationProject()
+    {
+        var root = CreateWorkspaceRoot();
+        try
+        {
+            var legacyDirectory = Path.Combine(root, "独立对话");
+            Directory.CreateDirectory(legacyDirectory);
+            await File.WriteAllTextAsync(Path.Combine(legacyDirectory, ".bridge-project.md"), "# 独立对话");
+            var store = new ConversationWorkspaceStore(root);
+            var document = new ConversationDocument { ProjectId = "独立对话", LocalTitle = "旧会话" };
+            await File.WriteAllTextAsync(
+                Path.Combine(legacyDirectory, $"conversation-{document.Id}.md"),
+                store.Render(document));
+
+            var projects = await store.GetProjectsAsync();
+            var restored = await store.FindAsync(document.Id);
+
+            Assert.DoesNotContain(projects, project => project.Id == "独立对话");
+            Assert.Contains(projects, project => project.Id == ConversationWorkspaceStore.StandaloneProjectId);
+            Assert.False(Directory.Exists(legacyDirectory));
+            Assert.NotNull(restored);
+            Assert.Equal(ConversationWorkspaceStore.StandaloneProjectId, restored!.ProjectId);
+            Assert.True(File.Exists(Path.Combine(
+                root,
+                ConversationWorkspaceStore.StandaloneProjectId,
+                $"conversation-{document.Id}.md")));
+        }
+        finally { DeleteWorkspaceRoot(root); }
+    }
+
+    [Fact]
+    public async Task LegacyInboxConversationsMigrateIntoUnclassifiedAndInboxIsRemoved()
+    {
+        var root = CreateWorkspaceRoot();
+        try
+        {
+            var inboxDirectory = Path.Combine(root, "收件箱");
+            Directory.CreateDirectory(inboxDirectory);
+            await File.WriteAllTextAsync(Path.Combine(inboxDirectory, ".bridge-project.md"), "# 收件箱");
+            var store = new ConversationWorkspaceStore(root);
+            var document = new ConversationDocument { ProjectId = "收件箱", LocalTitle = "旧收件箱会话" };
+            await File.WriteAllTextAsync(
+                Path.Combine(inboxDirectory, $"conversation-{document.Id}.md"),
+                store.Render(document));
+
+            var projects = await store.GetProjectsAsync();
+            var restored = await store.FindAsync(document.Id);
+
+            Assert.DoesNotContain(projects, project => project.Id == "收件箱");
+            Assert.False(Directory.Exists(inboxDirectory));
+            Assert.NotNull(restored);
+            Assert.Equal(ConversationWorkspaceStore.StandaloneProjectId, restored!.ProjectId);
+            Assert.True(File.Exists(Path.Combine(
+                root,
+                ConversationWorkspaceStore.StandaloneProjectId,
+                $"conversation-{document.Id}.md")));
+        }
+        finally { DeleteWorkspaceRoot(root); }
+    }
+
+    [Fact]
+    public async Task CustomProjectReorderingPersistsWithoutMovingSystemProjects()
+    {
+        var root = CreateWorkspaceRoot();
+        try
+        {
+            var store = new ConversationWorkspaceStore(root);
+            var alpha = await store.CreateProjectAsync("Alpha");
+            var beta = await store.CreateProjectAsync("Beta");
+            var gamma = await store.CreateProjectAsync("Gamma");
+
+            await store.ReorderProjectAsync(gamma, alpha);
+            var reloaded = await new ConversationWorkspaceStore(root).GetProjectsAsync();
+
+            Assert.Equal(ConversationWorkspaceStore.StandaloneProjectId, reloaded[0].Id);
+            Assert.Equal(new[] { gamma.Id, alpha.Id, beta.Id }, reloaded.Skip(1).Select(project => project.Id));
         }
         finally { DeleteWorkspaceRoot(root); }
     }
@@ -78,9 +180,9 @@ public sealed class ConversationWorkspaceContextMenuTests
 
             Assert.True(pinned.IsPinned);
             Assert.True(reloaded.Single(project => project.Id == zulu.Id).IsPinned);
-            Assert.All(reloaded.Take(2), project => Assert.True(project.IsSystem));
-            Assert.Equal(zulu.Id, reloaded[2].Id);
-            Assert.Equal(alpha.Id, reloaded[3].Id);
+            Assert.True(reloaded[0].IsSystem);
+            Assert.Equal(zulu.Id, reloaded[1].Id);
+            Assert.Equal(alpha.Id, reloaded[2].Id);
         }
         finally { DeleteWorkspaceRoot(root); }
     }
@@ -111,9 +213,9 @@ public sealed class ConversationWorkspaceContextMenuTests
         try
         {
             var store = new ConversationWorkspaceStore(root);
-            var inbox = (await store.GetProjectsAsync()).Single(project => project.Id == ConversationWorkspaceStore.InboxProjectId);
+            var unclassified = (await store.GetProjectsAsync()).Single(project => project.Id == ConversationWorkspaceStore.StandaloneProjectId);
 
-            await Assert.ThrowsAsync<InvalidOperationException>(() => store.SetProjectPinnedAsync(inbox, true));
+            await Assert.ThrowsAsync<InvalidOperationException>(() => store.SetProjectPinnedAsync(unclassified, true));
         }
         finally { DeleteWorkspaceRoot(root); }
     }
@@ -139,7 +241,30 @@ public sealed class ConversationWorkspaceContextMenuTests
     }
 
     [Fact]
-    public async Task SettingsPersistCustomTurnLimitAndModelPriority()
+    public void ShortcutManagerCreatesIdempotentStartAndDesktopLinks()
+    {
+        var root = CreateWorkspaceRoot();
+        try
+        {
+            var programs = Path.Combine(root, "Programs");
+            var desktop = Path.Combine(root, "Desktop");
+            var manager = new ShortcutManager(Environment.ProcessPath!, programs, desktop);
+
+            var startPath = manager.CreateStartMenuShortcut();
+            var desktopPath = manager.CreateDesktopShortcut();
+            manager.CreateStartMenuShortcut();
+
+            Assert.Equal(Path.Combine(programs, "Copilot Bridge.lnk"), startPath);
+            Assert.Equal(Path.Combine(desktop, "Copilot Bridge.lnk"), desktopPath);
+            Assert.True(File.Exists(startPath));
+            Assert.True(File.Exists(desktopPath));
+            Assert.True(new FileInfo(startPath).Length > 0);
+        }
+        finally { DeleteWorkspaceRoot(root); }
+    }
+
+    [Fact]
+    public async Task SettingsPersistModelPriorityWithoutTurnLimit()
     {
         var root = CreateWorkspaceRoot();
         try
@@ -149,34 +274,31 @@ public sealed class ConversationWorkspaceContextMenuTests
 
             await store.SaveAsync(new BridgeSettings
             {
-                ConversationTurnLimit = 12,
                 ModelPriority = ModelPriorityOptions.Serialize(expectedPriority)
             });
             var actual = await store.LoadAsync();
 
-            Assert.Equal(12, actual.ConversationTurnLimit);
             Assert.Equal(expectedPriority, ModelPriorityOptions.Parse(actual.ModelPriority));
         }
         finally { DeleteWorkspaceRoot(root); }
     }
 
     [Fact]
-    public async Task ConfiguredTurnLimitOverridesTheModeDefault()
+    public async Task ExistingSettingsTurnLimitIsIgnoredForBackwardCompatibility()
     {
-        var runner = new CollaborationRunner(
-            _ => throw new InvalidOperationException("must not execute"),
-            configuredTurnLimit: 9);
-        var context = new CollaborationContext(
-            "request",
-            CollaborationMode.Assist,
-            9,
-            "https://m365.cloud.microsoft/chat/",
-            null,
-            null);
+        var root = CreateWorkspaceRoot();
+        try
+        {
+            var path = Path.Combine(root, "settings.json");
+            Directory.CreateDirectory(root);
+            await File.WriteAllTextAsync(path, "{\"conversationTurnLimit\":20}");
 
-        var exception = await Assert.ThrowsAsync<TurnBudgetExceededException>(() => runner.RunAsync(context));
+            await new SettingsStore(path).LoadAsync();
+            var saved = await File.ReadAllTextAsync(path);
 
-        Assert.Contains("9-turn", exception.Message, StringComparison.Ordinal);
+            Assert.DoesNotContain("conversationTurnLimit", saved, StringComparison.OrdinalIgnoreCase);
+        }
+        finally { DeleteWorkspaceRoot(root); }
     }
 
     private static string CreateWorkspaceRoot() => Path.Combine(Path.GetTempPath(), "CopilotBridge.Tests", Guid.NewGuid().ToString("N"));

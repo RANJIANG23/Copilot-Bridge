@@ -5,6 +5,7 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
+using System.Windows.Media.Animation;
 using System.Windows.Threading;
 using CopilotBridge.Browser;
 using CopilotBridge.Core;
@@ -17,6 +18,7 @@ public partial class MainWindow : Window
     private readonly SettingsStore _settingsStore = new();
     private readonly ConsultationStateStore _stateStore = new();
     private readonly McpProcessRegistry _mcpProcessRegistry = new();
+    private readonly ShortcutManager _shortcutManager = new();
     private readonly ProviderSelectors _selectors = ProviderSelectors.Load();
     private readonly DispatcherTimer _statusRefreshTimer = new();
     private readonly DispatcherTimer _noticeTimer = new() { Interval = TimeSpan.FromSeconds(5) };
@@ -25,16 +27,24 @@ public partial class MainWindow : Window
     private ConversationWorkspaceStore _workspace = new();
     private IReadOnlyList<WorkspaceProject> _projects = [];
     private ConversationDocument? _selectedConversation;
-    private string _activeProjectId = ConversationWorkspaceStore.InboxProjectId;
+    private string _activeProjectId = ConversationWorkspaceStore.StandaloneProjectId;
     private EdgeSessionAdapter? _session;
     private bool _busy;
     private Point _conversationDragStart;
     private Point _modelPriorityDragStart;
+    private Point _projectDragStart;
+    private ConversationSummary? _conversationDragItem;
+    private string? _modelPriorityDragItem;
+    private WorkspaceProject? _projectDragItem;
+    private ListBoxItem? _dragHoverItem;
     private string _activePage = "overview";
     private bool _windowIsActive;
     private int _consecutiveStatusRefreshFailures;
     private DateTimeOffset? _lastStatusRefresh;
     private bool _settingsAreLoaded;
+    private const string ConversationDragFormat = "CopilotBridge.Conversation";
+    private const string ModelDragFormat = "CopilotBridge.Model";
+    private const string ProjectDragFormat = "CopilotBridge.Project";
 
     public MainWindow()
     {
@@ -107,6 +117,48 @@ public partial class MainWindow : Window
         {
             WorkspaceDirectoryTextBox.Text = dialog.FolderName;
         }
+    }
+
+    private void PinTaskbar_Click(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            var result = _shortcutManager.PinToTaskbar(out var shortcutPath);
+            if (result == ShortcutPinResult.Pinned)
+            {
+                ShowNotice(T("Copilot Bridge 已固定到任务栏。"), NoticeKind.Success);
+                return;
+            }
+            ShortcutManager.OpenShortcutLocation(shortcutPath);
+            ShowNotice(T("Windows 未开放自动固定；已选中快捷方式，请右键选择“固定到任务栏”。"), NoticeKind.Info);
+        }
+        catch (Exception exception) { ShowNotice(FriendlyMessage(exception), NoticeKind.Error); }
+    }
+
+    private void PinStart_Click(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            var result = _shortcutManager.PinToStart(out var shortcutPath);
+            if (result == ShortcutPinResult.Pinned)
+            {
+                ShowNotice(T("Copilot Bridge 已固定到“开始”。"), NoticeKind.Success);
+                return;
+            }
+            ShortcutManager.OpenShortcutLocation(shortcutPath);
+            ShowNotice(T("已创建“开始”菜单快捷方式；如需固定磁贴，请右键选择“固定到‘开始’”。"), NoticeKind.Success);
+        }
+        catch (Exception exception) { ShowNotice(FriendlyMessage(exception), NoticeKind.Error); }
+    }
+
+    private void CreateDesktopShortcut_Click(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            _shortcutManager.CreateDesktopShortcut();
+            ShowNotice(T("桌面快捷方式已创建。"), NoticeKind.Success);
+        }
+        catch (Exception exception) { ShowNotice(FriendlyMessage(exception), NoticeKind.Error); }
     }
 
     private async void Language_SelectionChanged(object sender, SelectionChangedEventArgs e)
@@ -295,6 +347,27 @@ public partial class MainWindow : Window
         await RefreshConversationListAsync();
     }
 
+    private void ProjectListBox_PreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+    {
+        _projectDragStart = e.GetPosition(ProjectListBox);
+        _projectDragItem = FindParent<ListBoxItem>(e.OriginalSource as DependencyObject)?.DataContext as WorkspaceProject;
+        if (_projectDragItem is WorkspaceProject project)
+        {
+            ProjectListBox.SelectedItem = project;
+        }
+    }
+
+    private void ProjectListBox_PreviewMouseMove(object sender, MouseEventArgs e)
+    {
+        if (e.LeftButton != MouseButtonState.Pressed ||
+            _projectDragItem is not WorkspaceProject { IsSystem: false } project) return;
+        var position = e.GetPosition(ProjectListBox);
+        if (!PassedDragThreshold(position, _projectDragStart)) return;
+        var data = new DataObject(ProjectDragFormat, project.Id);
+        BeginAnimatedDrag(ProjectListBox, project, data);
+        _projectDragItem = null;
+    }
+
     private void ProjectListBox_PreviewMouseRightButtonDown(object sender, MouseButtonEventArgs e)
     {
         if (FindParent<ListBoxItem>(e.OriginalSource as DependencyObject)?.DataContext is WorkspaceProject project)
@@ -357,15 +430,22 @@ public partial class MainWindow : Window
         try
         {
             await _workspace.DeleteProjectAsync(project);
-            _activeProjectId = ConversationWorkspaceStore.InboxProjectId;
+            _activeProjectId = ConversationWorkspaceStore.StandaloneProjectId;
             await RefreshWorkspaceAsync();
             ShowNotice(T("项目已删除。"), NoticeKind.Success);
         }
         catch (Exception exception) { ShowNotice(FriendlyMessage(exception), NoticeKind.Error); }
     }
 
-    private void ConversationListBox_PreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e) =>
+    private void ConversationListBox_PreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+    {
         _conversationDragStart = e.GetPosition(ConversationListBox);
+        _conversationDragItem = FindParent<ListBoxItem>(e.OriginalSource as DependencyObject)?.DataContext as ConversationSummary;
+        if (_conversationDragItem is ConversationSummary summary)
+        {
+            ConversationListBox.SelectedItem = summary;
+        }
+    }
 
     private void ConversationListBox_PreviewMouseRightButtonDown(object sender, MouseButtonEventArgs e)
     {
@@ -377,29 +457,58 @@ public partial class MainWindow : Window
 
     private void ConversationListBox_PreviewMouseMove(object sender, MouseEventArgs e)
     {
-        if (e.LeftButton != MouseButtonState.Pressed || ConversationListBox.SelectedItem is not ConversationSummary summary) return;
+        if (e.LeftButton != MouseButtonState.Pressed || _conversationDragItem is not ConversationSummary summary) return;
         var position = e.GetPosition(ConversationListBox);
-        if (Math.Abs(position.X - _conversationDragStart.X) < SystemParameters.MinimumHorizontalDragDistance &&
-            Math.Abs(position.Y - _conversationDragStart.Y) < SystemParameters.MinimumVerticalDragDistance) return;
-        DragDrop.DoDragDrop(ConversationListBox, summary.Id, DragDropEffects.Move);
+        if (!PassedDragThreshold(position, _conversationDragStart)) return;
+        var data = new DataObject(ConversationDragFormat, summary.Id);
+        BeginAnimatedDrag(ConversationListBox, summary, data);
+        _conversationDragItem = null;
     }
 
-    private void ModelPriorityListBox_PreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e) =>
+    private void ModelPriorityListBox_PreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+    {
         _modelPriorityDragStart = e.GetPosition(ModelPriorityListBox);
+        _modelPriorityDragItem = FindParent<ListBoxItem>(e.OriginalSource as DependencyObject)?.DataContext as string;
+        if (_modelPriorityDragItem is string model)
+        {
+            ModelPriorityListBox.SelectedItem = model;
+        }
+    }
 
     private void ModelPriorityListBox_PreviewMouseMove(object sender, MouseEventArgs e)
     {
-        if (e.LeftButton != MouseButtonState.Pressed || ModelPriorityListBox.SelectedItem is not string model) return;
+        if (e.LeftButton != MouseButtonState.Pressed || _modelPriorityDragItem is not string model) return;
         var position = e.GetPosition(ModelPriorityListBox);
-        if (Math.Abs(position.X - _modelPriorityDragStart.X) < SystemParameters.MinimumHorizontalDragDistance &&
-            Math.Abs(position.Y - _modelPriorityDragStart.Y) < SystemParameters.MinimumVerticalDragDistance) return;
-        DragDrop.DoDragDrop(ModelPriorityListBox, model, DragDropEffects.Move);
+        if (!PassedDragThreshold(position, _modelPriorityDragStart)) return;
+        var data = new DataObject(ModelDragFormat, model);
+        BeginAnimatedDrag(ModelPriorityListBox, model, data);
+        _modelPriorityDragItem = null;
     }
+
+    private void ProjectListBox_PreviewDragOver(object sender, DragEventArgs e)
+    {
+        var target = FindParent<ListBoxItem>(e.OriginalSource as DependencyObject)?.DataContext as WorkspaceProject;
+        var acceptsConversation = e.Data.GetDataPresent(ConversationDragFormat) && target is not null;
+        var acceptsProject = e.Data.GetDataPresent(ProjectDragFormat) && target is { IsSystem: false };
+        e.Effects = acceptsConversation || acceptsProject ? DragDropEffects.Move : DragDropEffects.None;
+        e.Handled = true;
+        UpdateDragHoverItem(target is null ? null : FindParent<ListBoxItem>(e.OriginalSource as DependencyObject));
+    }
+
+    private void ModelPriorityListBox_PreviewDragOver(object sender, DragEventArgs e)
+    {
+        e.Effects = e.Data.GetDataPresent(ModelDragFormat) ? DragDropEffects.Move : DragDropEffects.None;
+        e.Handled = true;
+        UpdateDragHoverItem(FindParent<ListBoxItem>(e.OriginalSource as DependencyObject));
+    }
+
+    private void DragListBox_DragLeave(object sender, DragEventArgs e) => ClearDragHoverItem();
 
     private void ModelPriorityListBox_Drop(object sender, DragEventArgs e)
     {
-        if (!e.Data.GetDataPresent(DataFormats.StringFormat) ||
-            e.Data.GetData(DataFormats.StringFormat) is not string model) return;
+        ClearDragHoverItem();
+        if (!e.Data.GetDataPresent(ModelDragFormat) ||
+            e.Data.GetData(ModelDragFormat) is not string model) return;
         var sourceIndex = _modelPriority.IndexOf(model);
         if (sourceIndex < 0) return;
         var targetModel = FindParent<ListBoxItem>(e.OriginalSource as DependencyObject)?.DataContext as string;
@@ -411,19 +520,40 @@ public partial class MainWindow : Window
         _modelPriority.RemoveAt(sourceIndex);
         _modelPriority.Insert(targetIndex, model);
         ModelPriorityListBox.SelectedItem = model;
+        AnimateDropSettled(ModelPriorityListBox);
     }
 
     private async void ProjectListBox_Drop(object sender, DragEventArgs e)
     {
-        if (!e.Data.GetDataPresent(DataFormats.StringFormat) ||
-            e.Data.GetData(DataFormats.StringFormat) is not string conversationId) return;
+        ClearDragHoverItem();
         var target = FindParent<ListBoxItem>(e.OriginalSource as DependencyObject)?.DataContext as WorkspaceProject;
         if (target is null) return;
+
+        if (e.Data.GetDataPresent(ProjectDragFormat) &&
+            e.Data.GetData(ProjectDragFormat) is string projectId)
+        {
+            var source = _projects.FirstOrDefault(project => project.Id == projectId);
+            if (source is null || source.IsSystem || target.IsSystem || source.Id == target.Id) return;
+            try
+            {
+                await _workspace.ReorderProjectAsync(source, target);
+                _activeProjectId = source.Id;
+                await RefreshWorkspaceAsync();
+                SelectProject(source.Id);
+                AnimateDropSettled(ProjectListBox);
+            }
+            catch (Exception exception) { ShowNotice(FriendlyMessage(exception), NoticeKind.Error); }
+            return;
+        }
+
+        if (!e.Data.GetDataPresent(ConversationDragFormat) ||
+            e.Data.GetData(ConversationDragFormat) is not string conversationId) return;
         var document = await _workspace.FindAsync(conversationId);
         if (document is null || document.ProjectId == target.Id) return;
         _selectedConversation = await _workspace.MoveAsync(document, target.Id);
         _activeProjectId = target.Id;
         await RefreshWorkspaceAsync(_selectedConversation.Id);
+        AnimateDropSettled(ProjectListBox);
         ShowNotice(T("会话 Markdown 已拖入项目文件夹。"), NoticeKind.Success);
     }
 
@@ -534,7 +664,8 @@ public partial class MainWindow : Window
             Height = 170,
             WindowStartupLocation = WindowStartupLocation.CenterOwner,
             ResizeMode = ResizeMode.NoResize,
-            ShowInTaskbar = false
+            ShowInTaskbar = false,
+            FontFamily = FontFamily
         };
         var confirm = new Button { Content = T("保存"), IsDefault = true, MinWidth = 76, Margin = new Thickness(8, 0, 0, 0) };
         confirm.Click += (_, _) => dialog.DialogResult = true;
@@ -580,7 +711,7 @@ public partial class MainWindow : Window
         _projects = await _workspace.GetProjectsAsync();
         ProjectListBox.ItemsSource = _projects;
         MoveProjectComboBox.ItemsSource = _projects;
-        if (_projects.All(project => project.Id != _activeProjectId)) _activeProjectId = ConversationWorkspaceStore.InboxProjectId;
+        if (_projects.All(project => project.Id != _activeProjectId)) _activeProjectId = ConversationWorkspaceStore.StandaloneProjectId;
         SelectProject(_activeProjectId);
         await RefreshConversationListAsync(selectConversationId);
     }
@@ -622,7 +753,7 @@ public partial class MainWindow : Window
         ConversationMetaText.Text = _settings.DisplayLanguage == AppLanguage.English
             ? $"{document.Mode} · {document.Turns.Count} records · {document.UpdatedAt.LocalDateTime:yyyy-MM-dd HH:mm}"
             : $"{document.Mode} · {document.Turns.Count} 条记录 · {document.UpdatedAt.LocalDateTime:yyyy-MM-dd HH:mm}";
-        ConversationMarkdownTextBox.Text = _workspace.Render(document);
+        ConversationMarkdownTextBox.Text = _workspace.RenderForDisplay(document);
         MoveProjectComboBox.SelectedValue = document.ProjectId;
         ConversationSearchTextBox.Text = string.Empty;
         SearchResultsText.Text = "";
@@ -667,7 +798,8 @@ public partial class MainWindow : Window
                 return;
             }
 
-            _selectedConversation = await _workspace.ImportHistoricalConversationAsync(_activeProjectId, snapshot);
+            _selectedConversation = await _workspace.ImportHistoricalConversationAsync(snapshot);
+            _activeProjectId = ConversationWorkspaceStore.StandaloneProjectId;
             await RefreshWorkspaceAsync(_selectedConversation.Id);
             ShowNotice(T("旧对话已保存为本地 Markdown；历史回复模型保持未知。"), NoticeKind.Success);
         }
@@ -793,10 +925,9 @@ public partial class MainWindow : Window
     {
         if (!int.TryParse(MenuMinimumTextBox.Text, out var menuMinimum) || menuMinimum < 0 ||
             !int.TryParse(MenuMaximumTextBox.Text, out var menuMaximum) || menuMaximum < menuMinimum ||
-            !int.TryParse(ReplyTimeoutTextBox.Text, out var replyTimeout) || replyTimeout <= 0 ||
-            !int.TryParse(ConversationTurnLimitTextBox.Text, out var turnLimit) || turnLimit is < 1 or > 20)
+            !int.TryParse(ReplyTimeoutTextBox.Text, out var replyTimeout) || replyTimeout <= 0)
         {
-            throw new InvalidDataException(T("设置数值无效：请检查等待时间、回复超时和沟通轮次上限。"));
+            throw new InvalidDataException(T("设置数值无效：请检查等待时间和回复超时。"));
         }
         var workspaceDirectory = WorkspaceDirectoryTextBox.Text.Trim();
         if (workspaceDirectory.Length == 0) throw new InvalidDataException(T("本地会话工作区不能为空。"));
@@ -805,7 +936,6 @@ public partial class MainWindow : Window
             MenuMinimumWaitMilliseconds = menuMinimum,
             MenuMaximumWaitMilliseconds = menuMaximum,
             ReplyTimeoutSeconds = replyTimeout,
-            ConversationTurnLimit = turnLimit,
             ModelPriority = ModelPriorityOptions.Serialize(_modelPriority),
             ConsultationPolicy = (ConsultationPolicy)Math.Max(0, PolicyComboBox.SelectedIndex),
             CollaborationMode = ReviewRadio.IsChecked == true ? CollaborationMode.Review :
@@ -829,7 +959,6 @@ public partial class MainWindow : Window
         MenuMinimumTextBox.Text = _settings.MenuMinimumWaitMilliseconds.ToString();
         MenuMaximumTextBox.Text = _settings.MenuMaximumWaitMilliseconds.ToString();
         ReplyTimeoutTextBox.Text = _settings.ReplyTimeoutSeconds.ToString();
-        ConversationTurnLimitTextBox.Text = _settings.ConversationTurnLimit.ToString();
         WorkspaceDirectoryTextBox.Text = _settings.ConversationWorkspaceDirectory;
         _modelPriority.Clear();
         foreach (var model in ModelPriorityOptions.Parse(_settings.ModelPriority)) _modelPriority.Add(model);
@@ -854,7 +983,6 @@ public partial class MainWindow : Window
         SaveSettingsButton.IsEnabled = !busy;
         BrowseWorkspaceButton.IsEnabled = !busy;
         ModelPriorityListBox.IsEnabled = !busy;
-        ConversationTurnLimitTextBox.IsEnabled = !busy;
         LanguageComboBox.IsEnabled = !busy;
         ThemeComboBox.IsEnabled = !busy;
         NewProjectButton.IsEnabled = !busy;
@@ -917,6 +1045,68 @@ public partial class MainWindow : Window
         HistoryProjectColumn.Width = new GridLength(compact ? 170 : 220);
         HistoryConversationColumn.Width = new GridLength(compact ? 210 : 280);
     }
+
+    private static bool PassedDragThreshold(Point current, Point start) =>
+        Math.Abs(current.X - start.X) >= SystemParameters.MinimumHorizontalDragDistance ||
+        Math.Abs(current.Y - start.Y) >= SystemParameters.MinimumVerticalDragDistance;
+
+    private void BeginAnimatedDrag(ListBox listBox, object item, DataObject data)
+    {
+        if (listBox.ItemContainerGenerator.ContainerFromItem(item) is not ListBoxItem container) return;
+        container.RenderTransformOrigin = new Point(0.5, 0.5);
+        var scale = container.RenderTransform as ScaleTransform ?? new ScaleTransform(1, 1);
+        container.RenderTransform = scale;
+        var easeIn = new QuadraticEase { EasingMode = EasingMode.EaseOut };
+        container.BeginAnimation(OpacityProperty, new DoubleAnimation(1, 0.62, TimeSpan.FromMilliseconds(110)) { EasingFunction = easeIn });
+        scale.BeginAnimation(ScaleTransform.ScaleXProperty, new DoubleAnimation(1, 0.97, TimeSpan.FromMilliseconds(110)) { EasingFunction = easeIn });
+        scale.BeginAnimation(ScaleTransform.ScaleYProperty, new DoubleAnimation(1, 0.97, TimeSpan.FromMilliseconds(110)) { EasingFunction = easeIn });
+
+        DragDrop.DoDragDrop(listBox, data, DragDropEffects.Move);
+
+        var easeOut = new QuadraticEase { EasingMode = EasingMode.EaseOut };
+        container.BeginAnimation(OpacityProperty, new DoubleAnimation(container.Opacity, 1, TimeSpan.FromMilliseconds(180)) { EasingFunction = easeOut });
+        scale.BeginAnimation(ScaleTransform.ScaleXProperty, new DoubleAnimation(scale.ScaleX, 1, TimeSpan.FromMilliseconds(180)) { EasingFunction = easeOut });
+        scale.BeginAnimation(ScaleTransform.ScaleYProperty, new DoubleAnimation(scale.ScaleY, 1, TimeSpan.FromMilliseconds(180)) { EasingFunction = easeOut });
+    }
+
+    private void UpdateDragHoverItem(ListBoxItem? item)
+    {
+        if (ReferenceEquals(_dragHoverItem, item)) return;
+        ClearDragHoverItem();
+        _dragHoverItem = item;
+        if (item is null) return;
+        item.RenderTransformOrigin = new Point(0.5, 0.5);
+        var scale = new ScaleTransform(1, 1);
+        item.RenderTransform = scale;
+        var easing = new QuadraticEase { EasingMode = EasingMode.EaseOut };
+        item.BeginAnimation(OpacityProperty, new DoubleAnimation(1, 0.82, TimeSpan.FromMilliseconds(90)) { EasingFunction = easing });
+        scale.BeginAnimation(ScaleTransform.ScaleXProperty, new DoubleAnimation(1, 1.015, TimeSpan.FromMilliseconds(90)) { EasingFunction = easing });
+        scale.BeginAnimation(ScaleTransform.ScaleYProperty, new DoubleAnimation(1, 1.015, TimeSpan.FromMilliseconds(90)) { EasingFunction = easing });
+    }
+
+    private void ClearDragHoverItem()
+    {
+        var item = _dragHoverItem;
+        _dragHoverItem = null;
+        if (item is null) return;
+        var easing = new QuadraticEase { EasingMode = EasingMode.EaseOut };
+        item.BeginAnimation(OpacityProperty, new DoubleAnimation(item.Opacity, 1, TimeSpan.FromMilliseconds(140)) { EasingFunction = easing });
+        if (item.RenderTransform is ScaleTransform scale)
+        {
+            scale.BeginAnimation(ScaleTransform.ScaleXProperty, new DoubleAnimation(scale.ScaleX, 1, TimeSpan.FromMilliseconds(140)) { EasingFunction = easing });
+            scale.BeginAnimation(ScaleTransform.ScaleYProperty, new DoubleAnimation(scale.ScaleY, 1, TimeSpan.FromMilliseconds(140)) { EasingFunction = easing });
+        }
+    }
+
+    private static void AnimateDropSettled(ListBox listBox)
+    {
+        var easing = new QuadraticEase { EasingMode = EasingMode.EaseOut };
+        listBox.BeginAnimation(OpacityProperty, new DoubleAnimation(0.72, 1, TimeSpan.FromMilliseconds(190)) { EasingFunction = easing });
+        var translate = new TranslateTransform(0, -5);
+        listBox.RenderTransform = translate;
+        translate.BeginAnimation(TranslateTransform.YProperty, new DoubleAnimation(-5, 0, TimeSpan.FromMilliseconds(190)) { EasingFunction = easing });
+    }
+
     private void SetNavState(Button button, bool selected)
     {
         button.Background = selected ? ThemeBrush("NavSelectedBrush") : Brushes.Transparent;
@@ -926,22 +1116,25 @@ public partial class MainWindow : Window
     private void ApplyTheme()
     {
         var dark = _settings.Theme == AppTheme.Dark;
-        SetThemeBrush("CanvasBrush", dark ? "#1E1E1E" : "#F5F6F8");
-        SetThemeBrush("SurfaceBrush", dark ? "#252526" : "#FFFFFF");
-        SetThemeBrush("TextPrimaryBrush", dark ? "#F3F4F6" : "#1D232F");
-        SetThemeBrush("AccentBrush", "#0A6CFF");
-        SetThemeBrush("AccentTextBrush", dark ? "#8AB4F8" : "#0A6CFF");
-        SetThemeBrush("OnAccentBrush", "#FFFFFF");
-        SetThemeBrush("SubtleTextBrush", dark ? "#B5BDCA" : "#667085");
-        SetThemeBrush("MutedTextBrush", dark ? "#98A2B3" : "#667085");
-        SetThemeBrush("LineBrush", dark ? "#3A3A3A" : "#E4E7EC");
-        SetThemeBrush("ControlBorderBrush", dark ? "#4B5563" : "#D7DCE3");
-        SetThemeBrush("NavTextBrush", dark ? "#C9D1D9" : "#4D5868");
-        SetThemeBrush("NavHoverBrush", dark ? "#30343B" : "#EDF0F4");
-        SetThemeBrush("NavSelectedBrush", dark ? "#233B5A" : "#EAF3FF");
-        SetThemeBrush("NavSelectedTextBrush", dark ? "#8AB4F8" : "#0A6CFF");
-        SetThemeBrush("SecondaryActionBrush", dark ? "#E5E7EB" : "#344054");
-        SetThemeBrush("StatusUnknownBrush", dark ? "#6B7280" : "#A8B0BC");
+        SetThemeBrush("CanvasBrush", dark ? "#1F1F1F" : "#FAFAFA");
+        SetThemeBrush("SurfaceBrush", dark ? "#242424" : "#FFFFFF");
+        SetThemeBrush("SidebarBrush", dark ? "#202020" : "#F7F7F7");
+        SetThemeBrush("SoftSurfaceBrush", dark ? "#2F2F2F" : "#F3F3F3");
+        SetThemeBrush("ElevatedSurfaceBrush", dark ? "#292929" : "#FFFFFF");
+        SetThemeBrush("TextPrimaryBrush", dark ? "#F5F5F5" : "#242424");
+        SetThemeBrush("AccentBrush", dark ? "#F5F5F5" : "#242424");
+        SetThemeBrush("AccentTextBrush", dark ? "#F5F5F5" : "#242424");
+        SetThemeBrush("OnAccentBrush", dark ? "#1F1F1F" : "#FFFFFF");
+        SetThemeBrush("SubtleTextBrush", dark ? "#B8B8B8" : "#616161");
+        SetThemeBrush("MutedTextBrush", dark ? "#9E9E9E" : "#707070");
+        SetThemeBrush("LineBrush", dark ? "#414141" : "#E5E5E5");
+        SetThemeBrush("ControlBorderBrush", dark ? "#525252" : "#D1D1D1");
+        SetThemeBrush("NavTextBrush", dark ? "#D6D6D6" : "#424242");
+        SetThemeBrush("NavHoverBrush", dark ? "#303030" : "#EEEEEE");
+        SetThemeBrush("NavSelectedBrush", dark ? "#3A3A3A" : "#E7E7E7");
+        SetThemeBrush("NavSelectedTextBrush", dark ? "#FFFFFF" : "#1F1F1F");
+        SetThemeBrush("SecondaryActionBrush", dark ? "#F5F5F5" : "#242424");
+        SetThemeBrush("StatusUnknownBrush", dark ? "#858585" : "#A0A0A0");
         SetThemeBrush("NoticeInfoBackgroundBrush", dark ? "#3B2F1B" : "#FFF4E5");
         SetThemeBrush("NoticeInfoBorderBrush", dark ? "#765E2A" : "#FFD7A3");
         SetThemeBrush("NoticeInfoTextBrush", dark ? "#F6C66B" : "#7A4A0A");
@@ -951,12 +1144,12 @@ public partial class MainWindow : Window
         SetThemeBrush("NoticeErrorBackgroundBrush", dark ? "#3C2026" : "#FFF0F0");
         SetThemeBrush("NoticeErrorBorderBrush", dark ? "#7A3440" : "#F3C0C0");
         SetThemeBrush("NoticeErrorTextBrush", dark ? "#FFB4AB" : "#9B2C2C");
-        SetSystemBrush(SystemColors.WindowBrushKey, dark ? "#252526" : "#FFFFFF");
-        SetSystemBrush(SystemColors.WindowTextBrushKey, dark ? "#F3F4F6" : "#1D232F");
-        SetSystemBrush(SystemColors.ControlBrushKey, dark ? "#252526" : "#FFFFFF");
-        SetSystemBrush(SystemColors.ControlTextBrushKey, dark ? "#F3F4F6" : "#1D232F");
-        SetSystemBrush(SystemColors.MenuBrushKey, dark ? "#252526" : "#FFFFFF");
-        SetSystemBrush(SystemColors.MenuTextBrushKey, dark ? "#F3F4F6" : "#1D232F");
+        SetSystemBrush(SystemColors.WindowBrushKey, dark ? "#242424" : "#FFFFFF");
+        SetSystemBrush(SystemColors.WindowTextBrushKey, dark ? "#F5F5F5" : "#242424");
+        SetSystemBrush(SystemColors.ControlBrushKey, dark ? "#242424" : "#FFFFFF");
+        SetSystemBrush(SystemColors.ControlTextBrushKey, dark ? "#F5F5F5" : "#242424");
+        SetSystemBrush(SystemColors.MenuBrushKey, dark ? "#292929" : "#FFFFFF");
+        SetSystemBrush(SystemColors.MenuTextBrushKey, dark ? "#F5F5F5" : "#242424");
         SetNavState(OverviewNav, _activePage == "overview");
         SetNavState(HistoryNav, _activePage == "history");
         SetNavState(CollaborationNav, _activePage == "collaboration");

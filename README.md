@@ -71,7 +71,7 @@ v1.0 建立了从 Codex 到 Microsoft 365 Copilot 的完整、可验证闭环：
 v1.0 established a complete, verifiable path from Codex to Microsoft 365 Copilot: the user binds a dedicated Edge tab, Bridge performs a controlled background consultation, and Codex continues the task from the result.
 
 - **受控后台会话**：只操作用户明确绑定的 Copilot 标签页，连接、模型选择、发送和回复提取均通过 Edge CDP 与 DOM 完成。**Controlled background sessions:** only the user-bound Copilot tab is operated, with connection, model selection, submission, and reply extraction performed through Edge CDP and DOM.
-- **三种协作模式**：Assist 提供聚焦协助；Outsource 承担有限回合的开放式推理；Review 使用两个隔离会话审查复杂度、风险与证据。**Three collaboration modes:** Assist provides focused help; Outsource performs bounded open-ended reasoning; Review uses two isolated sessions to examine complexity, risk, and evidence.
+- **三种协作模式**：Assist 提供聚焦协助；Outsource 承担开放式推理；Review 使用两个隔离会话审查复杂度、风险与证据。沟通轮次不设人为上限。**Three collaboration modes:** Assist provides focused help; Outsource performs open-ended reasoning; Review uses two isolated sessions to examine complexity, risk, and evidence. Conversation turns have no artificial limit.
 - **最小 MCP 接口**：只提供状态读取与咨询两个工具，协作模式和模型策略由 GUI 控制，调用方不能临时覆盖。**Minimal MCP surface:** only status and consultation tools are exposed; the GUI controls collaboration mode and model policy.
 - **一次性发送保护**：发送状态不确定时绝不自动重发；GUI 与 MCP 并发写入会立即返回 busy，而非排队。**One-time submission protection:** uncertain submissions are never retried; concurrent GUI and MCP writes return busy instead of queuing.
 - **本机团队门禁**：Phase 0–6 与 G1–G8 已完成；真实日常 Edge 后台 Assist、十次唯一发送、MCP 接入、本机隔离安装/卸载与前台无抢占均已验证。**Local team gates:** Phase 0–6 and G1–G8 are complete, including real daily-Edge background Assist, ten unique submissions, MCP integration, isolated local install/uninstall, and no foreground takeover.
@@ -95,12 +95,16 @@ v1.1.1 packages the v1.1 conversation workspace for team installation. It retain
 - 用户可以从“历史对话”显式导入当前唯一打开的旧 Copilot 对话：先查看标题、URL 和已加载消息数，确认后才保存为一份 Markdown。过程不会发送、滚动、导航或批量读取其他网页历史。Users can explicitly import the one currently open Copilot conversation from Conversation History: title, URL, and loaded-message count are previewed before a single Markdown file is saved. The flow does not send, scroll, navigate, or bulk-read other web history.
 - 导入的 Copilot 回复逐条标注为 `unknown` 模型状态，不会用当前页面模型反推历史模型；同一 Copilot URL 不会重复创建 Markdown。Imported Copilot replies are marked `unknown` per turn rather than inferred from the current page model; the same Copilot URL cannot create duplicate Markdown.
 - 项目与会话都支持右键重命名和删除；系统项目受保护，非空项目不会被级联删除，删除会话只影响本地 Markdown。Projects and conversations both support right-click rename and delete; system projects are protected, non-empty projects cannot be deleted recursively, and deleting a conversation affects only local Markdown.
-- “浏览器与模型”可拖动调整模型优先级，并可设置 1–20 的沟通轮次上限；本地会话工作区提供“浏览”按钮选择目录。Browser & Models supports drag-to-reorder model priority and a configurable 1–20 conversation-turn limit; the local workspace includes a Browse button for choosing a directory.
+- “浏览器与模型”可拖动调整模型优先级；沟通轮次不设人为上限；本地会话工作区提供“浏览”按钮选择目录。Browser & Models supports drag-to-reorder model priority; conversation turns have no artificial limit; the local workspace includes a Browse button for choosing a directory.
 - 深色主题下的右键菜单与文字保持可读；提示条可手动关闭且会自动消失；标签页绑定移至概览，工作区与即时咨询收拢到设置页。Dark-theme context menus and text remain readable; notices can be closed manually and dismiss automatically; tab binding is on Overview, while workspace and immediate consultation are consolidated in Settings.
 - MCP 诊断日志会复用同一长期运行进程的上下文，便于定位重复出现的 Edge 授权提示。MCP diagnostic logs retain context across the same long-running process to help identify repeated Edge authorization prompts.
 - 已发布 Windows x64 自包含安装包 `CopilotBridge-1.1.1-win-x64.zip`，并附带同名 SHA-256 校验文件。The Windows x64 self-contained package `CopilotBridge-1.1.1-win-x64.zip` is released with its matching SHA-256 file.
 
 ### 后续目标 / Next milestones
+
+`1.1.2` 的剩余范围已经收敛为 Phase 13 视觉门禁、概览静默刷新、两个低风险桌面入口、Noto Sans SC 发布资源以及安装/升级验收，详见 [v1.1.2 继续开发设计](./v1.1.2-followup-design.md)。存储架构、托盘、多调用方、自适应模式、内容交接和完整 UI 设计系统已移入 [v1.2.0 设计候选](./v1.2.0-design.md)，不会在 1.1.2 中顺手实现。
+
+The remaining `1.1.2` scope is limited to the Phase 13 visual gate, silent Overview refresh, two low-risk desktop entry-point changes, distributable Noto Sans SC resources, and install/upgrade acceptance. Storage architecture, tray lifecycle, multi-client support, adaptive mode, context handoff, and the full UI design system have moved to the `1.2.0` design candidate and will not be implemented opportunistically in 1.1.2.
 
 - **双标题同步**：保留 Copilot 初始标题、当前标题和标题历史；本地重命名始终独立。**Dual-title sync:** preserve the initial, current, and historical Copilot titles while keeping the local display name independent.
 - **会话级模型控制**：允许在受控白名单内为新会话或下一次请求选择模型，并明确显示实际模型与回退。**Conversation-level model control:** choose an allowed model for a new conversation or next request, with the effective model and fallback shown explicitly.

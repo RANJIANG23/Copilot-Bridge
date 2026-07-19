@@ -65,8 +65,6 @@ internal sealed record BridgeSettings
 
     public int ReplyTimeoutSeconds { get; init; } = 300;
 
-    public int ConversationTurnLimit { get; init; } = 6;
-
     public string ModelPriority { get; init; } = ModelPriorityOptions.Serialize(ModelPriorityOptions.Default);
 
     public ConsultationPolicy ConsultationPolicy { get; init; } = ConsultationPolicy.ManualOnly;
@@ -119,12 +117,13 @@ internal sealed class SettingsStore
             return new BridgeSettings();
         }
 
-        await using var stream = File.OpenRead(FilePath);
-        var settings = await JsonSerializer.DeserializeAsync<BridgeSettings>(
-            stream,
-            JsonOptions,
-            cancellationToken);
-        return Validate(settings ?? new BridgeSettings());
+        var json = await File.ReadAllTextAsync(FilePath, cancellationToken);
+        var settings = Validate(JsonSerializer.Deserialize<BridgeSettings>(json, JsonOptions) ?? new BridgeSettings());
+        if (json.Contains("\"conversationTurnLimit\"", StringComparison.OrdinalIgnoreCase))
+        {
+            await SaveAsync(settings, cancellationToken);
+        }
+        return settings;
     }
 
     internal async Task SaveAsync(
@@ -174,8 +173,7 @@ internal sealed class SettingsStore
 
         if (settings.MenuMinimumWaitMilliseconds < 0 ||
             settings.MenuMaximumWaitMilliseconds < settings.MenuMinimumWaitMilliseconds ||
-            settings.ReplyTimeoutSeconds <= 0 ||
-            settings.ConversationTurnLimit is < 1 or > 20)
+            settings.ReplyTimeoutSeconds <= 0)
         {
             throw new InvalidDataException("Settings contain invalid timeout values.");
         }
