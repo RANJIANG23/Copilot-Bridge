@@ -11,7 +11,7 @@ internal static class UiText
     private static readonly IReadOnlyDictionary<string, string> English = new Dictionary<string, string>
     {
         ["Copilot Bridge"] = "Copilot Bridge",
-        ["v1.1.2 对话管理"] = "v1.1.2 Conversation Management",
+        ["v1.2.0 受控会话复用"] = "v1.2.0 Controlled Conversation Reuse",
         ["概览"] = "Overview",
         ["对话管理"] = "Conversation Management",
         ["协作默认设置"] = "Collaboration Defaults",

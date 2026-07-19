@@ -118,22 +118,24 @@ v1.1.2 focuses on conversation management, a Copilot-inspired interface, and des
 - 对话详情不再显示内部 Base64 元数据注释，但磁盘上的 Markdown 与兼容元数据保持不变。Conversation details no longer expose the internal Base64 metadata comment, while stored Markdown and compatibility metadata remain unchanged.
 - Windows x64 自包含包已通过 77/77 测试、60 秒静默刷新观察、包内哈希清单校验及隔离的 1.1.1→1.1.2 升级/卸载验收。The Windows x64 self-contained package passed 77/77 tests, a 60-second silent-refresh observation, archive-manifest verification, and an isolated 1.1.1→1.1.2 upgrade/uninstall gate.
 
-### 后续目标 / Next milestones
+### v1.2.0 开发主线 / v1.2.0 development focus
 
-`1.1.2` 已完成 Phase 13–14 和发布门禁。存储架构、托盘、多调用方、自适应模式、内容交接和完整 UI 设计系统已移入 [v1.2.0 设计候选](./v1.2.0-design.md)，不会回填到 1.1.2。
+`1.1.2` 已完成 Phase 13–14 并正式发布。`1.2.0-dev` 已启动，核心主线是让 Codex 在用户按项目授权的范围内检索、读取和复用本地 Copilot 会话；现有 Edge/CDP/DOM 发送、协作模式和禁止自动重发边界保持不变。
 
-`1.1.2` has completed Phases 13–14 and its release gates. Storage architecture, tray lifecycle, multi-client support, adaptive mode, context handoff, and the full UI design system remain in the `1.2.0` design candidate and will not be backfilled into 1.1.2.
+`1.1.2` has completed Phases 13–14 and is released. `1.2.0-dev` is now underway, focused on allowing Codex to search, read, and reuse local Copilot conversations within project scopes explicitly authorized by the user. Existing Edge/CDP/DOM submission, collaboration-mode, and no-automatic-resend boundaries remain unchanged.
 
-- **双标题同步**：保留 Copilot 初始标题、当前标题和标题历史；本地重命名始终独立。**Dual-title sync:** preserve the initial, current, and historical Copilot titles while keeping the local display name independent.
-- **会话级模型控制**：允许在受控白名单内为新会话或下一次请求选择模型，并明确显示实际模型与回退。**Conversation-level model control:** choose an allowed model for a new conversation or next request, with the effective model and fallback shown explicitly.
-- **项目级受控调用**：本地 Agent 可以读取项目概览、项目内检索结果或用户确认的完整范围，不默认获得整个工作区。**Controlled project access:** local agents can read a project overview, search results, or a user-confirmed full scope without receiving the entire workspace by default.
-- **内容交接**：支持将选中消息、当前会话或项目检索结果复制或插入当前 Codex 任务。**Context handoff:** copy or insert selected messages, the current conversation, or project search results into the active Codex task.
+- **默认关闭**：已有和新建项目默认不向 MCP 暴露。**Off by default:** existing and newly created projects are not exposed through MCP by default.
+- **四级权限**：用户可按项目选择关闭、元数据、检索片段或完整会话读取。**Four access levels:** users can choose off, metadata, search snippets, or full conversation reading per project.
+- **两个只读工具**：`search_conversations` 用于受控查找，`read_conversation` 只读取一个明确会话的分页 turns。**Two read-only tools:** `search_conversations` provides controlled discovery, while `read_conversation` reads paged turns from one explicit conversation.
+- **显式外部发送**：Bridge 不自动把历史正文拼入 prompt；需要再次咨询时仍由 Codex 明确组织并调用现有 `consult_copilot`。**Explicit external submission:** Bridge never injects history into a prompt automatically; Codex must explicitly compose the request and invoke the existing `consult_copilot` tool.
+
+完整范围、权限语义和阶段门见 [v1.2.0 核心设计](./v1.2.0-design.md)。See the [v1.2.0 core design](./v1.2.0-design.md) for the complete scope, access semantics, and phase gates.
 
 ## 当前状态与限制 / Current status and limits
 
 | 项目 / Item | 状态 / Status |
 |---|---|
-| 当前源码版本 / Current source version | `1.1.2`（已发布 / released） |
+| 当前源码版本 / Current source version | `1.2.0-dev`（开发中 / in development） |
 | 发布状态 / Release status | v1.1.2 已发布 Windows x64 自包含安装包与 SHA-256 文件 / v1.1.2 released with a Windows x64 self-contained package and SHA-256 file |
 | 已通过 / Passed | Phase 0–14 and G1–G8（含本机隔离升级验收 / including local isolated upgrade acceptance） |
 | 后续试点 / Follow-up pilot | 不同硬件、账号和企业策略环境 / Different hardware, account, and enterprise-policy environments |
