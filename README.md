@@ -16,31 +16,31 @@ Routine consultations do not simulate physical input, take foreground focus, or 
 
 | 项目 / Item | 状态 / Status |
 |---|---|
-| 版本 / Version | `1.0.0-rc.4` |
-| 发布状态 / Release status | 内部发布候选版 / Internal release candidate |
-| 已通过 / Passed | Phase 0–5 and G1–G7 |
-| 未完成 / Pending | G8 配置保护、前台无抢占与卸载恢复检查 / G8 configuration protection, foreground non-interference, and uninstall recovery checks |
+| 版本 / Version | `1.0.0-rc.5` |
+| 发布状态 / Release status | 内部团队 v1 候选版 / Internal team v1 candidate |
+| 已通过 / Passed | Phase 0–6 and G1–G8（本机隔离验收 / local isolated acceptance） |
+| 后续试点 / Follow-up pilot | 不同硬件、账号和企业策略环境 / Different hardware, account, and enterprise-policy environments |
 | 平台 / Platform | Windows 11 x64 |
 
-RC4 尚未达到稳定团队版标准。RC4 is not yet a completed stable team release.
+RC5 已达到项目定义的本机团队 v1 门禁，但不把本机隔离验收描述为跨设备兼容性证明。RC5 satisfies the project's local team-v1 gates, but local isolated acceptance is not presented as proof of cross-device compatibility.
 
 ## 下载 / Download
 
-从 [GitHub Releases](https://github.com/RANJIANG23/CopilotBridge/releases/tag/v1.0.0-rc.4) 下载以下两个文件。Download both files from [GitHub Releases](https://github.com/RANJIANG23/CopilotBridge/releases/tag/v1.0.0-rc.4):
+从 [GitHub Releases](https://github.com/RANJIANG23/CopilotBridge/releases/tag/v1.0.0-rc.5) 下载以下两个文件。Download both files from [GitHub Releases](https://github.com/RANJIANG23/CopilotBridge/releases/tag/v1.0.0-rc.5):
 
-- `CopilotBridge-1.0.0-rc.4-win-x64.zip`
-- `CopilotBridge-1.0.0-rc.4-win-x64.zip.sha256`
+- `CopilotBridge-1.0.0-rc.5-win-x64.zip`
+- `CopilotBridge-1.0.0-rc.5-win-x64.zip.sha256`
 
 当前 ZIP SHA-256 / Current ZIP SHA-256:
 
 ```text
-d821448d0cc075ae06356b1c90b153a16766ae179c563dbe667378a8e7e6b734
+b31bb22178356fd94b707db77f29f8f00bee5aa450d3c751e4f791e6b9714a23
 ```
 
 安装前可在 PowerShell 中核对。Verify it in PowerShell before installation:
 
 ```powershell
-(Get-FileHash .\CopilotBridge-1.0.0-rc.4-win-x64.zip -Algorithm SHA256).Hash.ToLowerInvariant()
+(Get-FileHash .\CopilotBridge-1.0.0-rc.5-win-x64.zip -Algorithm SHA256).Hash.ToLowerInvariant()
 ```
 
 ## 使用前提 / Requirements
@@ -68,11 +68,11 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\Install-CopilotBridge.
 6. 保存设置，关闭 GUI，并新建一个 Codex 任务。Save the settings, close the GUI, and start a new Codex task.
 7. 要求 Codex 使用 `copilot-consult` 对一个具体方案进行二次核验。Ask Codex to use `copilot-consult` for a focused second opinion.
 
-不要为 Bridge 使用带远程调试参数的命令行方式启动 Edge；第二台电脑实测该方式可能停在 `Starting`。Do not launch Edge for Bridge with remote-debugging command-line flags; second-computer testing found that this path can remain stuck at `Starting`.
+不要为 Bridge 使用带远程调试参数的命令行方式启动 Edge；实测该方式可能停在 `Starting`。Do not launch Edge for Bridge with remote-debugging command-line flags; testing found that this path can remain stuck at `Starting`.
 
-完整步骤见 [安装说明](./INSTALL.md)。团队第二台电脑请同时执行 [G8 试点清单](./TEAM-ROLLOUT.md#试点验收g8)。
+完整步骤见 [安装说明](./INSTALL.md)。发布者请同时执行 [G8 本机隔离验收](./TEAM-ROLLOUT.md#g8-本机隔离验收)。
 
-See [Installation](./INSTALL.md) for the complete procedure. The second-computer pilot must also complete the [G8 checklist](./TEAM-ROLLOUT.md#试点验收g8).
+See [Installation](./INSTALL.md) for the complete procedure. Release owners must also complete the [local isolated G8 acceptance](./TEAM-ROLLOUT.md#g8-本机隔离验收).
 
 ## 协作模式 / Collaboration modes
 

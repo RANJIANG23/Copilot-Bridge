@@ -20,7 +20,7 @@
 3. 打开 `edge://inspect`，进入 Remote debugging，并允许当前浏览器实例。
 4. 等待页面明确显示 `127.0.0.1:9222`，再回到 Copilot Bridge 绑定。
 
-Microsoft Edge 通用文档同时提供命令行参数和运行中浏览器页面授权两种方式，但 Copilot Bridge 团队 v1 的第二台电脑实测只把后一种作为支持路径。不要为绕过 `Starting` 修改 user-data 目录、企业策略或增加另一套浏览器自动化。
+Microsoft Edge 通用文档同时提供命令行参数和运行中浏览器页面授权两种方式，但 Copilot Bridge 团队 v1 的实测只把后一种作为支持路径。不要为绕过 `Starting` 修改 user-data 目录、企业策略或增加另一套浏览器自动化。
 
 ## Copilot 未登录
 

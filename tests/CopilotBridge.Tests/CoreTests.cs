@@ -258,6 +258,43 @@ public sealed class CoreTests
         Assert.Equal(expectedError, Mcp.CopilotBridgeTools.ValidatePolicy(settings, trigger));
     }
 
+    [Fact]
+    public void FreshAssistStartsAtNewChatInsteadOfBoundConversation()
+    {
+        Assert.Equal(
+            "https://m365.cloud.microsoft/chat/",
+            Mcp.CopilotBridgeTools.ResolvePrimaryConversationUrl(
+                CollaborationMode.Assist,
+                null,
+                "https://m365.cloud.microsoft/chat/conversation/bound",
+                true,
+                "m365.cloud.microsoft"));
+    }
+
+    [Fact]
+    public void AssistFollowUpReusesStoredConversation()
+    {
+        Assert.Equal(
+            "https://m365.cloud.microsoft/chat/conversation/existing",
+            Mcp.CopilotBridgeTools.ResolvePrimaryConversationUrl(
+                CollaborationMode.Assist,
+                "https://m365.cloud.microsoft/chat/conversation/existing",
+                "https://m365.cloud.microsoft/chat/conversation/bound",
+                false,
+                "m365.cloud.microsoft"));
+    }
+
+    [Fact]
+    public void ReviewDoesNotUsePrimaryConversation()
+    {
+        Assert.Null(Mcp.CopilotBridgeTools.ResolvePrimaryConversationUrl(
+            CollaborationMode.Review,
+            null,
+            "https://m365.cloud.microsoft/chat/conversation/bound",
+            true,
+            "m365.cloud.microsoft"));
+    }
+
     [Theory]
     [InlineData("Microsoft 365 Copilot login is required.", "login_required")]
     [InlineData("Daily Edge has no DevToolsActivePort.", "remote_debugging_disabled")]

@@ -85,9 +85,11 @@ internal sealed class CopilotBridgeTools : IAsyncDisposable
         bool newConversation = false,
         CancellationToken cancellationToken = default)
     {
-        var id = newConversation || string.IsNullOrWhiteSpace(consultationId)
+        var requestedId = consultationId?.Trim();
+        var startFresh = newConversation || string.IsNullOrWhiteSpace(requestedId);
+        var id = startFresh
             ? Guid.NewGuid().ToString("N")
-            : consultationId.Trim();
+            : requestedId!;
 
         if (string.IsNullOrWhiteSpace(requestMarkdown))
         {
@@ -108,10 +110,10 @@ internal sealed class CopilotBridgeTools : IAsyncDisposable
             return Failure("blocked", "busy", id, mode, true);
         }
 
-        var existing = newConversation || string.IsNullOrWhiteSpace(consultationId)
+        var existing = startFresh
             ? null
-            : await _stateStore.FindAsync(consultationId.Trim(), cancellationToken);
-        if (!string.IsNullOrWhiteSpace(consultationId) && !newConversation && existing is null)
+            : await _stateStore.FindAsync(id, cancellationToken);
+        if (!startFresh && existing is null)
         {
             return Failure("blocked", "consultation_not_found", id, mode, false);
         }
@@ -121,10 +123,19 @@ internal sealed class CopilotBridgeTools : IAsyncDisposable
             return Failure("blocked", "consultation_mode_mismatch", id, mode, false);
         }
 
-        var primaryUrl = existing?.PrimaryConversationUrl ??
-                         (settings.CollaborationMode == CollaborationMode.Review
-                             ? null
-                             : settings.BoundConversationUrl);
+        if (settings.CollaborationMode != CollaborationMode.Review &&
+            existing is null &&
+            string.IsNullOrWhiteSpace(settings.BoundConversationUrl))
+        {
+            return Failure("blocked", "tab_rebind_required", id, mode, false);
+        }
+
+        var primaryUrl = ResolvePrimaryConversationUrl(
+            settings.CollaborationMode,
+            existing?.PrimaryConversationUrl,
+            settings.BoundConversationUrl,
+            startFresh,
+            _selectors.AllowedHost);
         if (settings.CollaborationMode != CollaborationMode.Review &&
             string.IsNullOrWhiteSpace(primaryUrl))
         {
@@ -282,6 +293,18 @@ internal sealed class CopilotBridgeTools : IAsyncDisposable
             _ => null
         };
     }
+
+    internal static string? ResolvePrimaryConversationUrl(
+        CollaborationMode mode,
+        string? existingConversationUrl,
+        string? boundConversationUrl,
+        bool startFresh,
+        string allowedHost) => mode switch
+    {
+        CollaborationMode.Review => null,
+        _ when startFresh => $"https://{allowedHost}/chat/",
+        _ => existingConversationUrl ?? boundConversationUrl
+    };
 
     private static ConsultResponse Failure(
         string status,
