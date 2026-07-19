@@ -4,7 +4,7 @@ using CopilotBridge.Browser;
 
 namespace CopilotBridge.Core;
 
-internal sealed record WorkspaceProject(string Id, string Name, bool IsSystem, string DirectoryPath);
+internal sealed record WorkspaceProject(string Id, string Name, bool IsSystem, string DirectoryPath, bool IsPinned = false);
 
 internal sealed record ConversationTurn(
     DateTimeOffset Timestamp,
@@ -53,6 +53,7 @@ internal sealed class ConversationWorkspaceStore
     internal const string InboxProjectId = "收件箱";
     internal const string StandaloneProjectId = "独立对话";
     private const string ProjectMarker = ".bridge-project.md";
+    private const string ProjectMetadataPrefix = "<!-- copilot-bridge-project:";
     private const string MetadataPrefix = "<!-- copilot-bridge-conversation:";
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
@@ -91,10 +92,12 @@ internal sealed class ConversationWorkspaceStore
                 continue;
             }
 
-            projects.Add(new WorkspaceProject(name, name, false, directory));
+            var metadata = await ReadProjectMarkerAsync(Path.Combine(directory, ProjectMarker), cancellationToken);
+            projects.Add(new WorkspaceProject(name, name, false, directory, metadata.IsPinned));
         }
 
         return projects.OrderBy(project => project.IsSystem ? 0 : 1)
+            .ThenByDescending(project => project.IsPinned)
             .ThenBy(project => project.Name, StringComparer.CurrentCultureIgnoreCase)
             .ToArray();
     }
@@ -138,10 +141,10 @@ internal sealed class ConversationWorkspaceStore
         }
 
         Directory.Move(current.DirectoryPath, destinationDirectory);
-        await File.WriteAllTextAsync(
+        await WriteProjectMarkerAsync(
             Path.Combine(destinationDirectory, ProjectMarker),
-            $"# {newId}\n\nCopilot Bridge 项目目录。\n",
-            new UTF8Encoding(false),
+            newId,
+            current.IsPinned,
             cancellationToken);
 
         foreach (var document in documents)
@@ -149,7 +152,21 @@ internal sealed class ConversationWorkspaceStore
             await SaveAsync(document with { ProjectId = newId, UpdatedAt = DateTimeOffset.Now }, cancellationToken);
         }
 
-        return new WorkspaceProject(newId, newId, false, destinationDirectory);
+        return new WorkspaceProject(newId, newId, false, destinationDirectory, current.IsPinned);
+    }
+
+    internal async Task<WorkspaceProject> SetProjectPinnedAsync(
+        WorkspaceProject project,
+        bool isPinned,
+        CancellationToken cancellationToken = default)
+    {
+        var current = await GetCustomProjectAsync(project.Id, cancellationToken);
+        await WriteProjectMarkerAsync(
+            Path.Combine(current.DirectoryPath, ProjectMarker),
+            current.Name,
+            isPinned,
+            cancellationToken);
+        return current with { IsPinned = isPinned };
     }
 
     internal async Task DeleteProjectAsync(
@@ -439,9 +456,10 @@ internal sealed class ConversationWorkspaceStore
         var marker = Path.Combine(path, ProjectMarker);
         if (!File.Exists(marker))
         {
-            await File.WriteAllTextAsync(marker, $"# {name}\n\nCopilot Bridge 项目目录。\n", new UTF8Encoding(false), cancellationToken);
+            await WriteProjectMarkerAsync(marker, name, false, cancellationToken);
         }
-        return new WorkspaceProject(id, name, isSystem, path);
+        var metadata = isSystem ? new ProjectMarkerMetadata(false) : await ReadProjectMarkerAsync(marker, cancellationToken);
+        return new WorkspaceProject(id, name, isSystem, path, metadata.IsPinned);
     }
 
     private async Task EnsureKnownProjectAsync(string projectId, CancellationToken cancellationToken)
@@ -490,6 +508,50 @@ internal sealed class ConversationWorkspaceStore
         }
     }
 
+    private static async Task<ProjectMarkerMetadata> ReadProjectMarkerAsync(
+        string markerPath,
+        CancellationToken cancellationToken)
+    {
+        var text = await File.ReadAllTextAsync(markerPath, cancellationToken);
+        var end = text.IndexOf(" -->", StringComparison.Ordinal);
+        if (!text.StartsWith(ProjectMetadataPrefix, StringComparison.Ordinal) || end < 0)
+        {
+            return new ProjectMarkerMetadata(false);
+        }
+
+        try
+        {
+            var encoded = text[ProjectMetadataPrefix.Length..end];
+            return JsonSerializer.Deserialize<ProjectMarkerMetadata>(Convert.FromBase64String(encoded), JsonOptions)
+                   ?? new ProjectMarkerMetadata(false);
+        }
+        catch (Exception exception) when (exception is FormatException or JsonException)
+        {
+            return new ProjectMarkerMetadata(false);
+        }
+    }
+
+    private static async Task WriteProjectMarkerAsync(
+        string markerPath,
+        string name,
+        bool isPinned,
+        CancellationToken cancellationToken)
+    {
+        var encoded = Convert.ToBase64String(JsonSerializer.SerializeToUtf8Bytes(
+            new ProjectMarkerMetadata(isPinned), JsonOptions));
+        var temporaryPath = markerPath + ".tmp";
+        var contents = $"{ProjectMetadataPrefix}{encoded} -->\n\n# {name}\n\nCopilot Bridge 项目目录。\n";
+        try
+        {
+            await File.WriteAllTextAsync(temporaryPath, contents, new UTF8Encoding(false), cancellationToken);
+            File.Move(temporaryPath, markerPath, true);
+        }
+        finally
+        {
+            if (File.Exists(temporaryPath)) File.Delete(temporaryPath);
+        }
+    }
+
     private static string NormalizeProjectName(string value)
     {
         var name = value.Trim();
@@ -499,6 +561,8 @@ internal sealed class ConversationWorkspaceStore
         if (name.Length == 0 || name is "." or "..") throw new InvalidDataException("项目名称无效。");
         return name.Length > 80 ? name[..80] : name;
     }
+
+    private sealed record ProjectMarkerMetadata(bool IsPinned);
 
     private static string? ExtractConversationId(string? url)
     {

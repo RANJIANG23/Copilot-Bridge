@@ -302,9 +302,26 @@ public partial class MainWindow : Window
 
     private void ProjectListBox_ContextMenuOpening(object sender, ContextMenuEventArgs e)
     {
-        var canModify = ProjectListBox.SelectedItem is WorkspaceProject project && !project.IsSystem;
+        var project = ProjectListBox.SelectedItem as WorkspaceProject;
+        var canModify = project is { IsSystem: false };
+        PinProjectMenuItem.IsEnabled = canModify;
+        PinProjectMenuItem.Header = canModify && project!.IsPinned ? T("取消置顶") : T("置顶");
         RenameProjectMenuItem.IsEnabled = canModify;
         DeleteProjectMenuItem.IsEnabled = canModify;
+    }
+
+    private async void PinProjectMenuItem_Click(object sender, RoutedEventArgs e)
+    {
+        if (ProjectListBox.SelectedItem is not WorkspaceProject project || project.IsSystem) return;
+        try
+        {
+            var updated = await _workspace.SetProjectPinnedAsync(project, !project.IsPinned);
+            _activeProjectId = updated.Id;
+            await RefreshWorkspaceAsync();
+            SelectProject(updated.Id);
+            ShowNotice(T(updated.IsPinned ? "项目已置顶。" : "已取消项目置顶。"), NoticeKind.Success);
+        }
+        catch (Exception exception) { ShowNotice(FriendlyMessage(exception), NoticeKind.Error); }
     }
 
     private async void RenameProjectMenuItem_Click(object sender, RoutedEventArgs e)
@@ -937,6 +954,7 @@ public partial class MainWindow : Window
     private void ApplyUiLanguage()
     {
         UiText.Apply(this, _settings.DisplayLanguage);
+        PinProjectMenuItem.Header = T("置顶");
         RenameProjectMenuItem.Header = T("重命名");
         DeleteProjectMenuItem.Header = T("删除");
         RenameConversationMenuItem.Header = T("重命名");

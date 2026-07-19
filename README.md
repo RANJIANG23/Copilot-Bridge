@@ -76,7 +76,7 @@ v1.0 established a complete, verifiable path from Codex to Microsoft 365 Copilot
 - **一次性发送保护**：发送状态不确定时绝不自动重发；GUI 与 MCP 并发写入会立即返回 busy，而非排队。**One-time submission protection:** uncertain submissions are never retried; concurrent GUI and MCP writes return busy instead of queuing.
 - **本机团队门禁**：Phase 0–6 与 G1–G8 已完成；真实日常 Edge 后台 Assist、十次唯一发送、MCP 接入、本机隔离安装/卸载与前台无抢占均已验证。**Local team gates:** Phase 0–6 and G1–G8 are complete, including real daily-Edge background Assist, ten unique submissions, MCP integration, isolated local install/uninstall, and no foreground takeover.
 
-当前源码版本的团队安装包为 1.1.1；每次安装前均应核对同名 `.sha256` 文件。The team installer for the current source version is 1.1.1; verify its matching `.sha256` file before installation.
+当前已发布团队安装包为 1.1.1；`1.1.2` 正在开发，尚未发布。每次安装前均应核对同名 `.sha256` 文件。The released team installer is 1.1.1; 1.1.2 is in development and not yet released. Verify its matching `.sha256` file before installation.
 
 ## v1.1.1 会话工作台与体验更新 / v1.1.1 workspace and usability update
 
@@ -111,7 +111,7 @@ v1.1.1 packages the v1.1 conversation workspace for team installation. It retain
 
 | 项目 / Item | 状态 / Status |
 |---|---|
-| 当前源码版本 / Current source version | `1.1.1` |
+| 当前源码版本 / Current source version | `1.1.2`（开发中 / in development） |
 | 发布状态 / Release status | 团队 v1 已通过；v1.1.1 已发布，含 Windows x64 自包含安装包与 SHA-256 文件 / Team v1 passed; v1.1.1 released with the Windows x64 self-contained package and SHA-256 file |
 | 已通过 / Passed | Phase 0–6 and G1–G8（本机隔离验收 / local isolated acceptance） |
 | 后续试点 / Follow-up pilot | 不同硬件、账号和企业策略环境 / Different hardware, account, and enterprise-policy environments |
