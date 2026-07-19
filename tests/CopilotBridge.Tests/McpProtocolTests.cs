@@ -7,7 +7,7 @@ namespace CopilotBridge.Tests;
 public sealed class McpProtocolTests
 {
     [Fact]
-    public async Task StdioServerExposesExactlyTwoHonestlyAnnotatedTools()
+    public async Task StdioServerExposesExactlyFourHonestlyAnnotatedTools()
     {
         var transport = new StdioClientTransport(new StdioClientTransportOptions
         {
@@ -23,19 +23,30 @@ public sealed class McpProtocolTests
         var tools = await client.ListToolsAsync();
 
         Assert.Equal(
-            ["consult_copilot", "copilot_bridge_status"],
+            ["consult_copilot", "copilot_bridge_status", "read_conversation", "search_conversations"],
             tools.Select(tool => tool.Name).Order(StringComparer.Ordinal).ToArray());
         var status = Assert.Single(tools, tool => tool.Name == "copilot_bridge_status");
         var consult = Assert.Single(tools, tool => tool.Name == "consult_copilot");
+        var search = Assert.Single(tools, tool => tool.Name == "search_conversations");
+        var read = Assert.Single(tools, tool => tool.Name == "read_conversation");
         Assert.True(status.ProtocolTool.Annotations?.ReadOnlyHint);
         Assert.False(status.ProtocolTool.Annotations?.DestructiveHint);
         Assert.False(status.ProtocolTool.Annotations?.OpenWorldHint);
+        Assert.True(search.ProtocolTool.Annotations?.ReadOnlyHint);
+        Assert.False(search.ProtocolTool.Annotations?.DestructiveHint);
+        Assert.False(search.ProtocolTool.Annotations?.OpenWorldHint);
+        Assert.True(read.ProtocolTool.Annotations?.ReadOnlyHint);
+        Assert.False(read.ProtocolTool.Annotations?.DestructiveHint);
+        Assert.False(read.ProtocolTool.Annotations?.OpenWorldHint);
         Assert.False(consult.ProtocolTool.Annotations?.ReadOnlyHint);
         Assert.True(consult.ProtocolTool.Annotations?.DestructiveHint);
         Assert.True(consult.ProtocolTool.Annotations?.OpenWorldHint);
         Assert.DoesNotContain("mode", consult.JsonSchema.GetRawText(), StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("model", consult.JsonSchema.GetRawText(), StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("projectId", search.JsonSchema.GetRawText(), StringComparison.Ordinal);
+        Assert.Contains("conversationId", read.JsonSchema.GetRawText(), StringComparison.Ordinal);
         Assert.Contains("collaboration mode", client.ServerInstructions, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("local project access", client.ServerInstructions, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("Never retry", client.ServerInstructions, StringComparison.Ordinal);
 
         var result = await status.CallAsync(new Dictionary<string, object?>());
