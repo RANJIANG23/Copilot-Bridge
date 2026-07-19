@@ -1,16 +1,20 @@
 # Copilot Bridge
 
-Copilot Bridge 是一个面向 Windows 的本地桥接工具，让 Codex 通过当前用户已登录的 Microsoft Edge，在专用后台标签页中征询 Microsoft 365 Copilot，并将结果作为第二模型意见返回给 Codex。
+Copilot Bridge 是一个面向 Windows 的本地协作桥接工具。它让 Codex 通过本机 STDIO MCP、当前用户已登录的 Microsoft Edge，与已绑定的 Microsoft 365 Copilot 专用后台标签页进行受控协作。根据用户在 GUI 中选择的协作模式，Copilot 可以承担前置思考、独立审核、与 Codex 相对独立的并行推理，或对明确问题提供聚焦协助；Codex 始终负责基于证据的最终裁决与实际执行。
 
-Copilot Bridge is a local Windows bridge that lets Codex consult Microsoft 365 Copilot through a dedicated background tab in the user's signed-in Microsoft Edge profile, then returns the response to Codex as a second-model opinion.
+Copilot Bridge is a local Windows collaboration bridge. It lets Codex work through local STDIO MCP and a dedicated, bound Microsoft 365 Copilot background tab in the user's signed-in Microsoft Edge session. Depending on the collaboration mode selected in the GUI, Copilot can provide upfront reasoning, independent review, a reasoning branch independent from Codex, or focused assistance; Codex remains responsible for evidence-based final judgment and execution.
 
 ```text
 Codex → STDIO MCP → Copilot Bridge → Edge CDP/DOM → Microsoft 365 Copilot
 ```
 
-日常咨询不会模拟鼠标键盘、抢占前台窗口或切换用户正在使用的 Edge 标签页。Copilot 只提供意见，最终核验、判断与执行仍由 Codex 完成。
+每次协作由三个彼此独立的控制面约束：**征询策略**决定何时允许咨询；**协作模式**决定 Assist、Outsource、Review 三种角色分工，且只能由用户在 GUI 中手动选择；**模型策略**决定允许使用的模型及优先级，并排除“自动”和快速响应类模型。“并行推理”指推理视角独立，不代表浏览器操作并发；实际 Copilot 会话始终在单一专用标签页中串行执行。
 
-Routine consultations do not simulate physical input, take foreground focus, or switch the user's active Edge tab. Copilot provides advice only; Codex remains responsible for verification, judgment, and execution.
+Every collaboration is governed by three independent control planes: **consultation policy** determines when a consultation is allowed; **collaboration mode** determines the Assist, Outsource, or Review division of work and can only be selected manually in the GUI; and **model policy** determines the allowed models and their priority while excluding Auto and quick-response models. “Parallel reasoning” means independent reasoning perspectives, not concurrent browser operations; Copilot sessions remain serial in one dedicated tab.
+
+日常咨询不会模拟鼠标键盘、抢占前台窗口或切换用户正在使用的 Edge 标签页。Copilot 不执行本机操作，也不构成授权依据。
+
+Routine consultations do not simulate physical input, take foreground focus, or switch the user's active Edge tab. Copilot does not execute local actions and is not an authorization source.
 
 ## 当前状态 / Current status
 

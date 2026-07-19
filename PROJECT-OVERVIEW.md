@@ -1,13 +1,28 @@
 # Copilot Bridge 项目说明
 
-Copilot Bridge 是一个运行在 Windows 本机的桥接工具，用于以受控方式把 Microsoft 365 Copilot 的答复接入 Codex 工作流，作为 Codex 的第二模型意见来源。
+Copilot Bridge 是一个面向 Windows 的本地协作桥接工具。它让 Codex 通过本机 STDIO MCP、当前用户已登录的 Microsoft Edge，与已绑定的 Microsoft 365 Copilot 专用后台标签页进行受控协作。
 
 ## 项目定位
 
-Copilot Bridge 不是独立智能体，也不是 Copilot 的替代品或增强层。它是一个本地通道：将 Codex 通过 STDIO MCP 发出的咨询请求交给用户已登录 Microsoft Edge 中的专用后台标签页，并把 Microsoft 365 Copilot 的回复返回给 Codex。
+Copilot Bridge 不是独立智能体，也不是 Copilot 的替代品或增强层。它在 Codex 与用户自己的 Microsoft 365 Copilot 会话之间提供受控协作通道；Copilot 不执行本机操作，也不构成授权或最终决策依据。Codex 始终负责基于证据的最终裁决与实际执行。
 
-- Copilot 只提供可供参考的第二意见，不承担执行或授权职责。
-- 核验、裁决与实际执行始终由 Codex 负责。
+## 协作角色
+
+根据用户在 GUI 中选择的协作模式，Copilot 可以承担不同角色：
+
+- **前置思考**：在 Outsource 模式下，Copilot 负责有限回合的开放式推理与方案展开，Codex 负责核验并完成实际执行。
+- **独立审核**：在 Review 模式下，两个相互隔离的 Copilot 会话从复杂度、边界、风险与证据等角度审查方案，Codex 对分歧作最终裁决。
+- **并行推理**：Copilot 可作为与 Codex 相对独立的推理分支，补充不同假设、替代方案和失败模式；“并行”指推理视角独立，实际浏览器会话仍在单一专用标签页中串行执行。
+- **聚焦协助**：在 Assist 模式下，Copilot 对明确问题提供聚焦意见或一次有限追问，Codex 保持主导。
+
+## 三个控制面
+
+项目通过三个彼此独立的控制面约束每次协作：
+
+1. **征询策略**：决定何时允许咨询，包括关闭、仅手动、允许 Codex 自动征询，以及关键设计必须征询。
+2. **协作模式**：决定 Codex 与 Copilot 的角色分工，包括 Assist、Outsource 与 Review；只能由用户在 GUI 中手动选择，调用方不能覆盖。
+3. **模型策略**：决定允许使用的 Copilot 模型与优先级，明确排除“自动”和快速响应类模型。
+
 - 本项目是独立工具，不是 Microsoft、OpenAI 或 Anthropic 的官方产品，也不代表或获得其背书。
 
 ## 工作方式
