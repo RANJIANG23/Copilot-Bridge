@@ -100,6 +100,25 @@ public sealed class McpProtocolTests
         Assert.Equal(0, process.ExitCode);
     }
 
+    [Fact]
+    public async Task McpSettingsPathMustBeAbsolute()
+    {
+        using var process = Process.Start(new ProcessStartInfo
+        {
+            FileName = ServerExecutablePath(),
+            RedirectStandardError = true,
+            UseShellExecute = false,
+            CreateNoWindow = true,
+            ArgumentList = { "--mcp", "--settings-path", "relative.json" }
+        }) ?? throw new InvalidOperationException("Could not start CopilotBridge MCP server.");
+
+        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+        await process.WaitForExitAsync(timeout.Token);
+
+        Assert.Equal(2, process.ExitCode);
+        Assert.Contains("absolute path", await process.StandardError.ReadToEndAsync(), StringComparison.OrdinalIgnoreCase);
+    }
+
     private static string ServerExecutablePath() =>
         Path.Combine(AppContext.BaseDirectory, "CopilotBridge.exe");
 }

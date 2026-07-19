@@ -330,7 +330,14 @@ internal sealed class CopilotBridgeTools : IAsyncDisposable
             var session = await GetSessionAsync(settings);
             var result = await new CollaborationRunner(settings, _selectors, session.Page)
                 .RunAsync(context);
-            await SaveRunAsync(id, mode, result, settings, cancellationToken);
+            try
+            {
+                await SaveRunAsync(id, mode, result, settings, cancellationToken);
+            }
+            catch (Exception exception)
+            {
+                DiagnosticLog.Write("consultation_persistence_failed", exception);
+            }
             return new ConsultResponse(
                 "completed",
                 null,
@@ -449,6 +456,33 @@ internal sealed class CopilotBridgeTools : IAsyncDisposable
                 settings with { BoundConversationUrl = result.PrimaryConversationUrl },
                 cancellationToken);
         }
+
+        await SaveWorkspaceRunAsync(mode, result, settings, cancellationToken);
+    }
+
+    internal static async Task<ConversationDocument?> SaveWorkspaceRunAsync(
+        string mode,
+        CollaborationRunResult result,
+        BridgeSettings settings,
+        CancellationToken cancellationToken = default)
+    {
+        if (!settings.StoreConversationContent) return null;
+
+        var workspace = new ConversationWorkspaceStore(settings.ConversationWorkspaceDirectory);
+        var conversationUrl = result.PrimaryConversationUrl ??
+                              result.Responses.LastOrDefault()?.Result.ConversationUrl;
+        var document = string.IsNullOrWhiteSpace(conversationUrl)
+            ? null
+            : await workspace.FindByCopilotConversationUrlAsync(conversationUrl, cancellationToken);
+        if (document is null)
+        {
+            document = await workspace.CreateConversationAsync(
+                ConversationWorkspaceStore.StandaloneProjectId,
+                cancellationToken: cancellationToken);
+            document = document with { Mode = mode };
+        }
+
+        return await workspace.AppendRunAsync(document, result, cancellationToken);
     }
 
     internal static string? ValidatePolicy(BridgeSettings settings, string trigger)

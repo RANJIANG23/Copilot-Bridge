@@ -2,7 +2,7 @@
 
 > 设计基线：v1.2.0-dev
 > 日期：2026-07-20（Asia/Shanghai）
-> 状态：v1.1.2 已发布；v1.2.0 Phase 15–17 已通过，四工具 MCP 与受控会话复用 Skill 已建立
+> 状态：v1.1.2 已发布；v1.2.0 Phase 15–18 已通过，项目感知检索、受控读取、上下文组织与本地留存纵切已闭环
 > 工作名称：Copilot Bridge
 > 项目目录：本仓库根目录
 > 目标模式执行路线图：[EXECUTION-ROADMAP.md](./EXECUTION-ROADMAP.md)
@@ -1082,6 +1082,7 @@ v1.2.0 的范围已经由用户确认并启动，详细设计以 [v1.2.0-design.
 - MCP 新增 `search_conversations` 与 `read_conversation` 两个只读、非破坏、非 open-world 工具。
 - Codex 先检索、再读取一个明确会话的必要 turn 范围，并自行组织 `requestMarkdown`；Bridge 不隐式把历史正文拼入外部发送。
 - 现有 `consult_copilot` 的 schema、GUI 模式控制、单写入锁、发送状态和禁止自动重发语义保持不变。
+- MCP 咨询成功后把实际请求与回复继续追加到本地 Markdown；发送后的留存失败只记录诊断，不得把已发送结果误报为可安全重试。
 
 ### 26.2 继续延期
 

@@ -128,6 +128,7 @@ v1.1.2 focuses on conversation management, a Copilot-inspired interface, and des
 - **四级权限**：用户可按项目选择关闭、元数据、检索片段或完整会话读取。**Four access levels:** users can choose off, metadata, search snippets, or full conversation reading per project.
 - **两个只读工具**：`search_conversations` 用于受控查找，`read_conversation` 只读取一个明确会话的分页 turns。**Two read-only tools:** `search_conversations` provides controlled discovery, while `read_conversation` reads paged turns from one explicit conversation.
 - **显式外部发送**：Bridge 不自动把历史正文拼入 prompt；需要再次咨询时仍由 Codex 明确组织并调用现有 `consult_copilot`。**Explicit external submission:** Bridge never injects history into a prompt automatically; Codex must explicitly compose the request and invoke the existing `consult_copilot` tool.
+- **咨询继续留存**：MCP 咨询成功后把实际请求与回复追加到本地 Markdown；留存失败不会把已发送请求标记为可安全重试。**Consultations remain retained:** after a successful MCP consultation, the actual request and response are appended to local Markdown; a persistence failure never marks an already submitted request as safe to retry.
 
 完整范围、权限语义和阶段门见 [v1.2.0 核心设计](./v1.2.0-design.md)。See the [v1.2.0 core design](./v1.2.0-design.md) for the complete scope, access semantics, and phase gates.
 
@@ -137,7 +138,7 @@ v1.1.2 focuses on conversation management, a Copilot-inspired interface, and des
 |---|---|
 | 当前源码版本 / Current source version | `1.2.0-dev`（开发中 / in development） |
 | 发布状态 / Release status | v1.1.2 已发布 Windows x64 自包含安装包与 SHA-256 文件 / v1.1.2 released with a Windows x64 self-contained package and SHA-256 file |
-| 已通过 / Passed | Phase 0–14 and G1–G8（含本机隔离升级验收 / including local isolated upgrade acceptance） |
+| 已通过 / Passed | Phase 0–18 and G1–G8（v1.2.0 尚未发布 / v1.2.0 is not released） |
 | 后续试点 / Follow-up pilot | 不同硬件、账号和企业策略环境 / Different hardware, account, and enterprise-policy environments |
 | 平台 / Platform | Windows 11 x64 |
 
