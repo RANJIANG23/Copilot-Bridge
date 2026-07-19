@@ -24,6 +24,30 @@ Routine consultations do not simulate physical input, take foreground focus, or 
 
 RC5 已达到项目定义的本机团队 v1 门禁，但不把本机隔离验收描述为跨设备兼容性证明。`1.1.0-dev` 尚未发布安装包；现有 RC5 下载仍是最后一个发布包。RC5 satisfies the project's local team-v1 gates, but local isolated acceptance is not presented as proof of cross-device compatibility. `1.1.0-dev` has not been packaged for release.
 
+## v1.1 会话工作台目标 / Conversation workspace roadmap
+
+v1.1 的产品目标是把 Copilot Bridge 从“瞬时征询工具”升级为一个受控的本地会话工作台：用户和获授权的本地 Agent 可以按会话、项目和选定范围复用 Microsoft 365 Copilot 的 Markdown 上下文，同时继续使用用户自己的已登录 Edge，不采用反向代理、不绕过 Microsoft 验证，也不自动读取未授权的网页历史。
+
+The v1.1 goal is to evolve Copilot Bridge from a transient consultation tool into a controlled local conversation workspace. Users and authorized local agents can reuse Microsoft 365 Copilot context by conversation, project, and explicitly selected scope while continuing to use the user's signed-in Edge session—without reverse proxying, bypassing Microsoft authentication, or silently importing existing web history.
+
+### 已完成：Phase 7 / Delivered
+
+- 新即时咨询完整保存为一会话一份 Markdown，包括实际发送内容、Copilot 回复、角色、时间和已验证模型。New immediate consultations are stored as one Markdown file per conversation, including the actual request, Copilot response, role, timestamp, and verified model.
+- “历史对话”升级为项目、会话列表和详情三栏工作台。The History area is now a three-pane workspace for projects, conversations, and conversation details.
+- 支持创建项目、将会话下拉或拖拽到项目、本地重命名、会话内关键词检索和复制 Markdown。Users can create projects, move or drag conversations into project folders, rename conversations locally, search within a conversation, and copy its Markdown.
+- 会话使用稳定 ID 与 Copilot URL 关联；本地名称不会覆盖 Copilot 标题字段。Conversation identity is based on a stable ID and Copilot URL; local renaming does not overwrite Copilot title fields.
+- 默认工作区为 `%LOCALAPPDATA%\CopilotBridge\workspace`，也可以在 GUI 中改为用户指定目录。The default workspace is `%LOCALAPPDATA%\CopilotBridge\workspace`, and users can choose another local directory in the GUI.
+
+### 后续目标 / Next milestones
+
+- **历史模式**：由用户显式选择旧 Copilot 网页会话，预览范围后导入为 Markdown；不后台批量抓取。**History mode:** explicitly select an existing Copilot web conversation, preview the scope, and import it as Markdown—never silently scrape all history.
+- **双标题同步**：保留 Copilot 初始标题、当前标题和标题历史；本地重命名始终独立。**Dual-title sync:** preserve the initial, current, and historical Copilot titles while keeping the local display name independent.
+- **会话级模型控制**：允许在受控白名单内为新会话或下一次请求选择模型，并明确显示实际模型与回退。**Conversation-level model control:** choose an allowed model for a new conversation or next request, with the effective model and fallback shown explicitly.
+- **项目级受控调用**：本地 Agent 可以读取项目概览、项目内检索结果或用户确认的完整范围，不默认获得整个工作区。**Controlled project access:** local agents can read a project overview, search results, or a user-confirmed full scope without receiving the entire workspace by default.
+- **内容交接**：支持将选中消息、当前会话或项目检索结果复制或插入当前 Codex 任务。**Context handoff:** copy or insert selected messages, the current conversation, or project search results into the active Codex task.
+
+v1.1 仍保持一个生产项目、一个测试项目和一个生产可执行文件；不增加数据库、本地 Web 服务、后台守护进程或第二套浏览器自动化。v1.1 continues to use one production project, one test project, and one production executable, with no database, local web server, background daemon, or second browser-automation stack.
+
 ## 下载 / Download
 
 从 [GitHub Releases](https://github.com/RANJIANG23/CopilotBridge/releases/tag/v1.0.0-rc.5) 下载以下两个文件。Download both files from [GitHub Releases](https://github.com/RANJIANG23/CopilotBridge/releases/tag/v1.0.0-rc.5):
