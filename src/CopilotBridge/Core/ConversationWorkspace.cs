@@ -1,5 +1,6 @@
 using System.Text;
 using System.Text.Json;
+using CopilotBridge.Browser;
 
 namespace CopilotBridge.Core;
 
@@ -128,6 +129,55 @@ internal sealed class ConversationWorkspaceStore
             TitleSource = string.IsNullOrWhiteSpace(localTitle) ? "copilot" : "local_override",
             CreatedAt = now,
             UpdatedAt = now
+        };
+        await SaveAsync(document, cancellationToken);
+        return document;
+    }
+
+    internal async Task<ConversationDocument?> FindByCopilotConversationUrlAsync(
+        string conversationUrl,
+        CancellationToken cancellationToken = default)
+    {
+        if (!Directory.Exists(_rootDirectory)) return null;
+        foreach (var path in Directory.EnumerateFiles(_rootDirectory, "conversation-*.md", SearchOption.AllDirectories))
+        {
+            var document = await TryLoadPathAsync(path, cancellationToken);
+            if (string.Equals(document?.CopilotConversationUrl, conversationUrl, StringComparison.OrdinalIgnoreCase))
+            {
+                return document;
+            }
+        }
+        return null;
+    }
+
+    internal async Task<ConversationDocument> ImportHistoricalConversationAsync(
+        string projectId,
+        HistoricalConversationSnapshot snapshot,
+        CancellationToken cancellationToken = default)
+    {
+        if (await FindByCopilotConversationUrlAsync(snapshot.ConversationUrl, cancellationToken) is not null)
+        {
+            throw new InvalidOperationException("This Copilot conversation has already been imported.");
+        }
+
+        var importedAt = DateTimeOffset.Now;
+        var document = new ConversationDocument
+        {
+            ProjectId = projectId,
+            CopilotConversationUrl = snapshot.ConversationUrl,
+            CopilotConversationId = ExtractConversationId(snapshot.ConversationUrl),
+            CopilotTitleInitial = NormalizeTitle(snapshot.CopilotTitle),
+            CopilotTitleCurrent = NormalizeTitle(snapshot.CopilotTitle),
+            TitleSource = "copilot_import",
+            Mode = "history_import",
+            CreatedAt = importedAt,
+            UpdatedAt = importedAt,
+            Turns = snapshot.Turns.Select(turn => new ConversationTurn(
+                importedAt,
+                turn.Role,
+                turn.Markdown,
+                null,
+                turn.Role == "copilot" ? "unknown" : "not_applicable")).ToArray()
         };
         await SaveAsync(document, cancellationToken);
         return document;
@@ -384,6 +434,13 @@ internal sealed class ConversationWorkspaceStore
         return segments.Length >= 3 && segments[^2].Equals("conversation", StringComparison.OrdinalIgnoreCase)
             ? segments[^1]
             : null;
+    }
+
+    private static string NormalizeTitle(string? value)
+    {
+        var normalized = string.Join(' ', (value ?? string.Empty)
+            .Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries));
+        return string.IsNullOrWhiteSpace(normalized) ? "未命名 Copilot 对话" : normalized;
     }
 
     private static string BuildSnippet(string markdown, string query)

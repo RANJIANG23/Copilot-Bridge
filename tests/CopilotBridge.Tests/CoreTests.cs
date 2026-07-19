@@ -476,6 +476,40 @@ public sealed class CoreTests
         }
     }
 
+    [Fact]
+    public async Task HistoricalImportKeepsCopilotTitleAndUnknownModelsWithoutDuplicateUrl()
+    {
+        var root = Path.Combine(Path.GetTempPath(), "CopilotBridge.Tests", Guid.NewGuid().ToString("N"));
+        var store = new ConversationWorkspaceStore(root);
+        var snapshot = new HistoricalConversationSnapshot(
+            "https://m365.cloud.microsoft/chat/conversation/imported-1",
+            "网页旧对话标题",
+            "Opus",
+            [
+                new HistoricalConversationTurn("user", "旧问题"),
+                new HistoricalConversationTurn("copilot", "旧回复")
+            ]);
+        try
+        {
+            var imported = await store.ImportHistoricalConversationAsync(
+                ConversationWorkspaceStore.StandaloneProjectId, snapshot);
+
+            Assert.Equal("网页旧对话标题", imported.CopilotTitleInitial);
+            Assert.Equal("网页旧对话标题", imported.DisplayTitle);
+            Assert.Equal(["user", "copilot"], imported.Turns.Select(turn => turn.Role));
+            Assert.Equal("unknown", imported.Turns[1].ModelStatus);
+            Assert.Null(imported.Turns[1].Model);
+            Assert.Contains("模型状态：`unknown`", await File.ReadAllTextAsync(
+                Path.Combine(root, ConversationWorkspaceStore.StandaloneProjectId, $"conversation-{imported.Id}.md")));
+            await Assert.ThrowsAsync<InvalidOperationException>(() => store.ImportHistoricalConversationAsync(
+                ConversationWorkspaceStore.StandaloneProjectId, snapshot));
+        }
+        finally
+        {
+            if (Directory.Exists(root)) Directory.Delete(root, true);
+        }
+    }
+
     [Theory]
     [InlineData(true, true, false, 0, 10)]
     [InlineData(false, true, false, 0, 60)]

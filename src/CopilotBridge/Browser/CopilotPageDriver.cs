@@ -9,6 +9,14 @@ internal sealed record PageTurnResult(
     int UserMessageDelta,
     int AssistantMessageDelta);
 
+internal sealed record HistoricalConversationTurn(string Role, string Markdown);
+
+internal sealed record HistoricalConversationSnapshot(
+    string ConversationUrl,
+    string CopilotTitle,
+    string? CurrentPageModel,
+    IReadOnlyList<HistoricalConversationTurn> Turns);
+
 internal sealed class SubmissionUnknownException : Exception
 {
     internal SubmissionUnknownException(string message, Exception? innerException = null)
@@ -201,6 +209,52 @@ internal sealed class CopilotPageDriver
             .Filter(new LocatorFilterOptions { HasText = reply })
             .CountAsync();
         return (promptCount, replyCount);
+    }
+
+    // This is intentionally read-only. It captures only the turns currently exposed by
+    // the Copilot DOM; it does not scroll, navigate, send, or infer historic model usage.
+    internal async Task<HistoricalConversationSnapshot> ReadCurrentConversationAsync()
+    {
+        await EnsureAuthenticatedAsync();
+        await EnsureIdleAsync();
+
+        if (!Uri.TryCreate(_page.Url, UriKind.Absolute, out var url) ||
+            !url.Host.Equals(_selectors.AllowedHost, StringComparison.OrdinalIgnoreCase) ||
+            !url.AbsolutePath.StartsWith("/chat/conversation/", StringComparison.OrdinalIgnoreCase))
+        {
+            throw new InvalidOperationException("Open an existing Copilot conversation before importing it.");
+        }
+
+        var messages = _page.Locator($"{_selectors.UserMessages}, {_selectors.AssistantMessages}");
+        var turns = new List<HistoricalConversationTurn>();
+        var userSelector = System.Text.Json.JsonSerializer.Serialize(_selectors.UserMessages);
+        for (var index = 0; index < await messages.CountAsync(); index++)
+        {
+            var message = messages.Nth(index);
+            if (!await message.IsVisibleAsync()) continue;
+            var markdown = await RenderedMarkdownExtractor.ExtractAsync(message);
+            if (string.IsNullOrWhiteSpace(markdown)) continue;
+            var isUser = await message.EvaluateAsync<bool>($"element => element.matches({userSelector})");
+            turns.Add(new HistoricalConversationTurn(isUser ? "user" : "copilot", markdown));
+        }
+
+        if (turns.Count == 0)
+        {
+            throw new InvalidOperationException("The current Copilot conversation has no loaded messages to import.");
+        }
+
+        var title = Normalize(await _page.TitleAsync());
+        if (string.IsNullOrWhiteSpace(title) || title.Equals("Microsoft 365 Copilot", StringComparison.OrdinalIgnoreCase))
+        {
+            title = turns.FirstOrDefault(turn => turn.Role == "user")?.Markdown
+                .Replace("\n", " ", StringComparison.Ordinal).Trim() ?? "未命名 Copilot 对话";
+            title = title.Length > 80 ? title[..80] : title;
+        }
+
+        string? currentModel;
+        try { currentModel = await ReadCurrentModelAsync(); }
+        catch { currentModel = null; }
+        return new HistoricalConversationSnapshot(_page.Url, title, currentModel, turns);
     }
 
     private async Task WaitForStableReplyAsync(ILocator reply)

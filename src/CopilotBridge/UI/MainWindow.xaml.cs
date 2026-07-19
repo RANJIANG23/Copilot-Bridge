@@ -411,6 +411,43 @@ public partial class MainWindow : Window
         }
     }
 
+    private async void ImportConversation_Click(object sender, RoutedEventArgs e)
+    {
+        if (_busy) return;
+        SetBusy(true, "正在读取旧对话预览");
+        try
+        {
+            var session = await GetSessionAsync();
+            var snapshot = await new CopilotPageDriver(session.Page, _selectors, _settings)
+                .ReadCurrentConversationAsync();
+            var userCount = snapshot.Turns.Count(turn => turn.Role == "user");
+            var copilotCount = snapshot.Turns.Count - userCount;
+            var preview = T("将只读取并保存当前页面已加载的消息，不会发送、滚动、导航或改写 Copilot 对话。") +
+                Environment.NewLine + Environment.NewLine +
+                $"{T("Copilot 标题")}：{snapshot.CopilotTitle}" + Environment.NewLine +
+                $"URL：{snapshot.ConversationUrl}" + Environment.NewLine +
+                $"{T("已加载消息")}：{snapshot.Turns.Count}（{T("用户")} {userCount} / Copilot {copilotCount}）" + Environment.NewLine +
+                $"{T("历史回复模型")}：{T("未知，不推断")}";
+            if (MessageBox.Show(preview, T("确认导入旧对话"), MessageBoxButton.YesNo, MessageBoxImage.Question) != MessageBoxResult.Yes)
+            {
+                ShowNotice(T("已取消导入，未写入任何本地文件。"), NoticeKind.Info);
+                return;
+            }
+
+            _selectedConversation = await _workspace.ImportHistoricalConversationAsync(_activeProjectId, snapshot);
+            await RefreshWorkspaceAsync(_selectedConversation.Id);
+            ShowNotice(T("旧对话已保存为本地 Markdown；历史回复模型保持未知。"), NoticeKind.Success);
+        }
+        catch (Exception exception)
+        {
+            var existing = exception.Message.Contains("already been imported", StringComparison.OrdinalIgnoreCase)
+                ? T("当前 Copilot 对话已经导入过，不会创建重复 Markdown。")
+                : FriendlyMessage(exception);
+            ShowNotice(existing, NoticeKind.Error);
+        }
+        finally { SetBusy(false, "就绪"); }
+    }
+
     private void Window_Deactivated(object? sender, EventArgs e)
     {
         _windowIsActive = false;
@@ -543,6 +580,7 @@ public partial class MainWindow : Window
         SaveSettingsButton.IsEnabled = !busy;
         NewProjectButton.IsEnabled = !busy;
         NewConversationButton.IsEnabled = !busy;
+        ImportConversationButton.IsEnabled = !busy;
     }
 
     private void ScheduleStatusRefresh()
