@@ -145,11 +145,23 @@ v1.1.2 focuses on conversation management, a Copilot-inspired interface, and des
 
 详细设计和阶段门见 [v1.2.1 设计](./v1.2.1-design.md)。See the [v1.2.1 design](./v1.2.1-design.md) for the exact scope and phase gates.
 
+## v1.2.2 开发中 / v1.2.2 in development
+
+v1.2.2 的批准范围只有两项：可选系统托盘，以及人可读 Markdown 正文与 Bridge 内部元数据分离。当前已发布下载仍为 1.2.1；开发状态不代表已打包或发布。
+
+The approved v1.2.2 scope contains only two items: an optional system tray and separation of human-readable Markdown content from Bridge internal metadata. The current released download remains 1.2.1; development status does not mean a package or release exists.
+
+- 托盘默认关闭；开启后关闭窗口只隐藏，显式退出才处理已登记 MCP。Tray support is off by default; when enabled, closing hides the window and only explicit Exit handles registered MCP processes.
+- 新存储采用干净 Markdown 与 `.bridge/conversations/{id}.json` sidecar，JSON 不重复保存正文。The new storage uses clean Markdown plus `.bridge/conversations/{id}.json` sidecars without duplicating conversation bodies.
+- 旧格式继续兼容；迁移必须显式触发、先备份并可回滚，只读 MCP 不会迁移或写工作区。The old format remains readable; migration is explicit, backed up, and reversible, while read-only MCP calls never migrate or write the workspace.
+
+详细设计见 [v1.2.2 设计](./v1.2.2-design.md)。See the [v1.2.2 design](./v1.2.2-design.md) for details.
+
 ## 当前状态与限制 / Current status and limits
 
 | 项目 / Item | 状态 / Status |
 |---|---|
-| 当前源码版本 / Current source version | `1.2.1` |
+| 当前源码版本 / Current source version | `1.2.2-dev` |
 | 发布状态 / Release status | v1.2.1 已发布 Windows x64 自包含安装包与 SHA-256 文件 / v1.2.1 released with a Windows x64 self-contained package and SHA-256 file |
 | 已通过 / Passed | Phase 0–23 and G1–G8 |
 | 后续试点 / Follow-up pilot | 不同硬件、账号和企业策略环境 / Different hardware, account, and enterprise-policy environments |
