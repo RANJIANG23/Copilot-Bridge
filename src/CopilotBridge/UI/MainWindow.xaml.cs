@@ -397,6 +397,29 @@ public partial class MainWindow : Window
         _projectDragItem = null;
     }
 
+    private async void ProjectListBox_PreviewKeyDown(object sender, KeyEventArgs e)
+    {
+        var direction = KeyboardMoveDirection(e);
+        if (direction == 0 || ProjectListBox.SelectedItem is not WorkspaceProject { IsSystem: false } source) return;
+        e.Handled = true;
+        var group = _projects
+            .Where(project => !project.IsSystem && project.IsPinned == source.IsPinned)
+            .ToList();
+        var sourceIndex = group.FindIndex(project => project.Id == source.Id);
+        var targetIndex = sourceIndex + direction;
+        if (sourceIndex < 0 || targetIndex < 0 || targetIndex >= group.Count) return;
+
+        try
+        {
+            await _workspace.ReorderProjectAsync(source, group[targetIndex]);
+            _activeProjectId = source.Id;
+            await RefreshWorkspaceAsync();
+            SelectProject(source.Id);
+            ShowNotice(T("项目顺序已更新。"), NoticeKind.Success);
+        }
+        catch (Exception exception) { ShowNotice(FriendlyMessage(exception), NoticeKind.Error); }
+    }
+
     private void ProjectListBox_PreviewMouseRightButtonDown(object sender, MouseButtonEventArgs e)
     {
         if (FindParent<ListBoxItem>(e.OriginalSource as DependencyObject)?.DataContext is WorkspaceProject project)
@@ -531,6 +554,16 @@ public partial class MainWindow : Window
         _modelPriorityDragItem = null;
     }
 
+    private void ModelPriorityListBox_PreviewKeyDown(object sender, KeyEventArgs e)
+    {
+        var direction = KeyboardMoveDirection(e);
+        if (direction == 0 || ModelPriorityListBox.SelectedItem is not string model) return;
+        e.Handled = true;
+        var sourceIndex = _modelPriority.IndexOf(model);
+        if (!MoveModelPriorityToIndex(model, sourceIndex + direction)) return;
+        ShowNotice(T("模型优先级已调整；点击保存浏览器与模型设置以持久化。"), NoticeKind.Info);
+    }
+
     private void ProjectListBox_PreviewDragOver(object sender, DragEventArgs e)
     {
         var target = FindParent<ListBoxItem>(e.OriginalSource as DependencyObject)?.DataContext as WorkspaceProject;
@@ -561,12 +594,19 @@ public partial class MainWindow : Window
         var targetIndex = targetModel is null ? _modelPriority.Count : _modelPriority.IndexOf(targetModel);
         if (targetIndex < 0) targetIndex = _modelPriority.Count;
         if (sourceIndex < targetIndex) targetIndex--;
-        if (sourceIndex == targetIndex) return;
+        MoveModelPriorityToIndex(model, targetIndex);
+    }
 
+    private bool MoveModelPriorityToIndex(string model, int targetIndex)
+    {
+        var sourceIndex = _modelPriority.IndexOf(model);
+        if (sourceIndex < 0 || targetIndex < 0 || targetIndex >= _modelPriority.Count || sourceIndex == targetIndex) return false;
         _modelPriority.RemoveAt(sourceIndex);
         _modelPriority.Insert(targetIndex, model);
         ModelPriorityListBox.SelectedItem = model;
+        ModelPriorityListBox.ScrollIntoView(model);
         AnimateDropSettled(ModelPriorityListBox);
+        return true;
     }
 
     private async void ProjectListBox_Drop(object sender, DragEventArgs e)
@@ -1092,6 +1132,13 @@ public partial class MainWindow : Window
     {
         _noticeTimer.Stop();
         NoticeBorder.Visibility = Visibility.Collapsed;
+    }
+
+    private static int KeyboardMoveDirection(KeyEventArgs e)
+    {
+        if ((Keyboard.Modifiers & ModifierKeys.Alt) == 0) return 0;
+        var key = e.Key == Key.System ? e.SystemKey : e.Key;
+        return key switch { Key.Up => -1, Key.Down => 1, _ => 0 };
     }
 
     private void UpdateHistoryColumns()

@@ -17,6 +17,14 @@ internal static class UiText
         ["协作默认设置"] = "Collaboration Defaults",
         ["浏览器与模型"] = "Browser & Models",
         ["设置"] = "Settings",
+        ["连接状态"] = "Connection status",
+        ["状态提示"] = "Status notification",
+        ["项目列表"] = "Project list",
+        ["模型优先级列表"] = "Model priority list",
+        ["会话列表"] = "Conversation list",
+        ["按 Alt+上移或 Alt+下移调整所选项目顺序"] = "Press Alt+Up or Alt+Down to reorder the selected project",
+        ["按 Alt+上移或 Alt+下移调整所选模型顺序"] = "Press Alt+Up or Alt+Down to reorder the selected model",
+        ["使用会话详情中的项目选择框和移动按钮进行键盘移动"] = "Use the project selector and Move button in conversation details for keyboard movement",
         ["数据保存在你的本地工作区"] = "Your data stays in your local workspace",
         ["正在初始化"] = "Initializing",
         ["检查后台连接，并将新产生的即时咨询完整写入本地 Markdown 会话。"] = "Check the background connection and save each new immediate consultation as a complete local Markdown conversation.",
@@ -126,6 +134,8 @@ internal static class UiText
         ["保存设置"] = "Save settings",
         ["就绪"] = "Ready",
         ["设置已保存"] = "Settings saved",
+        ["项目顺序已更新。"] = "Project order updated.",
+        ["模型优先级已调整；点击保存浏览器与模型设置以持久化。"] = "Model priority updated; choose Save browser and model settings to persist it.",
         ["需要设置"] = "Setup required",
         ["等待 Edge 授权"] = "Waiting for Edge permission",
         ["正在绑定标签页"] = "Binding tab",
@@ -255,6 +265,14 @@ internal static class UiText
                 AutomationProperties.SetName(
                     automationElement,
                     Translate(AutomationProperties.GetName(automationElement), language));
+            }
+
+            if (child is FrameworkElement helpElement &&
+                !string.IsNullOrWhiteSpace(AutomationProperties.GetHelpText(helpElement)))
+            {
+                AutomationProperties.SetHelpText(
+                    helpElement,
+                    Translate(AutomationProperties.GetHelpText(helpElement), language));
             }
 
             ApplyElement(child, language);

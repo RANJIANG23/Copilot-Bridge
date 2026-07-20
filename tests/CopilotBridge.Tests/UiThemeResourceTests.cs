@@ -59,6 +59,27 @@ public sealed class UiThemeResourceTests
         Assert.Contains("Property=\"IsEnabled\"", themeText);
     }
 
+    [Fact]
+    public void AccessibleListsExposeKeyboardAlternativesAndLiveStatus()
+    {
+        var root = FindRepositoryRoot();
+        var xaml = File.ReadAllText(Path.Combine(root, "src", "CopilotBridge", "UI", "MainWindow.xaml"));
+        var code = File.ReadAllText(Path.Combine(root, "src", "CopilotBridge", "UI", "MainWindow.xaml.cs"));
+
+        Assert.Contains("PreviewKeyDown=\"ProjectListBox_PreviewKeyDown\"", xaml);
+        Assert.Contains("PreviewKeyDown=\"ModelPriorityListBox_PreviewKeyDown\"", xaml);
+        Assert.Contains("AutomationProperties.HelpText=\"按 Alt+上移或 Alt+下移调整所选项目顺序\"", xaml);
+        Assert.Contains("AutomationProperties.HelpText=\"按 Alt+上移或 Alt+下移调整所选模型顺序\"", xaml);
+        Assert.Contains("AutomationProperties.LiveSetting=\"Polite\"", xaml);
+        Assert.True(Regex.Matches(xaml, "AutomationProperties.Name=").Count >= 12);
+        Assert.Contains("MinWidth=\"1080\"", xaml);
+        Assert.Contains("MinHeight=\"700\"", xaml);
+        Assert.Contains("ActualWidth < 1180", code);
+        Assert.Contains("KeyboardMoveDirection", code);
+        Assert.Contains("ReorderProjectAsync", code);
+        Assert.Contains("MoveModelPriorityToIndex", code);
+    }
+
     private static string FindRepositoryRoot()
     {
         for (var directory = new DirectoryInfo(AppContext.BaseDirectory);
