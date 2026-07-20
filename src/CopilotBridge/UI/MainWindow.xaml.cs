@@ -98,6 +98,7 @@ public partial class MainWindow : Window
         SetNavState(BrowserNav, page == "browser");
         SetNavState(SettingsNav, page == "settings");
         if (page == "history") await RefreshWorkspaceAsync();
+        if (page == "settings") await RefreshStorageMigrationStatusAsync();
         ScheduleStatusRefresh();
         if (page == "overview" && !_busy)
         {
@@ -106,6 +107,91 @@ public partial class MainWindow : Window
     }
 
     private async void Refresh_Click(object sender, RoutedEventArgs e) => await RefreshStatusAsync();
+
+    private async Task RefreshStorageMigrationStatusAsync()
+    {
+        try
+        {
+            var preview = await _workspace.GetStorageMigrationPreviewAsync();
+            StorageMigrationStatusText.Text = preview.LegacyCount == 0
+                ? string.Format(T("已使用分离存储：{0} 个会话；没有待迁移的旧格式。"), preview.V2Count)
+                : string.Format(T("发现 {0} 个旧格式会话；已有 {1} 个会话使用分离存储。"), preview.LegacyCount, preview.V2Count);
+        }
+        catch (Exception exception)
+        {
+            StorageMigrationStatusText.Text = FriendlyMessage(exception);
+        }
+    }
+
+    private async void MigrateStorage_Click(object sender, RoutedEventArgs e)
+    {
+        if (_busy) return;
+        SetBusy(true, "正在迁移会话存储");
+        try
+        {
+            var preview = await _workspace.GetStorageMigrationPreviewAsync();
+            if (preview.LegacyCount == 0)
+            {
+                await RefreshStorageMigrationStatusAsync();
+                ShowNotice(T("没有需要迁移的旧格式会话。"), NoticeKind.Info);
+                return;
+            }
+
+            var prompt = string.Format(
+                T("将迁移 {0} 个旧格式会话。迁移前会在工作区的 .bridge/backups 中创建完整备份；不会读取或改写 Copilot 网页对话。是否继续？"),
+                preview.LegacyCount);
+            if (MessageBox.Show(prompt, T("确认迁移会话存储"), MessageBoxButton.YesNo, MessageBoxImage.Question) != MessageBoxResult.Yes)
+            {
+                ShowNotice(T("已取消迁移，未改写会话文件。"), NoticeKind.Info);
+                return;
+            }
+
+            var result = await _workspace.MigrateStorageV2Async();
+            await RefreshWorkspaceAsync(_selectedConversation?.Id);
+            await RefreshStorageMigrationStatusAsync();
+            ShowNotice(
+                string.Format(T("已迁移 {0} 个会话，并保留可回滚备份。"), result.MigratedCount),
+                NoticeKind.Success);
+        }
+        catch (Exception exception)
+        {
+            ShowNotice(FriendlyMessage(exception), NoticeKind.Error);
+            await RefreshStorageMigrationStatusAsync();
+        }
+        finally { SetBusy(false, "就绪"); }
+    }
+
+    private async void RollbackStorage_Click(object sender, RoutedEventArgs e)
+    {
+        if (_busy) return;
+        if (MessageBox.Show(
+                T("将回滚最近一次已完成的旧格式迁移。仅当迁移后的会话路径和内容都未变化时才会执行，避免覆盖你的修改。是否继续？"),
+                T("确认回滚会话存储"),
+                MessageBoxButton.YesNo,
+                MessageBoxImage.Warning) != MessageBoxResult.Yes)
+        {
+            return;
+        }
+
+        SetBusy(true, "正在回滚会话存储");
+        try
+        {
+            var result = await _workspace.RollbackLatestStorageMigrationAsync();
+            await RefreshWorkspaceAsync(_selectedConversation?.Id);
+            await RefreshStorageMigrationStatusAsync();
+            ShowNotice(
+                result.MigratedCount == 0
+                    ? T("没有可回滚的已完成迁移。")
+                    : string.Format(T("已回滚 {0} 个会话；分离元数据已移除。"), result.MigratedCount),
+                result.MigratedCount == 0 ? NoticeKind.Info : NoticeKind.Success);
+        }
+        catch (Exception exception)
+        {
+            ShowNotice(FriendlyMessage(exception), NoticeKind.Error);
+            await RefreshStorageMigrationStatusAsync();
+        }
+        finally { SetBusy(false, "就绪"); }
+    }
 
     private void BrowseWorkspace_Click(object sender, RoutedEventArgs e)
     {
@@ -732,7 +818,7 @@ public partial class MainWindow : Window
     private void CopyConversation_Click(object sender, RoutedEventArgs e)
     {
         if (_selectedConversation is null) return;
-        Clipboard.SetText(_workspace.Render(_selectedConversation));
+        Clipboard.SetText(_workspace.RenderForDisplay(_selectedConversation));
         ShowNotice(T("当前会话 Markdown 已复制，可粘贴到 Codex 或其他工具。"), NoticeKind.Success);
     }
 
@@ -1109,6 +1195,8 @@ public partial class MainWindow : Window
         ConversationTitleTextBox.IsEnabled = !busy;
         MoveProjectComboBox.IsEnabled = !busy;
         MoveConversationButton.IsEnabled = !busy;
+        MigrateStorageButton.IsEnabled = !busy;
+        RollbackStorageButton.IsEnabled = !busy;
     }
 
     private void ScheduleStatusRefresh()

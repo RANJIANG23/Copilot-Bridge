@@ -90,6 +90,9 @@ internal sealed record WorkspaceConversationPage(
     bool HasMore,
     IReadOnlyList<ConversationTurn> Turns);
 
+internal sealed record ConversationStorageMigrationPreview(int LegacyCount, int V2Count);
+internal sealed record ConversationStorageMigrationResult(int MigratedCount, string? BackupDirectory);
+
 internal sealed class WorkspaceAccessException(string errorCode) : InvalidOperationException(errorCode)
 {
     internal string ErrorCode { get; } = errorCode;
@@ -110,6 +113,7 @@ internal sealed class ConversationWorkspaceStore
     };
 
     private readonly string _rootDirectory;
+    private readonly ConversationStorageV2 _storageV2;
 
     internal ConversationWorkspaceStore(string? rootDirectory = null)
     {
@@ -117,6 +121,7 @@ internal sealed class ConversationWorkspaceStore
             Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
             "CopilotBridge",
             "workspace");
+        _storageV2 = new ConversationStorageV2(_rootDirectory);
     }
 
     internal string RootDirectory => _rootDirectory;
@@ -350,7 +355,7 @@ internal sealed class ConversationWorkspaceStore
         CancellationToken cancellationToken = default)
     {
         if (!Directory.Exists(_rootDirectory)) return null;
-        foreach (var path in Directory.EnumerateFiles(_rootDirectory, "conversation-*.md", SearchOption.AllDirectories))
+        foreach (var path in EnumerateConversationFiles())
         {
             var document = await TryLoadPathAsync(path, cancellationToken);
             if (string.Equals(document?.CopilotConversationUrl, conversationUrl, StringComparison.OrdinalIgnoreCase))
@@ -399,7 +404,7 @@ internal sealed class ConversationWorkspaceStore
     {
         await GetProjectsAsync(cancellationToken);
         var documents = new List<ConversationDocument>();
-        foreach (var path in Directory.EnumerateFiles(_rootDirectory, "*.md", SearchOption.AllDirectories))
+        foreach (var path in EnumerateConversationFiles())
         {
             if (Path.GetFileName(path).Equals(ProjectMarker, StringComparison.OrdinalIgnoreCase)) continue;
             var document = await TryLoadPathAsync(path, cancellationToken);
@@ -458,7 +463,7 @@ internal sealed class ConversationWorkspaceStore
         if (accessByProject.Count == 0) return [];
         var normalizedQuery = query?.Trim() ?? string.Empty;
         var matches = new List<WorkspaceConversationMatch>();
-        foreach (var path in Directory.EnumerateFiles(_rootDirectory, "*.md", SearchOption.AllDirectories))
+        foreach (var path in EnumerateConversationFiles())
         {
             if (Path.GetFileName(path).Equals(ProjectMarker, StringComparison.OrdinalIgnoreCase)) continue;
             var document = await TryLoadPathAsync(path, cancellationToken);
@@ -580,7 +585,7 @@ internal sealed class ConversationWorkspaceStore
         return document;
     }
 
-    internal Task DeleteConversationAsync(ConversationDocument document)
+    internal async Task DeleteConversationAsync(ConversationDocument document)
     {
         var path = FindPath(document.Id);
         if (path is null || !File.Exists(path))
@@ -589,7 +594,7 @@ internal sealed class ConversationWorkspaceStore
         }
 
         File.Delete(path);
-        return Task.CompletedTask;
+        await _storageV2.DeleteAsync(document.Id);
     }
 
     internal async Task<ConversationDocument> AppendRunAsync(
@@ -638,22 +643,144 @@ internal sealed class ConversationWorkspaceStore
             .ToArray();
     }
 
+    internal async Task<ConversationStorageMigrationPreview> GetStorageMigrationPreviewAsync(
+        CancellationToken cancellationToken = default)
+    {
+        var legacy = 0;
+        var v2 = 0;
+        foreach (var path in EnumerateConversationFiles())
+        {
+            var document = await TryLoadPathAsync(path, cancellationToken);
+            if (document is null) continue;
+            if (_storageV2.HasSidecar(document.Id)) v2++;
+            else legacy++;
+        }
+        return new ConversationStorageMigrationPreview(legacy, v2);
+    }
+
+    internal async Task<ConversationStorageMigrationResult> MigrateStorageV2Async(
+        CancellationToken cancellationToken = default)
+    {
+        var legacy = new List<(string Path, ConversationDocument Document)>();
+        foreach (var path in EnumerateConversationFiles())
+        {
+            var document = await TryLoadPathAsync(path, cancellationToken);
+            if (document is not null && !_storageV2.HasSidecar(document.Id)) legacy.Add((path, document));
+        }
+        if (legacy.Count == 0) return new ConversationStorageMigrationResult(0, null);
+
+        _storageV2.EnsureManagedDirectories();
+        Directory.CreateDirectory(_storageV2.BackupsDirectory);
+        var backupDirectory = Path.Combine(
+            _storageV2.BackupsDirectory,
+            $"v1-{DateTimeOffset.Now:yyyyMMddHHmmss}-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(backupDirectory);
+        var entries = new List<StorageMigrationEntry>();
+        foreach (var item in legacy)
+        {
+            var relative = Path.GetRelativePath(_rootDirectory, item.Path).Replace('\\', '/');
+            var backupPath = Path.Combine(backupDirectory, relative.Replace('/', Path.DirectorySeparatorChar));
+            Directory.CreateDirectory(Path.GetDirectoryName(backupPath)!);
+            File.Copy(item.Path, backupPath, true);
+            var original = await File.ReadAllTextAsync(item.Path, cancellationToken);
+            entries.Add(new StorageMigrationEntry(item.Document.Id, relative, ConversationStorageV2.Sha256(original), null));
+        }
+
+        var manifestPath = Path.Combine(backupDirectory, "manifest.json");
+        var manifest = new StorageMigrationManifest("prepared", DateTimeOffset.Now, entries);
+        await WriteMigrationManifestAsync(manifestPath, manifest, cancellationToken);
+        try
+        {
+            for (var index = 0; index < legacy.Count; index++)
+            {
+                var item = legacy[index];
+                await SaveAsync(item.Document, cancellationToken);
+                var migrated = await File.ReadAllTextAsync(PathFor(item.Document), cancellationToken);
+                entries[index] = entries[index] with { MigratedSha256 = ConversationStorageV2.Sha256(migrated) };
+            }
+            manifest = manifest with { Status = "completed", Entries = entries };
+            await WriteMigrationManifestAsync(manifestPath, manifest, cancellationToken);
+            return new ConversationStorageMigrationResult(legacy.Count, backupDirectory);
+        }
+        catch
+        {
+            foreach (var entry in entries)
+            {
+                var backupPath = Path.Combine(backupDirectory, entry.RelativePath.Replace('/', Path.DirectorySeparatorChar));
+                var targetPath = Path.Combine(_rootDirectory, entry.RelativePath.Replace('/', Path.DirectorySeparatorChar));
+                Directory.CreateDirectory(Path.GetDirectoryName(targetPath)!);
+                File.Copy(backupPath, targetPath, true);
+                await _storageV2.DeleteAsync(entry.ConversationId, cancellationToken);
+            }
+            await WriteMigrationManifestAsync(
+                manifestPath,
+                manifest with { Status = "rolled_back_after_failure" },
+                cancellationToken);
+            throw;
+        }
+    }
+
+    internal async Task<ConversationStorageMigrationResult> RollbackLatestStorageMigrationAsync(
+        CancellationToken cancellationToken = default)
+    {
+        if (!Directory.Exists(_storageV2.BackupsDirectory))
+        {
+            return new ConversationStorageMigrationResult(0, null);
+        }
+        foreach (var directory in Directory.EnumerateDirectories(_storageV2.BackupsDirectory, "v1-*")
+                     .OrderByDescending(path => path, StringComparer.OrdinalIgnoreCase))
+        {
+            var manifestPath = Path.Combine(directory, "manifest.json");
+            if (!File.Exists(manifestPath)) continue;
+            StorageMigrationManifest? manifest;
+            try
+            {
+                manifest = JsonSerializer.Deserialize<StorageMigrationManifest>(
+                    await File.ReadAllTextAsync(manifestPath, cancellationToken), JsonOptions);
+            }
+            catch (JsonException) { continue; }
+            if (manifest?.Status != "completed") continue;
+
+            foreach (var entry in manifest.Entries)
+            {
+                var currentPath = FindPath(entry.ConversationId);
+                var expectedPath = Path.GetFullPath(Path.Combine(
+                    _rootDirectory,
+                    entry.RelativePath.Replace('/', Path.DirectorySeparatorChar)));
+                if (currentPath is null || !Path.GetFullPath(currentPath).Equals(
+                        expectedPath, StringComparison.OrdinalIgnoreCase) || entry.MigratedSha256 is null)
+                {
+                    throw new InvalidOperationException("迁移后会话路径已变化，不能自动回滚。");
+                }
+                var current = await File.ReadAllTextAsync(currentPath, cancellationToken);
+                if (!ConversationStorageV2.Sha256(current).Equals(
+                        entry.MigratedSha256, StringComparison.OrdinalIgnoreCase))
+                {
+                    throw new InvalidOperationException("迁移后会话已修改，不能覆盖为旧备份。");
+                }
+            }
+
+            foreach (var entry in manifest.Entries)
+            {
+                var backupPath = Path.Combine(directory, entry.RelativePath.Replace('/', Path.DirectorySeparatorChar));
+                var targetPath = Path.Combine(_rootDirectory, entry.RelativePath.Replace('/', Path.DirectorySeparatorChar));
+                File.Copy(backupPath, targetPath, true);
+                await _storageV2.DeleteAsync(entry.ConversationId, cancellationToken);
+            }
+            await WriteMigrationManifestAsync(
+                manifestPath,
+                manifest with { Status = "rolled_back" },
+                cancellationToken);
+            return new ConversationStorageMigrationResult(manifest.Entries.Count, directory);
+        }
+        return new ConversationStorageMigrationResult(0, null);
+    }
+
     internal async Task SaveAsync(ConversationDocument document, CancellationToken cancellationToken = default)
     {
         await EnsureKnownProjectAsync(document.ProjectId, cancellationToken);
         var path = PathFor(document);
-        Directory.CreateDirectory(Path.GetDirectoryName(path)!);
-        var temporaryPath = path + ".tmp";
-        var markdown = Render(document);
-        try
-        {
-            await File.WriteAllTextAsync(temporaryPath, markdown, new UTF8Encoding(false), cancellationToken);
-            File.Move(temporaryPath, path, true);
-        }
-        finally
-        {
-            if (File.Exists(temporaryPath)) File.Delete(temporaryPath);
-        }
+        await _storageV2.SaveAsync(document, path, cancellationToken);
     }
 
     internal string Render(ConversationDocument document)
@@ -701,13 +828,7 @@ internal sealed class ConversationWorkspaceStore
 
     internal string RenderForDisplay(ConversationDocument document)
     {
-        var markdown = Render(document);
-        if (!markdown.StartsWith(MetadataPrefix, StringComparison.Ordinal)) return markdown;
-
-        var metadataEnd = markdown.IndexOf("-->", MetadataPrefix.Length, StringComparison.Ordinal);
-        if (metadataEnd < 0) return markdown;
-
-        return markdown[(metadataEnd + 3)..].TrimStart('\r', '\n');
+        return _storageV2.RenderReadable(document);
     }
 
     private async Task<WorkspaceProject> EnsureProjectAsync(
@@ -796,12 +917,23 @@ internal sealed class ConversationWorkspaceStore
     private string? FindPath(string conversationId)
     {
         if (!Directory.Exists(_rootDirectory)) return null;
-        return Directory.EnumerateFiles(_rootDirectory, $"conversation-{conversationId}.md", SearchOption.AllDirectories)
-            .FirstOrDefault();
+        var relative = _storageV2.RelativeMarkdownPath(conversationId);
+        if (!string.IsNullOrWhiteSpace(relative))
+        {
+            var sidecarPath = Path.GetFullPath(Path.Combine(
+                _rootDirectory,
+                relative.Replace('/', Path.DirectorySeparatorChar)));
+            if (File.Exists(sidecarPath)) return sidecarPath;
+        }
+        return EnumerateConversationFiles()
+            .FirstOrDefault(path => Path.GetFileName(path).Equals(
+                $"conversation-{conversationId}.md", StringComparison.OrdinalIgnoreCase));
     }
 
     private async Task<ConversationDocument?> TryLoadPathAsync(string path, CancellationToken cancellationToken)
     {
+        var v2 = await _storageV2.TryLoadAsync(path, cancellationToken);
+        if (v2 is not null) return v2;
         var text = await File.ReadAllTextAsync(path, cancellationToken);
         var end = text.IndexOf(" -->", StringComparison.Ordinal);
         if (!text.StartsWith(MetadataPrefix, StringComparison.Ordinal) || end < 0) return null;
@@ -840,6 +972,15 @@ internal sealed class ConversationWorkspaceStore
         {
             return new ProjectMarkerMetadata(false, int.MaxValue, ConversationAccessLevel.Off);
         }
+    }
+
+    private IEnumerable<string> EnumerateConversationFiles()
+    {
+        if (!Directory.Exists(_rootDirectory)) return [];
+        var managedRoot = Path.GetFullPath(_storageV2.BridgeDirectory)
+            .TrimEnd(Path.DirectorySeparatorChar) + Path.DirectorySeparatorChar;
+        return Directory.EnumerateFiles(_rootDirectory, "conversation-*.md", SearchOption.AllDirectories)
+            .Where(path => !Path.GetFullPath(path).StartsWith(managedRoot, StringComparison.OrdinalIgnoreCase));
     }
 
     private static async Task WriteProjectMarkerAsync(
@@ -972,10 +1113,42 @@ internal sealed class ConversationWorkspaceStore
     private static ConversationAccessLevel NormalizeAccessLevel(ConversationAccessLevel accessLevel) =>
         Enum.IsDefined(accessLevel) ? accessLevel : ConversationAccessLevel.Off;
 
+    private static async Task WriteMigrationManifestAsync(
+        string path,
+        StorageMigrationManifest manifest,
+        CancellationToken cancellationToken)
+    {
+        var temporary = path + ".tmp";
+        try
+        {
+            await File.WriteAllTextAsync(
+                temporary,
+                JsonSerializer.Serialize(manifest, JsonOptions),
+                new UTF8Encoding(false),
+                cancellationToken);
+            File.Move(temporary, path, true);
+        }
+        finally
+        {
+            if (File.Exists(temporary)) File.Delete(temporary);
+        }
+    }
+
     private sealed record ProjectMarkerMetadata(
         bool IsPinned,
         int SortOrder = int.MaxValue,
         ConversationAccessLevel AccessLevel = ConversationAccessLevel.Off);
+
+    private sealed record StorageMigrationManifest(
+        string Status,
+        DateTimeOffset CreatedAt,
+        IReadOnlyList<StorageMigrationEntry> Entries);
+
+    private sealed record StorageMigrationEntry(
+        string ConversationId,
+        string RelativePath,
+        string OriginalSha256,
+        string? MigratedSha256);
 
     private static string? ExtractConversationId(string? url)
     {

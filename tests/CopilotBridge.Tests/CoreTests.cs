@@ -570,7 +570,7 @@ public sealed class CoreTests
 
         Assert.StartsWith("<!-- copilot-bridge-conversation:", stored, StringComparison.Ordinal);
         Assert.DoesNotContain("copilot-bridge-conversation:", displayed, StringComparison.Ordinal);
-        Assert.StartsWith("---", displayed, StringComparison.Ordinal);
+        Assert.StartsWith("# 网页当前标题", displayed, StringComparison.Ordinal);
         Assert.Contains("# 网页当前标题", displayed, StringComparison.Ordinal);
         Assert.Contains("正文内容", displayed, StringComparison.Ordinal);
     }
