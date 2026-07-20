@@ -168,7 +168,8 @@ public sealed class CoreTests
             ReplyTimeoutSeconds = 42,
             DisplayLanguage = AppLanguage.English,
             Theme = AppTheme.Dark,
-            KeepMcpRunningInBackground = false
+            KeepMcpRunningInBackground = false,
+            UseSystemTray = true
         };
 
         try
@@ -197,6 +198,12 @@ public sealed class CoreTests
     public void BackgroundResidentDefaultsToEnabled()
     {
         Assert.True(new BridgeSettings().KeepMcpRunningInBackground);
+    }
+
+    [Fact]
+    public void SystemTrayDefaultsToDisabled()
+    {
+        Assert.False(new BridgeSettings().UseSystemTray);
     }
 
     [Fact]

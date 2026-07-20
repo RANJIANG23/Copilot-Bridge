@@ -4,6 +4,7 @@
     <OutputType>WinExe</OutputType>
     <TargetFramework>net10.0-windows</TargetFramework>
     <UseWPF>true</UseWPF>
+    <UseWindowsForms>true</UseWindowsForms>
     <AssemblyName>CopilotBridge</AssemblyName>
     <RootNamespace>CopilotBridge</RootNamespace>
     <Version>1.2.2-dev</Version>
@@ -12,6 +13,8 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <Using Remove="System.Drawing" />
+    <Using Remove="System.Windows.Forms" />
     <PackageReference Include="Microsoft.Playwright" Version="1.61.0" />
     <PackageReference Include="ModelContextProtocol" Version="1.4.1" />
   </ItemGroup>

@@ -77,6 +77,8 @@ internal sealed record BridgeSettings
 
     public bool KeepMcpRunningInBackground { get; init; } = true;
 
+    public bool UseSystemTray { get; init; }
+
     public string? BoundConversationUrl { get; init; }
 
     public string ConversationWorkspaceDirectory { get; init; } = Path.Combine(
