@@ -310,7 +310,7 @@ internal sealed class CopilotBridgeTools : IAsyncDisposable
             existing?.PrimaryConversationUrl,
             settings.BoundConversationUrl,
             startFresh,
-            _selectors.AllowedHost);
+            _selectors.NewChatUrlFor(settings.BoundConversationUrl));
         if (settings.CollaborationMode != CollaborationMode.Review &&
             string.IsNullOrWhiteSpace(primaryUrl))
         {
@@ -509,10 +509,10 @@ internal sealed class CopilotBridgeTools : IAsyncDisposable
         string? existingConversationUrl,
         string? boundConversationUrl,
         bool startFresh,
-        string allowedHost) => mode switch
+        string newConversationUrl) => mode switch
     {
         CollaborationMode.Review => null,
-        _ when startFresh => $"https://{allowedHost}/chat/",
+        _ when startFresh => newConversationUrl,
         _ => existingConversationUrl ?? boundConversationUrl
     };
 

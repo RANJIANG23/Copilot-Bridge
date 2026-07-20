@@ -40,7 +40,7 @@ internal sealed class EdgeSessionAdapter : IAsyncDisposable
             var browser = await playwright.Chromium.ConnectOverCDPAsync(
                 endpoint,
                 new BrowserTypeConnectOverCDPOptions { Timeout = timeoutMilliseconds });
-            var page = FindSingleCopilotPage(browser, selectors.AllowedHost);
+            var page = FindSingleCopilotPage(browser, selectors);
             return new EdgeSessionAdapter(playwright, browser, page, endpoint);
         }
         catch
@@ -134,11 +134,11 @@ internal sealed class EdgeSessionAdapter : IAsyncDisposable
         return ValueTask.CompletedTask;
     }
 
-    private static IPage FindSingleCopilotPage(IBrowser browser, string allowedHost)
+    private static IPage FindSingleCopilotPage(IBrowser browser, ProviderSelectors selectors)
     {
         var matches = browser.Contexts
             .SelectMany(context => context.Pages)
-            .Where(page => IsAllowedCopilotUrl(page.Url, allowedHost))
+            .Where(page => selectors.IsAllowedChatUrl(page.Url))
             .ToArray();
 
         return matches.Length switch
@@ -148,19 +148,6 @@ internal sealed class EdgeSessionAdapter : IAsyncDisposable
             _ => throw new InvalidOperationException(
                 $"Found {matches.Length} eligible Copilot tabs. Keep exactly one dedicated chat tab open.")
         };
-    }
-
-    private static bool IsAllowedCopilotUrl(string value, string allowedHost)
-    {
-        if (!Uri.TryCreate(value, UriKind.Absolute, out var uri) ||
-            uri.Scheme != Uri.UriSchemeHttps ||
-            !uri.Host.Equals(allowedHost, StringComparison.OrdinalIgnoreCase))
-        {
-            return false;
-        }
-
-        return uri.AbsolutePath.Equals("/chat", StringComparison.OrdinalIgnoreCase) ||
-               uri.AbsolutePath.StartsWith("/chat/", StringComparison.OrdinalIgnoreCase);
     }
 
     private static async Task<string?> ReadBrowserContextIdAsync(IBrowserContext context)

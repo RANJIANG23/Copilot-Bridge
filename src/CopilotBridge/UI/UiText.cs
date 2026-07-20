@@ -11,12 +11,20 @@ internal static class UiText
     private static readonly IReadOnlyDictionary<string, string> English = new Dictionary<string, string>
     {
         ["Copilot Bridge"] = "Copilot Bridge",
-        ["v1.2.0 受控会话复用"] = "v1.2.0 Controlled Conversation Reuse",
+        ["v1.2.1 界面与可访问性"] = "v1.2.1 UI & Accessibility",
         ["概览"] = "Overview",
         ["对话管理"] = "Conversation Management",
         ["协作默认设置"] = "Collaboration Defaults",
         ["浏览器与模型"] = "Browser & Models",
         ["设置"] = "Settings",
+        ["连接状态"] = "Connection status",
+        ["状态提示"] = "Status notification",
+        ["项目列表"] = "Project list",
+        ["模型优先级列表"] = "Model priority list",
+        ["会话列表"] = "Conversation list",
+        ["按 Alt+上移或 Alt+下移调整所选项目顺序"] = "Press Alt+Up or Alt+Down to reorder the selected project",
+        ["按 Alt+上移或 Alt+下移调整所选模型顺序"] = "Press Alt+Up or Alt+Down to reorder the selected model",
+        ["使用会话详情中的项目选择框和移动按钮进行键盘移动"] = "Use the project selector and Move button in conversation details for keyboard movement",
         ["数据保存在你的本地工作区"] = "Your data stays in your local workspace",
         ["正在初始化"] = "Initializing",
         ["检查后台连接，并将新产生的即时咨询完整写入本地 Markdown 会话。"] = "Check the background connection and save each new immediate consultation as a complete local Markdown conversation.",
@@ -126,6 +134,8 @@ internal static class UiText
         ["保存设置"] = "Save settings",
         ["就绪"] = "Ready",
         ["设置已保存"] = "Settings saved",
+        ["项目顺序已更新。"] = "Project order updated.",
+        ["模型优先级已调整；点击保存浏览器与模型设置以持久化。"] = "Model priority updated; choose Save browser and model settings to persist it.",
         ["需要设置"] = "Setup required",
         ["等待 Edge 授权"] = "Waiting for Edge permission",
         ["正在绑定标签页"] = "Binding tab",
@@ -191,7 +201,7 @@ internal static class UiText
         ["本地会话工作区不存在：{0}"] = "The local conversation workspace does not exist: {0}",
         ["选择本地会话工作区"] = "Choose local conversation workspace",
         ["Edge 远程调试尚未开启。请在 edge://inspect 的 Remote debugging 页面允许当前浏览器实例。"] = "Edge remote debugging is not enabled. Allow this browser instance from edge://inspect's Remote debugging page.",
-        ["没有发现可用的 Microsoft 365 Copilot 聊天标签页。请先打开 https://m365.cloud.microsoft/chat/。"] = "No eligible Microsoft 365 Copilot chat tab was found. Open https://m365.cloud.microsoft/chat/ first.",
+        ["没有发现可用的 Copilot 聊天标签页。请打开 https://m365.cloud.microsoft/chat/ 或 https://copilot.cloud.microsoft/chat/。"] = "No eligible Copilot chat tab was found. Open https://m365.cloud.microsoft/chat/ or https://copilot.cloud.microsoft/chat/.",
         ["发现多个 Copilot 聊天标签页。请只保留一个专用标签页后重试。"] = "Multiple Copilot chat tabs were found. Keep only one dedicated tab, then try again.",
         ["等待 Edge 允许远程访问超时。请在 Edge 中选择“允许”，然后点击刷新状态；本次运行的后续操作会复用同一连接。"] = "Timed out waiting for Edge remote-access permission. Choose Allow in Edge, then refresh status; later actions in this run reuse the same connection."
     };
@@ -255,6 +265,14 @@ internal static class UiText
                 AutomationProperties.SetName(
                     automationElement,
                     Translate(AutomationProperties.GetName(automationElement), language));
+            }
+
+            if (child is FrameworkElement helpElement &&
+                !string.IsNullOrWhiteSpace(AutomationProperties.GetHelpText(helpElement)))
+            {
+                AutomationProperties.SetHelpText(
+                    helpElement,
+                    Translate(AutomationProperties.GetHelpText(helpElement), language));
             }
 
             ApplyElement(child, language);

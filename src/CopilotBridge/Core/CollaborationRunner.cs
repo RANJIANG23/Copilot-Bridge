@@ -41,7 +41,7 @@ internal sealed class CollaborationRunner
     {
         var coordinator = new ConsultationCoordinator(settings, selectors);
         _execute = request => coordinator.AssistOnPageAsync(page, request);
-        _newConversationUrl = $"https://{selectors.AllowedHost}/chat/";
+        _newConversationUrl = selectors.NewChatUrlFor(page.Url);
     }
 
     internal CollaborationRunner(

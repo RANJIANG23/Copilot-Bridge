@@ -22,15 +22,15 @@ Routine consultations do not simulate physical input, take foreground focus, or 
 
 从 [GitHub Releases](https://github.com/RANJIANG23/Copilot-Bridge/releases) 下载以下两个同版本文件。Download both matching-version files from [GitHub Releases](https://github.com/RANJIANG23/Copilot-Bridge/releases):
 
-- `CopilotBridge-1.2.0-win-x64.zip`
-- `CopilotBridge-1.2.0-win-x64.zip.sha256`
+- `CopilotBridge-1.2.1-win-x64.zip`
+- `CopilotBridge-1.2.1-win-x64.zip.sha256`
 
 ZIP 的 SHA-256 位于同名 `.sha256` 文件中。The ZIP SHA-256 is supplied in its matching `.sha256` file.
 
 安装前可在 PowerShell 中核对。Verify it in PowerShell before installation:
 
 ```powershell
-(Get-FileHash .\CopilotBridge-1.2.0-win-x64.zip -Algorithm SHA256).Hash.ToLowerInvariant()
+(Get-FileHash .\CopilotBridge-1.2.1-win-x64.zip -Algorithm SHA256).Hash.ToLowerInvariant()
 ```
 
 ### 使用前提 / Requirements
@@ -76,7 +76,7 @@ v1.0 established a complete, verifiable path from Codex to Microsoft 365 Copilot
 - **一次性发送保护**：发送状态不确定时绝不自动重发；GUI 与 MCP 并发写入会立即返回 busy，而非排队。**One-time submission protection:** uncertain submissions are never retried; concurrent GUI and MCP writes return busy instead of queuing.
 - **本机团队门禁**：Phase 0–6 与 G1–G8 已完成；真实日常 Edge 后台 Assist、十次唯一发送、MCP 接入、本机隔离安装/卸载与前台无抢占均已验证。**Local team gates:** Phase 0–6 and G1–G8 are complete, including real daily-Edge background Assist, ten unique submissions, MCP integration, isolated local install/uninstall, and no foreground takeover.
 
-当前已发布团队安装包为 1.2.0。每次安装前均应核对同名 `.sha256` 文件。The current released team installer is 1.2.0. Verify its matching `.sha256` file before installation.
+当前已发布团队安装包为 1.2.1。每次安装前均应核对同名 `.sha256` 文件。The current released team installer is 1.2.1. Verify its matching `.sha256` file before installation.
 
 ## v1.1.1 会话工作台与体验更新 / v1.1.1 workspace and usability update
 
@@ -132,19 +132,32 @@ v1.1.2 focuses on conversation management, a Copilot-inspired interface, and des
 
 完整范围、权限语义和阶段门见 [v1.2.0 核心设计](./v1.2.0-design.md)。See the [v1.2.0 core design](./v1.2.0-design.md) for the complete scope, access semantics, and phase gates.
 
+## v1.2.1 界面、可访问性与双入口兼容 / v1.2.1 UI, accessibility, and dual-origin support
+
+`1.2.1` 已完成 Phase 20–23 并正式发布。它统一现有 WPF 主题资源、补齐键盘与辅助技术路径，并修复团队试点发现的 Copilot 双入口兼容和重复 Edge 授权弹窗问题。MCP、项目权限、Markdown、DOM 发送与禁止自动重发语义保持不变。
+
+`1.2.1` has completed Phases 20–23 and is released. It consolidates the existing WPF theme resources, adds keyboard and assistive-technology paths, and fixes the Copilot dual-origin compatibility issue and repeated Edge permission prompts found during team piloting. MCP, project access, Markdown, DOM submission, and no-automatic-resend semantics remain unchanged.
+
+- **精确双入口**：只允许 `m365.cloud.microsoft` 与 `copilot.cloud.microsoft`，拒绝 HTTP、非默认端口和相似后缀域名。**Exact dual origins:** only `m365.cloud.microsoft` and `copilot.cloud.microsoft` are allowed; HTTP, non-default ports, and lookalike suffixes are rejected.
+- **停止授权循环**：首次连接失败会记录真实错误并暂停自动刷新，用户修正后通过“刷新状态”恢复。**Permission-loop prevention:** an initial connection failure is logged and automatic refresh pauses until the user fixes the issue and chooses Refresh status.
+- **统一组件状态**：单一共享资源字典覆盖明暗主题及按钮、输入、选择、列表、开关和菜单状态。**Unified component states:** one shared resource dictionary covers light/dark themes and button, input, selector, list, toggle, and menu states.
+- **键盘与辅助技术**：项目和模型支持 `Alt+↑/↓` 排序，关键导航、状态与操作补齐自动化语义和焦点反馈。**Keyboard and assistive technology:** projects and models support `Alt+↑/↓` ordering, with automation semantics and focus feedback added to key navigation, status, and actions.
+
+详细设计和阶段门见 [v1.2.1 设计](./v1.2.1-design.md)。See the [v1.2.1 design](./v1.2.1-design.md) for the exact scope and phase gates.
+
 ## 当前状态与限制 / Current status and limits
 
 | 项目 / Item | 状态 / Status |
 |---|---|
-| 当前源码版本 / Current source version | `1.2.0`（已发布 / released） |
-| 发布状态 / Release status | v1.2.0 已发布 Windows x64 自包含安装包与 SHA-256 文件 / v1.2.0 released with a Windows x64 self-contained package and SHA-256 file |
-| 已通过 / Passed | Phase 0–19 and G1–G8 |
+| 当前源码版本 / Current source version | `1.2.1` |
+| 发布状态 / Release status | v1.2.1 已发布 Windows x64 自包含安装包与 SHA-256 文件 / v1.2.1 released with a Windows x64 self-contained package and SHA-256 file |
+| 已通过 / Passed | Phase 0–23 and G1–G8 |
 | 后续试点 / Follow-up pilot | 不同硬件、账号和企业策略环境 / Different hardware, account, and enterprise-policy environments |
 | 平台 / Platform | Windows 11 x64 |
 
-团队 v1.2.0 已达到项目定义的本机门禁，但不把本机隔离验收描述为跨设备兼容性证明。`1.2.0` 已作为 Windows x64 自包含安装包发布；安装前请核对 GitHub Release 中的同名 `.sha256` 文件。
+团队 v1.2.1 已达到项目定义的本机门禁，但不把本机隔离验收描述为跨设备兼容性证明。`1.2.1` 已作为 Windows x64 自包含安装包发布；安装前请核对 GitHub Release 中的同名 `.sha256` 文件。
 
-Team v1.2.0 satisfies the project's local gates, but local isolated acceptance is not presented as proof of cross-device compatibility. `1.2.0` is released as a Windows x64 self-contained package; verify the matching `.sha256` file in the GitHub Release before installation.
+Team v1.2.1 satisfies the project's local gates, but local isolated acceptance is not presented as proof of cross-device compatibility. `1.2.1` is released as a Windows x64 self-contained package; verify the matching `.sha256` file in the GitHub Release before installation.
 
 ## 架构开发思路 / Architecture and design rationale
 

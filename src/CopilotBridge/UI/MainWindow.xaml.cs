@@ -42,6 +42,7 @@ public partial class MainWindow : Window
     private bool _windowIsActive;
     private int _consecutiveStatusRefreshFailures;
     private DateTimeOffset? _lastStatusRefresh;
+    private bool _automaticStatusRefreshPaused;
     private bool _settingsAreLoaded;
     private const string ConversationDragFormat = "CopilotBridge.Conversation";
     private const string ModelDragFormat = "CopilotBridge.Model";
@@ -242,6 +243,10 @@ public partial class MainWindow : Window
             TabStatusText.Text = T("已绑定专用 Copilot 标签页");
             ShowNotice(T("已绑定当前专用 Copilot 标签页。"), NoticeKind.Success);
             await ReadConnectedStatusAsync(session);
+            _consecutiveStatusRefreshFailures = 0;
+            _lastStatusRefresh = DateTimeOffset.Now;
+            _automaticStatusRefreshPaused = false;
+            ScheduleStatusRefresh();
         }
         catch (Exception exception)
         {
@@ -397,6 +402,29 @@ public partial class MainWindow : Window
         _projectDragItem = null;
     }
 
+    private async void ProjectListBox_PreviewKeyDown(object sender, KeyEventArgs e)
+    {
+        var direction = KeyboardMoveDirection(e);
+        if (direction == 0 || ProjectListBox.SelectedItem is not WorkspaceProject { IsSystem: false } source) return;
+        e.Handled = true;
+        var group = _projects
+            .Where(project => !project.IsSystem && project.IsPinned == source.IsPinned)
+            .ToList();
+        var sourceIndex = group.FindIndex(project => project.Id == source.Id);
+        var targetIndex = sourceIndex + direction;
+        if (sourceIndex < 0 || targetIndex < 0 || targetIndex >= group.Count) return;
+
+        try
+        {
+            await _workspace.ReorderProjectAsync(source, group[targetIndex]);
+            _activeProjectId = source.Id;
+            await RefreshWorkspaceAsync();
+            SelectProject(source.Id);
+            ShowNotice(T("项目顺序已更新。"), NoticeKind.Success);
+        }
+        catch (Exception exception) { ShowNotice(FriendlyMessage(exception), NoticeKind.Error); }
+    }
+
     private void ProjectListBox_PreviewMouseRightButtonDown(object sender, MouseButtonEventArgs e)
     {
         if (FindParent<ListBoxItem>(e.OriginalSource as DependencyObject)?.DataContext is WorkspaceProject project)
@@ -531,6 +559,16 @@ public partial class MainWindow : Window
         _modelPriorityDragItem = null;
     }
 
+    private void ModelPriorityListBox_PreviewKeyDown(object sender, KeyEventArgs e)
+    {
+        var direction = KeyboardMoveDirection(e);
+        if (direction == 0 || ModelPriorityListBox.SelectedItem is not string model) return;
+        e.Handled = true;
+        var sourceIndex = _modelPriority.IndexOf(model);
+        if (!MoveModelPriorityToIndex(model, sourceIndex + direction)) return;
+        ShowNotice(T("模型优先级已调整；点击保存浏览器与模型设置以持久化。"), NoticeKind.Info);
+    }
+
     private void ProjectListBox_PreviewDragOver(object sender, DragEventArgs e)
     {
         var target = FindParent<ListBoxItem>(e.OriginalSource as DependencyObject)?.DataContext as WorkspaceProject;
@@ -561,12 +599,19 @@ public partial class MainWindow : Window
         var targetIndex = targetModel is null ? _modelPriority.Count : _modelPriority.IndexOf(targetModel);
         if (targetIndex < 0) targetIndex = _modelPriority.Count;
         if (sourceIndex < targetIndex) targetIndex--;
-        if (sourceIndex == targetIndex) return;
+        MoveModelPriorityToIndex(model, targetIndex);
+    }
 
+    private bool MoveModelPriorityToIndex(string model, int targetIndex)
+    {
+        var sourceIndex = _modelPriority.IndexOf(model);
+        if (sourceIndex < 0 || targetIndex < 0 || targetIndex >= _modelPriority.Count || sourceIndex == targetIndex) return false;
         _modelPriority.RemoveAt(sourceIndex);
         _modelPriority.Insert(targetIndex, model);
         ModelPriorityListBox.SelectedItem = model;
+        ModelPriorityListBox.ScrollIntoView(model);
         AnimateDropSettled(ModelPriorityListBox);
+        return true;
     }
 
     private async void ProjectListBox_Drop(object sender, DragEventArgs e)
@@ -746,7 +791,7 @@ public partial class MainWindow : Window
         conversation = conversation with
         {
             Mode = _settings.CollaborationMode.ToString().ToLowerInvariant(),
-            CopilotConversationUrl = $"https://{_selectors.AllowedHost}/chat/"
+            CopilotConversationUrl = _selectors.NewChatUrlFor(_settings.BoundConversationUrl)
         };
         await _workspace.SaveAsync(conversation);
         return conversation;
@@ -875,11 +920,13 @@ public partial class MainWindow : Window
 
     private async Task RefreshStatusAsync(bool automatic = false)
     {
+        if (automatic && _automaticStatusRefreshPaused) return;
         if (_busy || _statusRefreshInProgress)
         {
             if (automatic) ScheduleStatusRefresh();
             return;
         }
+        if (!automatic) _automaticStatusRefreshPaused = false;
         _statusRefreshInProgress = true;
         if (!automatic) SetBusy(true, _session is null ? "等待 Edge 授权" : "正在刷新状态");
         try
@@ -892,9 +939,19 @@ public partial class MainWindow : Window
         }
         catch (Exception exception)
         {
-            if (!automatic) SetDisconnectedState();
+            DiagnosticLog.Write("gui_status_refresh_failed", exception);
             _consecutiveStatusRefreshFailures++;
-            if (!automatic) ShowNotice(FriendlyMessage(exception), NoticeKind.Error);
+            if (_session is null)
+            {
+                _automaticStatusRefreshPaused = true;
+                SetDisconnectedState();
+                ShowNotice(FriendlyMessage(exception), NoticeKind.Error);
+            }
+            else if (!automatic)
+            {
+                SetDisconnectedState();
+                ShowNotice(FriendlyMessage(exception), NoticeKind.Error);
+            }
         }
         finally
         {
@@ -917,9 +974,14 @@ public partial class MainWindow : Window
 
     private async Task<EdgeSessionAdapter> GetSessionAsync()
     {
-        if (_session is not null && !_session.Page.IsClosed) return _session;
+        if (_session is not null && !_session.Page.IsClosed)
+        {
+            _automaticStatusRefreshPaused = false;
+            return _session;
+        }
         await ResetSessionAsync();
         _session = await EdgeSessionAdapter.ConnectAsync(_settings, _selectors, timeoutMilliseconds: 30_000);
+        _automaticStatusRefreshPaused = false;
         return _session;
     }
 
@@ -1056,22 +1118,31 @@ public partial class MainWindow : Window
             _activePage == "overview",
             _windowIsActive,
             WindowState == WindowState.Minimized,
-            _consecutiveStatusRefreshFailures);
+            _consecutiveStatusRefreshFailures,
+            _automaticStatusRefreshPaused);
         _statusRefreshTimer.Stop();
-        _statusRefreshTimer.Interval = interval;
+        if (interval is null)
+        {
+            AutoRefreshStatusText.Text = _settings.DisplayLanguage == AppLanguage.English
+                ? "Automatic refresh is paused. Fix the Edge or Copilot tab issue, then choose Refresh status."
+                : "自动刷新已暂停。修正 Edge 或 Copilot 标签页问题后，请点击“刷新状态”。";
+            return;
+        }
+
+        _statusRefreshTimer.Interval = interval.Value;
         _statusRefreshTimer.Start();
 
         AutoRefreshStatusText.Text = _settings.DisplayLanguage == AppLanguage.English
             ? _consecutiveStatusRefreshFailures > 0
-                ? $"Automatic refresh failed {_consecutiveStatusRefreshFailures} time(s); retrying in {interval.TotalSeconds:0} seconds."
+                ? $"Automatic refresh failed {_consecutiveStatusRefreshFailures} time(s); retrying in {interval.Value.TotalSeconds:0} seconds."
                 : _lastStatusRefresh is null
                     ? "Automatic refresh is on: every 10 seconds while Overview is active, otherwise every 60 seconds."
-                    : $"Automatic refresh is on · last checked {_lastStatusRefresh.Value.LocalDateTime:HH:mm:ss} · next check in about {interval.TotalSeconds:0} seconds."
+                    : $"Automatic refresh is on · last checked {_lastStatusRefresh.Value.LocalDateTime:HH:mm:ss} · next check in about {interval.Value.TotalSeconds:0} seconds."
             : _consecutiveStatusRefreshFailures > 0
-                ? $"自动刷新失败 {_consecutiveStatusRefreshFailures} 次；将在 {interval.TotalSeconds:0} 秒后重试。"
+                ? $"自动刷新失败 {_consecutiveStatusRefreshFailures} 次；将在 {interval.Value.TotalSeconds:0} 秒后重试。"
                 : _lastStatusRefresh is null
                     ? "自动刷新已开启：概览前台每 10 秒，后台每 60 秒。"
-                    : $"自动刷新已开启 · 上次检查 {_lastStatusRefresh.Value.LocalDateTime:HH:mm:ss} · 下次约 {interval.TotalSeconds:0} 秒后。";
+                    : $"自动刷新已开启 · 上次检查 {_lastStatusRefresh.Value.LocalDateTime:HH:mm:ss} · 下次约 {interval.Value.TotalSeconds:0} 秒后。";
     }
 
     private void ShowNotice(string message, NoticeKind kind)
@@ -1092,6 +1163,13 @@ public partial class MainWindow : Window
     {
         _noticeTimer.Stop();
         NoticeBorder.Visibility = Visibility.Collapsed;
+    }
+
+    private static int KeyboardMoveDirection(KeyEventArgs e)
+    {
+        if ((Keyboard.Modifiers & ModifierKeys.Alt) == 0) return 0;
+        var key = e.Key == Key.System ? e.SystemKey : e.Key;
+        return key switch { Key.Up => -1, Key.Down => 1, _ => 0 };
     }
 
     private void UpdateHistoryColumns()
@@ -1248,7 +1326,7 @@ public partial class MainWindow : Window
     private string FriendlyMessage(Exception exception) => exception.Message switch
     {
         var message when message.Contains("DevToolsActivePort", StringComparison.OrdinalIgnoreCase) => T("Edge 远程调试尚未开启。请在 edge://inspect 的 Remote debugging 页面允许当前浏览器实例。"),
-        var message when message.Contains("No eligible", StringComparison.OrdinalIgnoreCase) => T("没有发现可用的 Microsoft 365 Copilot 聊天标签页。请先打开 https://m365.cloud.microsoft/chat/。"),
+        var message when message.Contains("No eligible", StringComparison.OrdinalIgnoreCase) => T("没有发现可用的 Copilot 聊天标签页。请打开 https://m365.cloud.microsoft/chat/ 或 https://copilot.cloud.microsoft/chat/。"),
         var message when message.Contains("Found", StringComparison.OrdinalIgnoreCase) && message.Contains("eligible Copilot tabs", StringComparison.OrdinalIgnoreCase) => T("发现多个 Copilot 聊天标签页。请只保留一个专用标签页后重试。"),
         var message when message.Contains("Timeout", StringComparison.OrdinalIgnoreCase) && message.Contains("ws connecting", StringComparison.OrdinalIgnoreCase) => T("等待 Edge 允许远程访问超时。请在 Edge 中选择“允许”，然后点击刷新状态；本次运行的后续操作会复用同一连接。"),
         _ => exception.Message

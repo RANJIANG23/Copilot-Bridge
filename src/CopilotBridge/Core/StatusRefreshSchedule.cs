@@ -2,12 +2,15 @@ namespace CopilotBridge.Core;
 
 internal static class StatusRefreshSchedule
 {
-    internal static TimeSpan NextInterval(
+    internal static TimeSpan? NextInterval(
         bool overviewIsVisible,
         bool windowIsActive,
         bool windowIsMinimized,
-        int consecutiveFailures)
+        int consecutiveFailures,
+        bool paused = false)
     {
+        if (paused) return null;
+
         if (consecutiveFailures > 0)
         {
             var seconds = Math.Min(120, 30 * (1 << Math.Min(consecutiveFailures - 1, 2)));
