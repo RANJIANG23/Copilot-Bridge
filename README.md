@@ -22,15 +22,15 @@ Routine consultations do not simulate physical input, take foreground focus, or 
 
 从 [GitHub Releases](https://github.com/RANJIANG23/Copilot-Bridge/releases) 下载以下两个同版本文件。Download both matching-version files from [GitHub Releases](https://github.com/RANJIANG23/Copilot-Bridge/releases):
 
-- `CopilotBridge-1.1.2-win-x64.zip`
-- `CopilotBridge-1.1.2-win-x64.zip.sha256`
+- `CopilotBridge-1.2.0-win-x64.zip`
+- `CopilotBridge-1.2.0-win-x64.zip.sha256`
 
 ZIP 的 SHA-256 位于同名 `.sha256` 文件中。The ZIP SHA-256 is supplied in its matching `.sha256` file.
 
 安装前可在 PowerShell 中核对。Verify it in PowerShell before installation:
 
 ```powershell
-(Get-FileHash .\CopilotBridge-1.1.2-win-x64.zip -Algorithm SHA256).Hash.ToLowerInvariant()
+(Get-FileHash .\CopilotBridge-1.2.0-win-x64.zip -Algorithm SHA256).Hash.ToLowerInvariant()
 ```
 
 ### 使用前提 / Requirements
@@ -76,7 +76,7 @@ v1.0 established a complete, verifiable path from Codex to Microsoft 365 Copilot
 - **一次性发送保护**：发送状态不确定时绝不自动重发；GUI 与 MCP 并发写入会立即返回 busy，而非排队。**One-time submission protection:** uncertain submissions are never retried; concurrent GUI and MCP writes return busy instead of queuing.
 - **本机团队门禁**：Phase 0–6 与 G1–G8 已完成；真实日常 Edge 后台 Assist、十次唯一发送、MCP 接入、本机隔离安装/卸载与前台无抢占均已验证。**Local team gates:** Phase 0–6 and G1–G8 are complete, including real daily-Edge background Assist, ten unique submissions, MCP integration, isolated local install/uninstall, and no foreground takeover.
 
-当前已发布团队安装包为 1.1.2。每次安装前均应核对同名 `.sha256` 文件。The current released team installer is 1.1.2. Verify its matching `.sha256` file before installation.
+当前已发布团队安装包为 1.2.0。每次安装前均应核对同名 `.sha256` 文件。The current released team installer is 1.2.0. Verify its matching `.sha256` file before installation.
 
 ## v1.1.1 会话工作台与体验更新 / v1.1.1 workspace and usability update
 
@@ -118,11 +118,11 @@ v1.1.2 focuses on conversation management, a Copilot-inspired interface, and des
 - 对话详情不再显示内部 Base64 元数据注释，但磁盘上的 Markdown 与兼容元数据保持不变。Conversation details no longer expose the internal Base64 metadata comment, while stored Markdown and compatibility metadata remain unchanged.
 - Windows x64 自包含包已通过 77/77 测试、60 秒静默刷新观察、包内哈希清单校验及隔离的 1.1.1→1.1.2 升级/卸载验收。The Windows x64 self-contained package passed 77/77 tests, a 60-second silent-refresh observation, archive-manifest verification, and an isolated 1.1.1→1.1.2 upgrade/uninstall gate.
 
-### v1.2.0 开发主线 / v1.2.0 development focus
+## v1.2.0 受控会话复用 / v1.2.0 controlled conversation reuse
 
-`1.1.2` 已完成 Phase 13–14 并正式发布。`1.2.0` 已完成 Phase 15–19 的本地发布候选门禁，核心主线是让 Codex 在用户按项目授权的范围内检索、读取和复用本地 Copilot 会话；现有 Edge/CDP/DOM 发送、协作模式和禁止自动重发边界保持不变。候选包尚未创建标签、推送或正式发布。
+`1.2.0` 已完成 Phase 15–19 并正式发布。它让 Codex 可以在用户按项目授权的范围内检索、读取和复用本地 Copilot 会话；现有 Edge/CDP/DOM 发送、协作模式和禁止自动重发边界保持不变。
 
-`1.1.2` has completed Phases 13–14 and is released. The local `1.2.0` release candidate has passed Phases 15–19, allowing Codex to search, read, and reuse local Copilot conversations within project scopes explicitly authorized by the user. Existing Edge/CDP/DOM submission, collaboration-mode, and no-automatic-resend boundaries remain unchanged. No tag, push, or public release has been created for this candidate.
+`1.2.0` has completed Phases 15–19 and is released. It allows Codex to search, read, and reuse local Copilot conversations within project scopes explicitly authorized by the user. Existing Edge/CDP/DOM submission, collaboration-mode, and no-automatic-resend boundaries remain unchanged.
 
 - **默认关闭**：已有和新建项目默认不向 MCP 暴露。**Off by default:** existing and newly created projects are not exposed through MCP by default.
 - **四级权限**：用户可按项目选择关闭、元数据、检索片段或完整会话读取。**Four access levels:** users can choose off, metadata, search snippets, or full conversation reading per project.
@@ -136,15 +136,15 @@ v1.1.2 focuses on conversation management, a Copilot-inspired interface, and des
 
 | 项目 / Item | 状态 / Status |
 |---|---|
-| 当前源码版本 / Current source version | `1.2.0`（本地发布候选，尚未发布 / local release candidate, not released） |
-| 发布状态 / Release status | v1.1.2 已发布 Windows x64 自包含安装包与 SHA-256 文件 / v1.1.2 released with a Windows x64 self-contained package and SHA-256 file |
-| 已通过 / Passed | Phase 0–19 and G1–G8（v1.2.0 尚未发布 / v1.2.0 is not released） |
+| 当前源码版本 / Current source version | `1.2.0`（已发布 / released） |
+| 发布状态 / Release status | v1.2.0 已发布 Windows x64 自包含安装包与 SHA-256 文件 / v1.2.0 released with a Windows x64 self-contained package and SHA-256 file |
+| 已通过 / Passed | Phase 0–19 and G1–G8 |
 | 后续试点 / Follow-up pilot | 不同硬件、账号和企业策略环境 / Different hardware, account, and enterprise-policy environments |
 | 平台 / Platform | Windows 11 x64 |
 
-团队 v1.1.2 已达到项目定义的本机门禁，但不把本机隔离验收描述为跨设备兼容性证明。`1.1.2` 已作为 Windows x64 自包含安装包发布；安装前请核对 GitHub Release 中的同名 `.sha256` 文件。
+团队 v1.2.0 已达到项目定义的本机门禁，但不把本机隔离验收描述为跨设备兼容性证明。`1.2.0` 已作为 Windows x64 自包含安装包发布；安装前请核对 GitHub Release 中的同名 `.sha256` 文件。
 
-Team v1.1.2 satisfies the project's local gates, but local isolated acceptance is not presented as proof of cross-device compatibility. `1.1.2` is released as a Windows x64 self-contained package; verify the matching `.sha256` file in the GitHub Release before installation.
+Team v1.2.0 satisfies the project's local gates, but local isolated acceptance is not presented as proof of cross-device compatibility. `1.2.0` is released as a Windows x64 self-contained package; verify the matching `.sha256` file in the GitHub Release before installation.
 
 ## 架构开发思路 / Architecture and design rationale
 
