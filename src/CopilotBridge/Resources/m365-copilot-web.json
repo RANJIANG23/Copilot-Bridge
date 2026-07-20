@@ -1,5 +1,8 @@
 {
-  "allowedHost": "m365.cloud.microsoft",
+  "allowedHosts": [
+    "m365.cloud.microsoft",
+    "copilot.cloud.microsoft"
+  ],
   "modelSwitcher": [
     "button#gptModeSwitcher",
     "[data-testid='gpt-mode-switcher']"

@@ -2,7 +2,7 @@
 
 > 设计基线：v1.2.1 开发基线
 > 日期：2026-07-20（Asia/Shanghai）
-> 状态：v1.2.0 已发布；v1.2.1 Phase 20–22 已通过，下一阶段为视觉与发布候选门禁
+> 状态：v1.2.1 Phase 20–23 已通过，用户已授权正式发布
 > 工作名称：Copilot Bridge
 > 项目目录：本仓库根目录
 > 目标模式执行路线图：[EXECUTION-ROADMAP.md](./EXECUTION-ROADMAP.md)
@@ -30,7 +30,7 @@
 | 决策项 | v1 结论 |
 |---|---|
 | 浏览器 | 团队日常使用的 Microsoft Edge 与现有登录状态 |
-| Copilot 地址 | `https://m365.cloud.microsoft/chat/` |
+| Copilot 地址 | 精确允许 `https://m365.cloud.microsoft/chat/` 与 `https://copilot.cloud.microsoft/chat/` |
 | 自动化方式 | Edge CDP + DOM，只控制一个专用 Copilot 标签页 |
 | 前台占用 | 禁止抢占窗口、切换用户当前标签页、移动鼠标或注入物理键盘输入 |
 | 协作模式 | Assist、Outsource、Review；由用户在 GUI 中手动选择 |
@@ -211,7 +211,7 @@ v1 不自动启动 Edge，也不在 Edge 关闭后尝试带参数重新启动日
 每次准备修改页面前必须同时验证：
 
 - scheme 为 HTTPS；
-- host 精确等于 `m365.cloud.microsoft`；
+- host 精确等于 `m365.cloud.microsoft` 或 `copilot.cloud.microsoft`，不接受通配或后缀匹配；
 - path 为 `/chat/` 或 `/chat/conversation/{id}`；
 - 页面仍带有 Bridge 标记；
 - 页面中存在唯一且可编辑的消息输入框。
@@ -1090,6 +1090,6 @@ v1.2.0 的范围已经由用户确认并启动，详细设计以 [v1.2.0-design.
 
 ## 27. v1.2.1 设计边界
 
-v1.2.0 已正式发布。v1.2.1 以 [v1.2.1-design.md](./v1.2.1-design.md) 为权威范围，集中整理现有 WPF 主题资源、补齐组件状态与键盘/辅助技术路径，并完成最小窗口下的布局安全验证。
+v1.2.0 已正式发布。v1.2.1 以 [v1.2.1-design.md](./v1.2.1-design.md) 为权威范围，集中整理现有 WPF 主题资源、补齐组件状态与键盘/辅助技术路径，并完成最小窗口下的布局安全验证。Phase 23 同时修复团队试点确认的 `copilot.cloud.microsoft` 精确入口兼容和首次连接失败后的重复授权问题。
 
-本版本不改变 MCP、项目授权、Markdown、Edge/CDP/DOM、模型选择或发送边界；不引入第三方 UI 库、MVVM 重构、完整 Adaptive、系统托盘、开机启动或会话存储 v2。WorkBuddy 仍只作为开发期草稿输入，任何内容进入正式设计和代码前必须由本仓库事实独立核验。
+本版本不改变 MCP、项目授权、Markdown、模型选择或发送边界；Edge/CDP 只增加两个精确 Copilot origin 的兼容和连接失败诊断，不放宽到通配域名，也不改变禁止自动重发。它不引入第三方 UI 库、MVVM 重构、完整 Adaptive、系统托盘、开机启动或会话存储 v2。WorkBuddy 仍只作为开发期草稿输入，任何内容进入正式设计和代码前必须由本仓库事实独立核验。

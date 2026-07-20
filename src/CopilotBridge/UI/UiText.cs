@@ -201,7 +201,7 @@ internal static class UiText
         ["本地会话工作区不存在：{0}"] = "The local conversation workspace does not exist: {0}",
         ["选择本地会话工作区"] = "Choose local conversation workspace",
         ["Edge 远程调试尚未开启。请在 edge://inspect 的 Remote debugging 页面允许当前浏览器实例。"] = "Edge remote debugging is not enabled. Allow this browser instance from edge://inspect's Remote debugging page.",
-        ["没有发现可用的 Microsoft 365 Copilot 聊天标签页。请先打开 https://m365.cloud.microsoft/chat/。"] = "No eligible Microsoft 365 Copilot chat tab was found. Open https://m365.cloud.microsoft/chat/ first.",
+        ["没有发现可用的 Copilot 聊天标签页。请打开 https://m365.cloud.microsoft/chat/ 或 https://copilot.cloud.microsoft/chat/。"] = "No eligible Copilot chat tab was found. Open https://m365.cloud.microsoft/chat/ or https://copilot.cloud.microsoft/chat/.",
         ["发现多个 Copilot 聊天标签页。请只保留一个专用标签页后重试。"] = "Multiple Copilot chat tabs were found. Keep only one dedicated tab, then try again.",
         ["等待 Edge 允许远程访问超时。请在 Edge 中选择“允许”，然后点击刷新状态；本次运行的后续操作会复用同一连接。"] = "Timed out waiting for Edge remote-access permission. Choose Allow in Edge, then refresh status; later actions in this run reuse the same connection."
     };

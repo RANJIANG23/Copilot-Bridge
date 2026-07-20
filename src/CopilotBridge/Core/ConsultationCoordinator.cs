@@ -68,10 +68,7 @@ internal sealed class ConsultationCoordinator
 
     private void ValidateConversationUrl(string value)
     {
-        if (!Uri.TryCreate(value, UriKind.Absolute, out var uri) ||
-            uri.Scheme != Uri.UriSchemeHttps ||
-            !uri.Host.Equals(_selectors.AllowedHost, StringComparison.OrdinalIgnoreCase) ||
-            !uri.AbsolutePath.StartsWith("/chat/", StringComparison.OrdinalIgnoreCase))
+        if (!_selectors.IsAllowedChatUrl(value))
         {
             throw new ArgumentException("Conversation URL is outside the allowed Copilot chat origin.", nameof(value));
         }

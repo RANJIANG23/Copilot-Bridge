@@ -42,6 +42,7 @@ public partial class MainWindow : Window
     private bool _windowIsActive;
     private int _consecutiveStatusRefreshFailures;
     private DateTimeOffset? _lastStatusRefresh;
+    private bool _automaticStatusRefreshPaused;
     private bool _settingsAreLoaded;
     private const string ConversationDragFormat = "CopilotBridge.Conversation";
     private const string ModelDragFormat = "CopilotBridge.Model";
@@ -242,6 +243,10 @@ public partial class MainWindow : Window
             TabStatusText.Text = T("已绑定专用 Copilot 标签页");
             ShowNotice(T("已绑定当前专用 Copilot 标签页。"), NoticeKind.Success);
             await ReadConnectedStatusAsync(session);
+            _consecutiveStatusRefreshFailures = 0;
+            _lastStatusRefresh = DateTimeOffset.Now;
+            _automaticStatusRefreshPaused = false;
+            ScheduleStatusRefresh();
         }
         catch (Exception exception)
         {
@@ -786,7 +791,7 @@ public partial class MainWindow : Window
         conversation = conversation with
         {
             Mode = _settings.CollaborationMode.ToString().ToLowerInvariant(),
-            CopilotConversationUrl = $"https://{_selectors.AllowedHost}/chat/"
+            CopilotConversationUrl = _selectors.NewChatUrlFor(_settings.BoundConversationUrl)
         };
         await _workspace.SaveAsync(conversation);
         return conversation;
@@ -915,11 +920,13 @@ public partial class MainWindow : Window
 
     private async Task RefreshStatusAsync(bool automatic = false)
     {
+        if (automatic && _automaticStatusRefreshPaused) return;
         if (_busy || _statusRefreshInProgress)
         {
             if (automatic) ScheduleStatusRefresh();
             return;
         }
+        if (!automatic) _automaticStatusRefreshPaused = false;
         _statusRefreshInProgress = true;
         if (!automatic) SetBusy(true, _session is null ? "等待 Edge 授权" : "正在刷新状态");
         try
@@ -932,9 +939,19 @@ public partial class MainWindow : Window
         }
         catch (Exception exception)
         {
-            if (!automatic) SetDisconnectedState();
+            DiagnosticLog.Write("gui_status_refresh_failed", exception);
             _consecutiveStatusRefreshFailures++;
-            if (!automatic) ShowNotice(FriendlyMessage(exception), NoticeKind.Error);
+            if (_session is null)
+            {
+                _automaticStatusRefreshPaused = true;
+                SetDisconnectedState();
+                ShowNotice(FriendlyMessage(exception), NoticeKind.Error);
+            }
+            else if (!automatic)
+            {
+                SetDisconnectedState();
+                ShowNotice(FriendlyMessage(exception), NoticeKind.Error);
+            }
         }
         finally
         {
@@ -957,9 +974,14 @@ public partial class MainWindow : Window
 
     private async Task<EdgeSessionAdapter> GetSessionAsync()
     {
-        if (_session is not null && !_session.Page.IsClosed) return _session;
+        if (_session is not null && !_session.Page.IsClosed)
+        {
+            _automaticStatusRefreshPaused = false;
+            return _session;
+        }
         await ResetSessionAsync();
         _session = await EdgeSessionAdapter.ConnectAsync(_settings, _selectors, timeoutMilliseconds: 30_000);
+        _automaticStatusRefreshPaused = false;
         return _session;
     }
 
@@ -1096,22 +1118,31 @@ public partial class MainWindow : Window
             _activePage == "overview",
             _windowIsActive,
             WindowState == WindowState.Minimized,
-            _consecutiveStatusRefreshFailures);
+            _consecutiveStatusRefreshFailures,
+            _automaticStatusRefreshPaused);
         _statusRefreshTimer.Stop();
-        _statusRefreshTimer.Interval = interval;
+        if (interval is null)
+        {
+            AutoRefreshStatusText.Text = _settings.DisplayLanguage == AppLanguage.English
+                ? "Automatic refresh is paused. Fix the Edge or Copilot tab issue, then choose Refresh status."
+                : "自动刷新已暂停。修正 Edge 或 Copilot 标签页问题后，请点击“刷新状态”。";
+            return;
+        }
+
+        _statusRefreshTimer.Interval = interval.Value;
         _statusRefreshTimer.Start();
 
         AutoRefreshStatusText.Text = _settings.DisplayLanguage == AppLanguage.English
             ? _consecutiveStatusRefreshFailures > 0
-                ? $"Automatic refresh failed {_consecutiveStatusRefreshFailures} time(s); retrying in {interval.TotalSeconds:0} seconds."
+                ? $"Automatic refresh failed {_consecutiveStatusRefreshFailures} time(s); retrying in {interval.Value.TotalSeconds:0} seconds."
                 : _lastStatusRefresh is null
                     ? "Automatic refresh is on: every 10 seconds while Overview is active, otherwise every 60 seconds."
-                    : $"Automatic refresh is on · last checked {_lastStatusRefresh.Value.LocalDateTime:HH:mm:ss} · next check in about {interval.TotalSeconds:0} seconds."
+                    : $"Automatic refresh is on · last checked {_lastStatusRefresh.Value.LocalDateTime:HH:mm:ss} · next check in about {interval.Value.TotalSeconds:0} seconds."
             : _consecutiveStatusRefreshFailures > 0
-                ? $"自动刷新失败 {_consecutiveStatusRefreshFailures} 次；将在 {interval.TotalSeconds:0} 秒后重试。"
+                ? $"自动刷新失败 {_consecutiveStatusRefreshFailures} 次；将在 {interval.Value.TotalSeconds:0} 秒后重试。"
                 : _lastStatusRefresh is null
                     ? "自动刷新已开启：概览前台每 10 秒，后台每 60 秒。"
-                    : $"自动刷新已开启 · 上次检查 {_lastStatusRefresh.Value.LocalDateTime:HH:mm:ss} · 下次约 {interval.TotalSeconds:0} 秒后。";
+                    : $"自动刷新已开启 · 上次检查 {_lastStatusRefresh.Value.LocalDateTime:HH:mm:ss} · 下次约 {interval.Value.TotalSeconds:0} 秒后。";
     }
 
     private void ShowNotice(string message, NoticeKind kind)
@@ -1295,7 +1326,7 @@ public partial class MainWindow : Window
     private string FriendlyMessage(Exception exception) => exception.Message switch
     {
         var message when message.Contains("DevToolsActivePort", StringComparison.OrdinalIgnoreCase) => T("Edge 远程调试尚未开启。请在 edge://inspect 的 Remote debugging 页面允许当前浏览器实例。"),
-        var message when message.Contains("No eligible", StringComparison.OrdinalIgnoreCase) => T("没有发现可用的 Microsoft 365 Copilot 聊天标签页。请先打开 https://m365.cloud.microsoft/chat/。"),
+        var message when message.Contains("No eligible", StringComparison.OrdinalIgnoreCase) => T("没有发现可用的 Copilot 聊天标签页。请打开 https://m365.cloud.microsoft/chat/ 或 https://copilot.cloud.microsoft/chat/。"),
         var message when message.Contains("Found", StringComparison.OrdinalIgnoreCase) && message.Contains("eligible Copilot tabs", StringComparison.OrdinalIgnoreCase) => T("发现多个 Copilot 聊天标签页。请只保留一个专用标签页后重试。"),
         var message when message.Contains("Timeout", StringComparison.OrdinalIgnoreCase) && message.Contains("ws connecting", StringComparison.OrdinalIgnoreCase) => T("等待 Edge 允许远程访问超时。请在 Edge 中选择“允许”，然后点击刷新状态；本次运行的后续操作会复用同一连接。"),
         _ => exception.Message

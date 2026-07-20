@@ -230,9 +230,7 @@ internal sealed class CopilotPageDriver
         await EnsureAuthenticatedAsync();
         await EnsureIdleAsync();
 
-        if (!Uri.TryCreate(_page.Url, UriKind.Absolute, out var url) ||
-            !url.Host.Equals(_selectors.AllowedHost, StringComparison.OrdinalIgnoreCase) ||
-            !url.AbsolutePath.StartsWith("/chat/conversation/", StringComparison.OrdinalIgnoreCase))
+        if (!_selectors.IsAllowedConversationUrl(_page.Url))
         {
             throw new InvalidOperationException("Open an existing Copilot conversation before importing it.");
         }

@@ -293,6 +293,43 @@ public sealed class CoreTests
     }
 
     [Theory]
+    [InlineData("https://m365.cloud.microsoft/chat/", true)]
+    [InlineData("https://copilot.cloud.microsoft/chat?fromcode=test&refOrigin=Bing", true)]
+    [InlineData("https://copilot.cloud.microsoft/chat/conversation/test-id", true)]
+    [InlineData("http://copilot.cloud.microsoft/chat", false)]
+    [InlineData("https://copilot.cloud.microsoft:444/chat", false)]
+    [InlineData("https://user@copilot.cloud.microsoft/chat", false)]
+    [InlineData("https://copilot.cloud.microsoft.evil.example/chat", false)]
+    [InlineData("https://m365.cloud.microsoft.example/chat", false)]
+    [InlineData("https://copilot.cloud.microsoft/not-chat", false)]
+    public void CopilotUrlPolicyAllowsOnlyExactChatOrigins(string url, bool expected)
+    {
+        Assert.Equal(expected, Selectors.IsAllowedChatUrl(url));
+    }
+
+    [Fact]
+    public void NewChatUrlStaysOnTheCurrentAllowedOrigin()
+    {
+        Assert.Equal(
+            "https://copilot.cloud.microsoft/chat/",
+            Selectors.NewChatUrlFor("https://copilot.cloud.microsoft/chat/conversation/existing"));
+        Assert.Equal(
+            "https://m365.cloud.microsoft/chat/",
+            Selectors.NewChatUrlFor("https://untrusted.example/chat/"));
+    }
+
+    [Fact]
+    public void ConversationImportRequiresAnExactAllowedConversationUrl()
+    {
+        Assert.True(Selectors.IsAllowedConversationUrl(
+            "https://copilot.cloud.microsoft/chat/conversation/existing"));
+        Assert.False(Selectors.IsAllowedConversationUrl(
+            "https://copilot.cloud.microsoft/chat?fromcode=test"));
+        Assert.False(Selectors.IsAllowedConversationUrl(
+            "https://copilot.cloud.microsoft.evil.example/chat/conversation/existing"));
+    }
+
+    [Theory]
     [InlineData((int)ConsultationPolicy.ManualOnly, "user_explicit", null)]
     [InlineData((int)ConsultationPolicy.ManualOnly, "codex_auto", "blocked_by_policy")]
     [InlineData((int)ConsultationPolicy.CodexMayConsult, "codex_auto", null)]
@@ -319,7 +356,7 @@ public sealed class CoreTests
                 null,
                 "https://m365.cloud.microsoft/chat/conversation/bound",
                 true,
-                "m365.cloud.microsoft"));
+                "https://m365.cloud.microsoft/chat/"));
     }
 
     [Fact]
@@ -332,7 +369,7 @@ public sealed class CoreTests
                 "https://m365.cloud.microsoft/chat/conversation/existing",
                 "https://m365.cloud.microsoft/chat/conversation/bound",
                 false,
-                "m365.cloud.microsoft"));
+                "https://m365.cloud.microsoft/chat/"));
     }
 
     [Fact]
@@ -343,7 +380,7 @@ public sealed class CoreTests
             null,
             "https://m365.cloud.microsoft/chat/conversation/bound",
             true,
-            "m365.cloud.microsoft"));
+            "https://m365.cloud.microsoft/chat/"));
     }
 
     [Theory]
@@ -594,6 +631,17 @@ public sealed class CoreTests
                 windowIsActive,
                 windowIsMinimized,
                 failures));
+    }
+
+    [Fact]
+    public void StatusRefreshScheduleStopsWhileManualRecoveryIsRequired()
+    {
+        Assert.Null(StatusRefreshSchedule.NextInterval(
+            overviewIsVisible: true,
+            windowIsActive: true,
+            windowIsMinimized: false,
+            consecutiveFailures: 1,
+            paused: true));
     }
 
     [Fact]
