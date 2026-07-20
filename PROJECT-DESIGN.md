@@ -2,7 +2,7 @@
 
 > 设计基线：v1.2.1 开发基线
 > 日期：2026-07-20（Asia/Shanghai）
-> 状态：v1.2.0 已发布；v1.2.1 Phase 20 已通过，下一阶段为主题资源与组件状态
+> 状态：v1.2.0 已发布；v1.2.1 Phase 20–21 已通过，下一阶段为键盘与辅助技术纵切
 > 工作名称：Copilot Bridge
 > 项目目录：本仓库根目录
 > 目标模式执行路线图：[EXECUTION-ROADMAP.md](./EXECUTION-ROADMAP.md)

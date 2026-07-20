@@ -146,7 +146,7 @@ v1.1.2 focuses on conversation management, a Copilot-inspired interface, and des
 |---|---|
 | 当前源码版本 / Current source version | `1.2.1-dev`（开发中 / in development） |
 | 发布状态 / Release status | v1.2.0 已发布 Windows x64 自包含安装包与 SHA-256 文件 / v1.2.0 released with a Windows x64 self-contained package and SHA-256 file |
-| 已通过 / Passed | Phase 0–20 and G1–G8；下一阶段为 Phase 21 / next is Phase 21 |
+| 已通过 / Passed | Phase 0–21 and G1–G8；下一阶段为 Phase 22 / next is Phase 22 |
 | 后续试点 / Follow-up pilot | 不同硬件、账号和企业策略环境 / Different hardware, account, and enterprise-policy environments |
 | 平台 / Platform | Windows 11 x64 |
 
