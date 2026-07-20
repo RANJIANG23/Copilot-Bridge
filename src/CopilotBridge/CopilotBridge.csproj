@@ -6,7 +6,7 @@
     <UseWPF>true</UseWPF>
     <AssemblyName>CopilotBridge</AssemblyName>
     <RootNamespace>CopilotBridge</RootNamespace>
-    <Version>1.2.0</Version>
+    <Version>1.2.1-dev</Version>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
   </PropertyGroup>

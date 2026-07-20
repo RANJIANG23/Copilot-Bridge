@@ -132,13 +132,21 @@ v1.1.2 focuses on conversation management, a Copilot-inspired interface, and des
 
 完整范围、权限语义和阶段门见 [v1.2.0 核心设计](./v1.2.0-design.md)。See the [v1.2.0 core design](./v1.2.0-design.md) for the complete scope, access semantics, and phase gates.
 
+### v1.2.1 开发主线 / v1.2.1 development focus
+
+`1.2.1` 已进入开发，范围限定为现有 WPF 界面与可访问性加固：整理共享主题资源、统一组件状态、提供项目/模型排序的键盘路径，并验证最小窗口布局安全。它不会修改已发布的 MCP、项目权限、Markdown、Edge/CDP/DOM 或发送语义。
+
+`1.2.1` is now in development with a narrow WPF UI and accessibility scope: consolidate shared theme resources, normalize component states, add keyboard paths for project/model ordering, and verify minimum-window layout safety. It does not change the released MCP, project access, Markdown, Edge/CDP/DOM, or submission semantics.
+
+详细设计和阶段门见 [v1.2.1 设计](./v1.2.1-design.md)。See the [v1.2.1 design](./v1.2.1-design.md) for the exact scope and phase gates.
+
 ## 当前状态与限制 / Current status and limits
 
 | 项目 / Item | 状态 / Status |
 |---|---|
-| 当前源码版本 / Current source version | `1.2.0`（已发布 / released） |
+| 当前源码版本 / Current source version | `1.2.1-dev`（开发中 / in development） |
 | 发布状态 / Release status | v1.2.0 已发布 Windows x64 自包含安装包与 SHA-256 文件 / v1.2.0 released with a Windows x64 self-contained package and SHA-256 file |
-| 已通过 / Passed | Phase 0–19 and G1–G8 |
+| 已通过 / Passed | Phase 0–20 and G1–G8；下一阶段为 Phase 21 / next is Phase 21 |
 | 后续试点 / Follow-up pilot | 不同硬件、账号和企业策略环境 / Different hardware, account, and enterprise-policy environments |
 | 平台 / Platform | Windows 11 x64 |
 
