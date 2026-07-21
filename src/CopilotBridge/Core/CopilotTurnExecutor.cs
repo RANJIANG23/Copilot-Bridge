@@ -1,0 +1,67 @@
+using CopilotBridge.Browser;
+using Microsoft.Playwright;
+
+namespace CopilotBridge.Core;
+
+internal sealed class CopilotTurnExecutor
+{
+    private readonly BridgeSettings _settings;
+    private readonly ProviderSelectors _selectors;
+
+    internal CopilotTurnExecutor(BridgeSettings settings, ProviderSelectors selectors)
+    {
+        _settings = settings;
+        _selectors = selectors;
+    }
+
+    internal async Task<AssistResult> AssistAsync(
+        AssistRequest request,
+        string? endpointOverride = null)
+    {
+        await using var session = await EdgeSessionAdapter.ConnectAsync(
+            _settings,
+            _selectors,
+            endpointOverride);
+
+        return await AssistOnPageAsync(session.Page, request);
+    }
+
+    internal async Task<AssistResult> AssistOnPageAsync(IPage page, AssistRequest request)
+    {
+        if (request.ConversationUrl is not null &&
+            !page.Url.Equals(request.ConversationUrl, StringComparison.OrdinalIgnoreCase))
+        {
+            ValidateConversationUrl(request.ConversationUrl);
+            await page.GotoAsync(request.ConversationUrl);
+        }
+
+        var driver = new CopilotPageDriver(page, _selectors, _settings);
+        var model = await driver.SelectAllowedModelAsync();
+        var turn = await driver.SendAndReadAsync(request.Prompt);
+        ValidateConversationUrl(turn.ConversationUrl);
+        if (turn.UserMessageDelta != 1 || turn.AssistantMessageDelta != 1)
+        {
+            throw new SubmissionUnknownException(
+                "Expected exactly one new user message and one new assistant reply, but observed " +
+                $"{turn.UserMessageDelta} and {turn.AssistantMessageDelta}.");
+        }
+
+        return new AssistResult(
+            model,
+            turn.ReplyMarkdown,
+            turn.ConversationUrl,
+            turn.UserMessageDelta,
+            turn.AssistantMessageDelta,
+            false);
+    }
+
+    private void ValidateConversationUrl(string value)
+    {
+        if (!_selectors.IsAllowedChatUrl(value))
+        {
+            throw new ArgumentException(
+                "Conversation URL is outside the allowed Copilot chat origin.",
+                nameof(value));
+        }
+    }
+}

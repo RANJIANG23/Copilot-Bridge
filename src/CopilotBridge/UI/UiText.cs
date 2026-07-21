@@ -11,8 +11,9 @@ internal static class UiText
     private static readonly IReadOnlyDictionary<string, string> English = new Dictionary<string, string>
     {
         ["Copilot Bridge"] = "Copilot Bridge",
-        ["v1.2.2 托盘与存储分离"] = "v1.2.2 Tray & Split Storage",
+        ["v1.3.0 协作模式设定"] = "v1.3.0 Collaboration Mode Settings",
         ["概览"] = "Overview",
+        ["数据统计"] = "Statistics",
         ["对话管理"] = "Conversation Management",
         ["协作默认设置"] = "Collaboration Defaults",
         ["浏览器与模型"] = "Browser & Models",
@@ -24,11 +25,56 @@ internal static class UiText
         ["会话列表"] = "Conversation list",
         ["按 Alt+上移或 Alt+下移调整所选项目顺序"] = "Press Alt+Up or Alt+Down to reorder the selected project",
         ["按 Alt+上移或 Alt+下移调整所选模型顺序"] = "Press Alt+Up or Alt+Down to reorder the selected model",
-        ["使用会话详情中的项目选择框和移动按钮进行键盘移动"] = "Use the project selector and Move button in conversation details for keyboard movement",
         ["数据保存在你的本地工作区"] = "Your data stays in your local workspace",
         ["正在初始化"] = "Initializing",
-        ["检查后台连接，并将新产生的即时咨询完整写入本地 Markdown 会话。"] = "Check the background connection and save each new immediate consultation as a complete local Markdown conversation.",
         ["检查后台连接状态，并管理专用 Copilot 标签页绑定。"] = "Check the background connection and manage the dedicated Copilot tab binding.",
+        ["查看 Bridge 向 Copilot 交付的任务、可见文本 Token 和 API 等效费用。"] = "Track Bridge deliveries to Copilot, visible-text tokens, and API-equivalent cost.",
+        ["最近 7 天"] = "Last 7 days",
+        ["最近 30 天"] = "Last 30 days",
+        ["全部记录"] = "All records",
+        ["自定义"] = "Custom",
+        ["刷新统计"] = "Refresh statistics",
+        ["从"] = "From",
+        ["到"] = "To",
+        ["应用"] = "Apply",
+        ["Copilot 交付次数"] = "Copilot deliveries",
+        ["{0} 个协作任务"] = "{0} collaboration tasks",
+        ["已完成与完成率"] = "Completed and completion rate",
+        ["仅统计已保存的本地记录"] = "Saved local records only",
+        ["等效处理 Token"] = "Equivalent processed tokens",
+        ["估算区间 0–0"] = "Estimated range 0–0",
+        ["估算区间 {0}–{1}"] = "Estimated range {0}–{1}",
+        ["可见输入 {0} · 输出 {1}；区间 {2}–{3}"] = "Visible input {0} · output {1}; range {2}–{3}",
+        ["API 等效费用"] = "API-equivalent cost",
+        ["估算区间 $0–$0"] = "Estimated range $0–$0",
+        ["交付趋势"] = "Delivery trend",
+        ["正在读取本地记录"] = "Reading local records",
+        ["按日"] = "Daily",
+        ["按周"] = "Weekly",
+        ["{0} 至 {1} · 本地已保存记录"] = "{0} to {1} · saved local records",
+        ["{0}：{1} 次交付"] = "{0}: {1} deliveries",
+        ["模型使用与费用"] = "Model usage and cost",
+        ["费用使用原型费率并乘内部开销倍率；未知模型不会静默套价。"] = "Cost uses prototype rates multiplied by the internal-overhead factor; unknown models are never silently priced.",
+        ["模型"] = "Model",
+        ["交付"] = "Deliveries",
+        ["输入 Token"] = "Input tokens",
+        ["输出 Token"] = "Output tokens",
+        ["等效费用"] = "Equivalent cost",
+        ["未定价"] = "Unpriced",
+        ["协作模式"] = "Collaboration mode",
+        ["{0} 个任务 · {1} 次交付"] = "{0} tasks · {1} deliveries",
+        ["估算参数"] = "Estimation parameters",
+        ["内部开销倍率"] = "Internal-overhead multiplier",
+        ["保存倍率"] = "Save multiplier",
+        ["原型费率（输入 / 输出，每 1M Token）"] = "Prototype rates (input / output, per 1M tokens)",
+        ["默认 3×；区间至少覆盖 2×–5×，并包含当前倍率。仅为 API 等效估算，不代表 Microsoft 365 Copilot 实际账单。"] = "Default 3×. The range covers at least 2×–5× and always includes the selected multiplier. API-equivalent estimate only; not an actual Microsoft 365 Copilot bill.",
+        ["部分审查已经发送，状态不确定；请勿重试此咨询，请新建咨询后人工核对原对话。"] = "Part of the review was sent and its state is uncertain. Do not retry this consultation; start a new consultation and inspect the original conversations manually.",
+        ["本地会话记录比预算状态更新；为避免重复发送，请新建咨询。"] = "The local conversation is newer than its budget state. Start a new consultation to avoid a duplicate send.",
+        ["回复已完成，但部分本地状态未能保存；为避免状态不一致，请新建咨询。"] = "The reply completed, but some local state could not be saved. Start a new consultation to avoid inconsistent state.",
+        ["数据来源：Bridge 本地会话；不扫描 Microsoft 365 网页历史。"] = "Source: local Bridge conversations; Microsoft 365 web history is not scanned.",
+        ["数据来源：Bridge 本地会话；已排除显式导入的网页历史，不扫描 Microsoft 365 历史。"] = "Source: local Bridge conversations; explicitly imported web history is excluded and Microsoft 365 history is not scanned.",
+        ["数据来源：Bridge 本地会话；{0} 次交付的模型未知或未定价，未计入费用。"] = "Source: local Bridge conversations; {0} deliveries have an unknown or unpriced model and are excluded from cost.",
+        ["统计倍率已保存。"] = "Statistics multiplier saved.",
         ["Edge 连接"] = "Edge connection",
         ["尚未检查"] = "Not checked",
         ["专用标签页"] = "Dedicated tab",
@@ -61,7 +107,6 @@ internal static class UiText
         ["保存访问权限"] = "Save access",
         ["只控制本地 MCP 读取，不代表允许向 Copilot 发送。"] = "Controls local MCP reads only; it does not authorize sending to Copilot.",
         ["项目的 Agent 访问权限已保存。"] = "The project's Agent access has been saved.",
-        ["可将会话拖到项目中归类"] = "Drag conversations into projects to categorize them",
         ["拖动项目卡片排序，也可将会话拖入项目归类"] = "Drag project cards to reorder, or drag conversations into a project",
         ["拖动排序"] = "Drag to reorder",
         ["位置已锁定"] = "Position locked",
@@ -87,26 +132,30 @@ internal static class UiText
         ["Outsource — 开放式推理"] = "Outsource — open-ended reasoning",
         ["Review — 两个隔离 reviewer"] = "Review — two isolated reviewers",
         ["保存协作默认设置"] = "Save collaboration defaults",
-        ["浏览器、模型与本地工作区"] = "Browser, models & local workspace",
-        ["模型队列是默认回退策略；会话正文仅写入你选择的本地工作区。"] = "The model queue is the default fallback strategy; conversation content is written only to your chosen local workspace.",
+        ["协作模式设定"] = "Collaboration mode settings",
+        ["为新咨询设置模式轮次预算；创建后会固定在该咨询中。范围 1–20。"] = "Set mode turn budgets for new consultations. Each budget is fixed when the consultation is created. Range: 1–20.",
+        ["Assist 最大轮次"] = "Assist maximum turns",
+        ["Outsource 最大轮次"] = "Outsource maximum turns",
+        ["Review 最大审查轮次"] = "Review maximum review rounds",
+        ["Review 每轮始终串行运行 complexity 与 evidence 两个隔离 reviewer。"] = "Each Review round always runs the isolated complexity and evidence reviewers serially.",
+        ["协作模式轮次预算必须是 1–20 之间的整数。"] = "Collaboration mode turn budgets must be integers from 1 through 20.",
+        ["当前咨询已达到协作模式轮次预算，请新建咨询或调整新咨询的默认预算。"] = "This consultation has reached its collaboration mode turn budget. Start a new consultation or adjust the default budget for new consultations.",
+        ["当前会话的协作模式与默认设置不一致；请切回原模式或新建会话。"] = "The current conversation mode does not match the default setting. Switch back to the original mode or start a new conversation.",
         ["浏览器与模型"] = "Browser & models",
         ["配置模型回退顺序、菜单等待与回复超时。"] = "Configure model fallback order, menu wait, and reply timeout.",
         ["标签页绑定"] = "Tab binding",
         ["当前绑定"] = "Currently bound",
-        ["重新绑定"] = "Rebind",
         ["本地会话工作区"] = "Local conversation workspace",
         ["即时会话以一会话一 Markdown 文件保存在此处；旧网页历史不会自动导入。"] = "Immediate conversations are stored here as one Markdown file each; existing web history is never imported automatically.",
         ["打开"] = "Open",
         ["浏览"] = "Browse",
         ["模型优先级"] = "Model priority",
-        ["Opus → GPT 5.6 Think deeper → 深度思考。仅在高优先级不可用时回退。"] = "Opus → GPT 5.6 Think deeper → Deep thinking. Fallback occurs only when a higher-priority model is unavailable.",
         ["拖动选项卡排序；仅在上方模型不可用时回退。"] = "Drag cards to reorder. Fallback occurs only when a higher model is unavailable.",
         ["等待设置"] = "Wait settings",
-        ["沟通轮次不设上限。"] = "Conversation turns are unlimited.",
+        ["协作模式轮次预算在“协作默认设置”中配置。"] = "Configure collaboration mode turn budgets under Collaboration Defaults.",
         ["菜单最短等待（ms）"] = "Minimum menu wait (ms)",
         ["菜单最大等待（ms）"] = "Maximum menu wait (ms)",
         ["回复超时（秒）"] = "Reply timeout (seconds)",
-        ["保存浏览器与工作区设置"] = "Save browser and workspace settings",
         ["保存浏览器与模型设置"] = "Save browser and model settings",
         ["显示语言"] = "Display language",
         ["外观与语言"] = "Appearance & language",
@@ -184,7 +233,6 @@ internal static class UiText
         ["征询策略当前为“关闭”，请先在协作页调整。"] = "The consultation policy is disabled. Change it on the Collaboration page first.",
         ["请先绑定一个专用 Copilot 标签页。 "] = "Bind a dedicated Copilot tab first.",
         ["即时会话已保存为本地 Markdown；不会自动读取旧网页历史。"] = "The immediate conversation was saved as local Markdown; existing web history is not read automatically.",
-        ["已创建即时会话。输入内容后在概览页发送，正文会写入该会话。"] = "An immediate conversation was created. Send from Overview to write its content here.",
         ["会话 Markdown 已拖入项目文件夹。"] = "Conversation Markdown was moved into the project folder.",
         ["本地显示名称已更新；Copilot 网页标题仍被保留。"] = "The local display name was updated; the Copilot web title is retained.",
         ["会话 Markdown 已移动到所选项目文件夹。"] = "Conversation Markdown was moved to the selected project folder.",
@@ -220,7 +268,6 @@ internal static class UiText
         ["已取消导入，未写入任何本地文件。"] = "Import cancelled; no local file was written.",
         ["旧对话已保存为本地 Markdown；历史回复模型保持未知。"] = "The web conversation was saved as local Markdown; historic reply models remain unknown.",
         ["当前 Copilot 对话已经导入过，不会创建重复 Markdown。"] = "This Copilot conversation was already imported; no duplicate Markdown was created.",
-        ["等待时间无效：最大等待必须大于或等于最短等待，回复超时必须大于 0。"] = "Invalid wait values: maximum wait must be at least the minimum wait, and reply timeout must be greater than 0.",
         ["设置数值无效：请检查等待时间和回复超时。"] = "Invalid values: check wait times and reply timeout.",
         ["本地会话工作区不能为空。"] = "The local conversation workspace cannot be empty.",
         ["本地会话工作区不存在：{0}"] = "The local conversation workspace does not exist: {0}",
@@ -256,14 +303,11 @@ internal static class UiText
                 case TextBox textBox when textBox.Name == "TestPromptTextBox":
                     textBox.Text = Translate(textBox.Text, language);
                     break;
-                case Button button when button.Content is string content:
-                    button.Content = Translate(content, language);
-                    break;
                 case MenuItem menuItem when menuItem.Header is string header:
                     menuItem.Header = Translate(header, language);
                     break;
-                case ComboBoxItem item when item.Content is string content:
-                    item.Content = Translate(content, language);
+                case ContentControl contentControl when contentControl.Content is string content:
+                    contentControl.Content = Translate(content, language);
                     break;
                 case ComboBox comboBox:
                     foreach (var item in comboBox.Items.OfType<ComboBoxItem>())
@@ -271,36 +315,27 @@ internal static class UiText
                         if (item.Content is string itemContent) item.Content = Translate(itemContent, language);
                     }
                     break;
-                case RadioButton radio when radio.Content is string content:
-                    radio.Content = Translate(content, language);
-                    break;
-                case CheckBox checkBox when checkBox.Content is string content:
-                    checkBox.Content = Translate(content, language);
-                    break;
             }
 
-            if (child is FrameworkElement element && element.ToolTip is string tooltip)
+            if (child is FrameworkElement element)
             {
-                element.ToolTip = Translate(tooltip, language);
-            }
-
-            if (child is FrameworkElement automationElement &&
-                !string.IsNullOrWhiteSpace(AutomationProperties.GetName(automationElement)))
-            {
-                AutomationProperties.SetName(
-                    automationElement,
-                    Translate(AutomationProperties.GetName(automationElement), language));
-            }
-
-            if (child is FrameworkElement helpElement &&
-                !string.IsNullOrWhiteSpace(AutomationProperties.GetHelpText(helpElement)))
-            {
-                AutomationProperties.SetHelpText(
-                    helpElement,
-                    Translate(AutomationProperties.GetHelpText(helpElement), language));
+                TranslateProperty(element, FrameworkElement.ToolTipProperty, language);
+                TranslateProperty(element, AutomationProperties.NameProperty, language);
+                TranslateProperty(element, AutomationProperties.HelpTextProperty, language);
             }
 
             ApplyElement(child, language);
+        }
+    }
+
+    private static void TranslateProperty(
+        DependencyObject element,
+        DependencyProperty property,
+        AppLanguage language)
+    {
+        if (element.GetValue(property) is string value && !string.IsNullOrWhiteSpace(value))
+        {
+            element.SetCurrentValue(property, Translate(value, language));
         }
     }
 

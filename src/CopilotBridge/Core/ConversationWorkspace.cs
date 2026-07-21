@@ -402,19 +402,8 @@ internal sealed class ConversationWorkspaceStore
         string? projectId = null,
         CancellationToken cancellationToken = default)
     {
-        await GetProjectsAsync(cancellationToken);
-        var documents = new List<ConversationDocument>();
-        foreach (var path in EnumerateConversationFiles())
-        {
-            if (Path.GetFileName(path).Equals(ProjectMarker, StringComparison.OrdinalIgnoreCase)) continue;
-            var document = await TryLoadPathAsync(path, cancellationToken);
-            if (document is not null && (projectId is null || document.ProjectId == projectId))
-            {
-                documents.Add(document);
-            }
-        }
-
-        return documents.OrderByDescending(document => document.UpdatedAt)
+        var documents = await GetConversationDocumentsAsync(projectId, cancellationToken);
+        return documents
             .Select(document => new ConversationSummary(
                 document.Id,
                 document.ProjectId,
@@ -426,11 +415,31 @@ internal sealed class ConversationWorkspaceStore
             .ToArray();
     }
 
+    internal async Task<IReadOnlyList<ConversationDocument>> GetConversationDocumentsAsync(
+        string? projectId = null,
+        CancellationToken cancellationToken = default)
+    {
+        var documents = new List<ConversationDocument>();
+        foreach (var path in EnumerateConversationFiles())
+        {
+            if (Path.GetFileName(path).Equals(ProjectMarker, StringComparison.OrdinalIgnoreCase)) continue;
+            var document = await TryLoadPathAsync(path, cancellationToken);
+            if (document is not null && (projectId is null || document.ProjectId == projectId))
+            {
+                documents.Add(document);
+            }
+        }
+
+        return documents
+            .OrderByDescending(document => document.UpdatedAt)
+            .ToArray();
+    }
+
     internal async Task<ConversationDocument?> FindAsync(
         string conversationId,
         CancellationToken cancellationToken = default)
     {
-        var path = FindPath(conversationId);
+        var path = await FindPathAsync(conversationId, cancellationToken).ConfigureAwait(false);
         return path is null ? null : await TryLoadPathAsync(path, cancellationToken);
     }
 
@@ -573,7 +582,7 @@ internal sealed class ConversationWorkspaceStore
         CancellationToken cancellationToken = default)
     {
         await EnsureKnownProjectAsync(destinationProjectId, cancellationToken);
-        var oldPath = FindPath(document.Id);
+        var oldPath = await FindPathAsync(document.Id, cancellationToken);
         document = document with { ProjectId = destinationProjectId, UpdatedAt = DateTimeOffset.Now };
         await SaveAsync(document, cancellationToken);
         if (oldPath is not null && File.Exists(oldPath) &&
@@ -587,7 +596,7 @@ internal sealed class ConversationWorkspaceStore
 
     internal async Task DeleteConversationAsync(ConversationDocument document)
     {
-        var path = FindPath(document.Id);
+        var path = await FindPathAsync(document.Id);
         if (path is null || !File.Exists(path))
         {
             throw new FileNotFoundException("本地会话文件不存在。", path);
@@ -600,7 +609,8 @@ internal sealed class ConversationWorkspaceStore
     internal async Task<ConversationDocument> AppendRunAsync(
         ConversationDocument document,
         CollaborationRunResult result,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default,
+        string? collaborationMode = null)
     {
         var turns = document.Turns.ToList();
         foreach (var response in result.Responses)
@@ -626,7 +636,36 @@ internal sealed class ConversationWorkspaceStore
         {
             CopilotConversationUrl = url ?? document.CopilotConversationUrl,
             CopilotConversationId = ExtractConversationId(url) ?? document.CopilotConversationId,
-            Mode = document.Mode,
+            Mode = ResolveAppendMode(document.Mode, collaborationMode),
+            Turns = turns,
+            UpdatedAt = DateTimeOffset.Now
+        };
+        await SaveAsync(document, cancellationToken);
+        return document;
+    }
+
+    internal async Task<ConversationDocument> AppendIncompleteDeliveryAsync(
+        ConversationDocument document,
+        string requestMarkdown,
+        string status,
+        string? reviewer = null,
+        string? conversationUrl = null,
+        CancellationToken cancellationToken = default,
+        string? collaborationMode = null)
+    {
+        var turns = document.Turns.ToList();
+        turns.Add(new ConversationTurn(
+            DateTimeOffset.Now,
+            "agent",
+            requestMarkdown,
+            null,
+            status,
+            reviewer));
+        document = document with
+        {
+            CopilotConversationUrl = conversationUrl ?? document.CopilotConversationUrl,
+            CopilotConversationId = ExtractConversationId(conversationUrl) ?? document.CopilotConversationId,
+            Mode = ResolveAppendMode(document.Mode, collaborationMode),
             Turns = turns,
             UpdatedAt = DateTimeOffset.Now
         };
@@ -743,7 +782,7 @@ internal sealed class ConversationWorkspaceStore
 
             foreach (var entry in manifest.Entries)
             {
-                var currentPath = FindPath(entry.ConversationId);
+                var currentPath = await FindPathAsync(entry.ConversationId, cancellationToken);
                 var expectedPath = Path.GetFullPath(Path.Combine(
                     _rootDirectory,
                     entry.RelativePath.Replace('/', Path.DirectorySeparatorChar)));
@@ -914,10 +953,13 @@ internal sealed class ConversationWorkspaceStore
         document.ProjectId,
         $"conversation-{document.Id}.md");
 
-    private string? FindPath(string conversationId)
+    private async Task<string?> FindPathAsync(
+        string conversationId,
+        CancellationToken cancellationToken = default)
     {
         if (!Directory.Exists(_rootDirectory)) return null;
-        var relative = _storageV2.RelativeMarkdownPath(conversationId);
+        var relative = await _storageV2.RelativeMarkdownPathAsync(conversationId, cancellationToken)
+            .ConfigureAwait(false);
         if (!string.IsNullOrWhiteSpace(relative))
         {
             var sidecarPath = Path.GetFullPath(Path.Combine(
@@ -925,9 +967,12 @@ internal sealed class ConversationWorkspaceStore
                 relative.Replace('/', Path.DirectorySeparatorChar)));
             if (File.Exists(sidecarPath)) return sidecarPath;
         }
-        return EnumerateConversationFiles()
-            .FirstOrDefault(path => Path.GetFileName(path).Equals(
-                $"conversation-{conversationId}.md", StringComparison.OrdinalIgnoreCase));
+        return await Task.Run(
+                () => EnumerateConversationFiles()
+                    .FirstOrDefault(path => Path.GetFileName(path).Equals(
+                        $"conversation-{conversationId}.md", StringComparison.OrdinalIgnoreCase)),
+                cancellationToken)
+            .ConfigureAwait(false);
     }
 
     private async Task<ConversationDocument?> TryLoadPathAsync(string path, CancellationToken cancellationToken)
@@ -1112,6 +1157,18 @@ internal sealed class ConversationWorkspaceStore
 
     private static ConversationAccessLevel NormalizeAccessLevel(ConversationAccessLevel accessLevel) =>
         Enum.IsDefined(accessLevel) ? accessLevel : ConversationAccessLevel.Off;
+
+    private static string ResolveAppendMode(string currentMode, string? collaborationMode)
+    {
+        if (string.IsNullOrWhiteSpace(collaborationMode)) return currentMode;
+        return collaborationMode.Trim().ToLowerInvariant() switch
+        {
+            "assist" => "assist",
+            "outsource" => "outsource",
+            "review" => "review",
+            _ => throw new InvalidDataException("协作模式无效。")
+        };
+    }
 
     private static async Task WriteMigrationManifestAsync(
         string path,

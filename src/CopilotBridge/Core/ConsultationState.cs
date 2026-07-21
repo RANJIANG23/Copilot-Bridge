@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Text.Json;
 
 namespace CopilotBridge.Core;
@@ -50,6 +51,7 @@ internal sealed record ConsultationRecord
 {
     public string Mode { get; init; } = "assist";
     public int TurnCount { get; init; }
+    public int TurnBudget { get; init; }
     public string? PrimaryConversationUrl { get; init; }
     public string? ComplexityConversationUrl { get; init; }
     public string? EvidenceConversationUrl { get; init; }
@@ -67,6 +69,8 @@ internal sealed class ConsultationStateStore
     };
 
     private readonly string _path;
+    private readonly ConcurrentDictionary<string, ConsultationRecord> _memory =
+        new(StringComparer.Ordinal);
 
     internal ConsultationStateStore(string? path = null)
     {
@@ -80,22 +84,39 @@ internal sealed class ConsultationStateStore
 
     internal async Task<ConsultationRecord?> FindAsync(
         string consultationId,
-        CancellationToken cancellationToken = default) =>
-        (await LoadAsync(cancellationToken)).Conversations.GetValueOrDefault(consultationId);
+        CancellationToken cancellationToken = default)
+    {
+        _memory.TryGetValue(consultationId, out var remembered);
+        var persisted = (await LoadAsync(cancellationToken)).Conversations.GetValueOrDefault(consultationId);
+        var current = Newest(remembered, persisted);
+        if (current is not null) _memory[consultationId] = current;
+        return current;
+    }
 
     internal async Task<ConsultationRecord?> FindMostRecentAsync(
-        CancellationToken cancellationToken = default) =>
-        (await LoadAsync(cancellationToken)).Conversations.Values
+        CancellationToken cancellationToken = default)
+    {
+        var state = await LoadAsync(cancellationToken);
+        foreach (var item in _memory)
+        {
+            state.Conversations[item.Key] = Newest(
+                item.Value,
+                state.Conversations.GetValueOrDefault(item.Key))!;
+        }
+        return state.Conversations.Values
             .OrderByDescending(item => item.UpdatedAt)
             .FirstOrDefault();
+    }
 
     internal async Task SaveAsync(
         string consultationId,
         ConsultationRecord record,
         CancellationToken cancellationToken = default)
     {
+        var remembered = record with { UpdatedAt = DateTimeOffset.Now };
+        _memory[consultationId] = remembered;
         var state = await LoadAsync(cancellationToken);
-        state.Conversations[consultationId] = record with { UpdatedAt = DateTimeOffset.Now };
+        state.Conversations[consultationId] = remembered;
         var directory = Path.GetDirectoryName(_path)!;
         Directory.CreateDirectory(directory);
         var temporaryPath = _path + ".tmp";
@@ -148,6 +169,18 @@ internal sealed class ConsultationStateStore
 
         return state;
     }
+
+    private static ConsultationRecord? Newest(
+        ConsultationRecord? first,
+        ConsultationRecord? second) => (first, second) switch
+        {
+            (null, null) => null,
+            (not null, null) => first,
+            (null, not null) => second,
+            _ when first!.TurnCount != second!.TurnCount =>
+                first.TurnCount > second.TurnCount ? first : second,
+            _ => first!.UpdatedAt >= second!.UpdatedAt ? first : second
+        };
 
     private sealed class ConsultationState
     {

@@ -53,6 +53,10 @@ public sealed class McpProtocolTests
         var result = await status.CallAsync(new Dictionary<string, object?>());
         Assert.NotEqual(true, result.IsError);
         Assert.NotNull(result.StructuredContent);
+        var statusContent = Assert.IsType<System.Text.Json.JsonElement>(result.StructuredContent);
+        Assert.InRange(statusContent.GetProperty("assistTurnBudget").GetInt32(), 1, 20);
+        Assert.InRange(statusContent.GetProperty("outsourceTurnBudget").GetInt32(), 1, 20);
+        Assert.InRange(statusContent.GetProperty("reviewTurnBudget").GetInt32(), 1, 20);
 
         var safeFailure = await consult.CallAsync(new Dictionary<string, object?>
         {
