@@ -92,7 +92,7 @@ public sealed class McpWorkspaceToolsTests
             Assert.Equal("conversation_not_accessible", blocked.GetProperty("errorCode").GetString());
             AssertWorkspaceUnchanged(afterDowngrade, HashWorkspace(workspacePath));
 
-            var persisted = await CopilotBridgeTools.SaveWorkspaceRunAsync(
+            var persisted = await ConsultationPersistence.SaveWorkspaceRunAsync(
                 "assist",
                 new CollaborationRunResult(
                     [new ReviewerResult(

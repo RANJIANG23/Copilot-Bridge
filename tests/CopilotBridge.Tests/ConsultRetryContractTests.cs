@@ -34,6 +34,6 @@ public sealed class ConsultRetryContractTests
         bool startFresh,
         string expected)
     {
-        Assert.Equal(expected, CopilotBridgeTools.RetryActionFor(canRetrySafely, startFresh));
+        Assert.Equal(expected, ConsultationCoordinator.RetryActionFor(canRetrySafely, startFresh));
     }
 }

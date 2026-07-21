@@ -116,6 +116,22 @@ public sealed class CoreTests
         Assert.Contains("| Name | Value |", result.ReplyMarkdown);
     }
 
+    [Theory]
+    [InlineData("first line\r\nsecond line")]
+    [InlineData("first line\r\nsecond line\r\n")]
+    [InlineData("first line\nsecond line\n")]
+    public async Task ComposerReadbackAcceptsDomEquivalentMultilineMarkdown(string prompt)
+    {
+        await using var browser = await FixtureBrowser.OpenAsync("send-success.html");
+        var driver = new CopilotPageDriver(browser.Page, Selectors, FastSettings(replyTimeoutSeconds: 2));
+
+        var result = await driver.SendAndReadAsync(prompt);
+
+        Assert.Equal(1, result.UserMessageDelta);
+        Assert.Equal(1, result.AssistantMessageDelta);
+        Assert.Equal(1, await browser.Page.EvaluateAsync<int>("window.sendCount"));
+    }
+
     [Fact]
     public async Task VirtualizedMessageListStillVerifiesExactlyOneTurn()
     {
@@ -304,7 +320,7 @@ public sealed class CoreTests
                 Body = html,
                 ContentType = "text/html"
             }));
-        var coordinator = new ConsultationCoordinator(FastSettings(replyTimeoutSeconds: 2), Selectors);
+        var coordinator = new CopilotTurnExecutor(FastSettings(replyTimeoutSeconds: 2), Selectors);
 
         var result = await coordinator.AssistOnPageAsync(
             browser.Page,
@@ -394,7 +410,7 @@ public sealed class CoreTests
     {
         var settings = new BridgeSettings { ConsultationPolicy = (ConsultationPolicy)policy };
 
-        Assert.Equal(expectedError, Mcp.CopilotBridgeTools.ValidatePolicy(settings, trigger));
+        Assert.Equal(expectedError, ConsultationCoordinator.ValidatePolicy(settings, trigger));
     }
 
     [Fact]
@@ -402,7 +418,7 @@ public sealed class CoreTests
     {
         Assert.Equal(
             "https://m365.cloud.microsoft/chat/",
-            Mcp.CopilotBridgeTools.ResolvePrimaryConversationUrl(
+            ConsultationCoordinator.ResolvePrimaryConversationUrl(
                 CollaborationMode.Assist,
                 null,
                 "https://m365.cloud.microsoft/chat/conversation/bound",
@@ -415,7 +431,7 @@ public sealed class CoreTests
     {
         Assert.Equal(
             "https://m365.cloud.microsoft/chat/conversation/existing",
-            Mcp.CopilotBridgeTools.ResolvePrimaryConversationUrl(
+            ConsultationCoordinator.ResolvePrimaryConversationUrl(
                 CollaborationMode.Assist,
                 "https://m365.cloud.microsoft/chat/conversation/existing",
                 "https://m365.cloud.microsoft/chat/conversation/bound",
@@ -426,7 +442,7 @@ public sealed class CoreTests
     [Fact]
     public void ReviewDoesNotUsePrimaryConversation()
     {
-        Assert.Null(Mcp.CopilotBridgeTools.ResolvePrimaryConversationUrl(
+        Assert.Null(ConsultationCoordinator.ResolvePrimaryConversationUrl(
             CollaborationMode.Review,
             null,
             "https://m365.cloud.microsoft/chat/conversation/bound",
@@ -443,7 +459,7 @@ public sealed class CoreTests
     [InlineData("No allowed model is available.", "no_eligible_model")]
     public void PreSubmitFailuresHaveStableG7ErrorCodes(string message, string expected)
     {
-        Assert.Equal(expected, Mcp.CopilotBridgeTools.MapPreSubmitError(
+        Assert.Equal(expected, ConsultationCoordinator.MapPreSubmitError(
             new InvalidOperationException(message)));
     }
 
@@ -452,11 +468,11 @@ public sealed class CoreTests
     {
         Assert.Equal(
             "page_overlay_blocked",
-            Mcp.CopilotBridgeTools.MapPreSubmitError(
+            ConsultationCoordinator.MapPreSubmitError(
                 new PageOverlayBlockedException("safe metadata")));
         Assert.Equal(
             "model_selector_blocked",
-            Mcp.CopilotBridgeTools.MapPreSubmitError(
+            ConsultationCoordinator.MapPreSubmitError(
                 new ModelSelectorBlockedException("not actionable")));
     }
 
@@ -518,6 +534,7 @@ public sealed class CoreTests
             {
                 Mode = "review",
                 TurnCount = 1,
+                TurnBudget = 3,
                 ComplexityConversationUrl = "https://m365.cloud.microsoft/chat/complexity",
                 EvidenceConversationUrl = "https://m365.cloud.microsoft/chat/evidence",
                 Status = "completed",
@@ -529,6 +546,7 @@ public sealed class CoreTests
             Assert.NotNull(actual);
             Assert.Equal("review", actual.Mode);
             Assert.Equal(1, actual.TurnCount);
+            Assert.Equal(3, actual.TurnBudget);
             Assert.NotEqual(actual.ComplexityConversationUrl, actual.EvidenceConversationUrl);
             var json = await File.ReadAllTextAsync(path);
             Assert.DoesNotContain("prompt", json, StringComparison.OrdinalIgnoreCase);
@@ -546,7 +564,7 @@ public sealed class CoreTests
                 new[]
                 {
                     "complexityConversationUrl", "evidenceConversationUrl", "lastModel", "mode",
-                    "primaryConversationUrl", "status", "turnCount", "updatedAt"
+                    "primaryConversationUrl", "status", "turnBudget", "turnCount", "updatedAt"
                 }.Order(),
                 keys);
         }
@@ -722,9 +740,10 @@ public sealed class CoreTests
     }
 
     [Theory]
-    [InlineData((int)CollaborationMode.Assist)]
-    [InlineData((int)CollaborationMode.Outsource)]
-    public async Task CollaborationModesContinueWithoutATurnLimit(int mode)
+    [InlineData((int)CollaborationMode.Assist, 2)]
+    [InlineData((int)CollaborationMode.Outsource, 6)]
+    [InlineData((int)CollaborationMode.Review, 1)]
+    public async Task CollaborationModesBlockBeforeSendingWhenTurnBudgetIsExhausted(int mode, int turnBudget)
     {
         var calls = 0;
         var runner = new CollaborationRunner(request =>
@@ -741,15 +760,48 @@ public sealed class CoreTests
         var context = new CollaborationContext(
             "request",
             (CollaborationMode)mode,
-            10_000,
+            turnBudget,
             "https://m365.cloud.microsoft/chat/primary",
             null,
-            null);
+            null,
+            turnBudget);
 
-        var result = await runner.RunAsync(context);
+        var exception = await Assert.ThrowsAsync<TurnBudgetExceededException>(() => runner.RunAsync(context));
+
+        Assert.Equal(0, calls);
+        Assert.Equal((CollaborationMode)mode, exception.Mode);
+        Assert.Equal(turnBudget, exception.TurnBudget);
+    }
+
+    [Theory]
+    [InlineData((int)CollaborationMode.Assist, 2, 1)]
+    [InlineData((int)CollaborationMode.Outsource, 6, 5)]
+    public async Task SingleConversationModesAllowTheLastBudgetedTurn(int mode, int turnBudget, int turnCount)
+    {
+        var calls = 0;
+        var runner = new CollaborationRunner(request =>
+        {
+            calls++;
+            return Task.FromResult(new AssistResult(
+                "Opus",
+                "reply",
+                request.ConversationUrl ?? "https://m365.cloud.microsoft/chat/",
+                1,
+                1,
+                false));
+        });
+
+        var result = await runner.RunAsync(new CollaborationContext(
+            "request",
+            (CollaborationMode)mode,
+            turnCount,
+            "https://m365.cloud.microsoft/chat/primary",
+            null,
+            null,
+            turnBudget));
 
         Assert.Equal(1, calls);
-        Assert.Equal(10_001, result.TurnCount);
+        Assert.Equal(turnBudget, result.TurnCount);
     }
 
     [Fact]

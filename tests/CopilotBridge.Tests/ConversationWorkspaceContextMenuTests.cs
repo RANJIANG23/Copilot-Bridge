@@ -452,7 +452,7 @@ public sealed class ConversationWorkspaceContextMenuTests
     }
 
     [Fact]
-    public async Task SettingsPersistModelPriorityWithoutTurnLimit()
+    public async Task SettingsPersistModelPriorityAndCollaborationBudgets()
     {
         var root = CreateWorkspaceRoot();
         try
@@ -462,11 +462,17 @@ public sealed class ConversationWorkspaceContextMenuTests
 
             await store.SaveAsync(new BridgeSettings
             {
-                ModelPriority = ModelPriorityOptions.Serialize(expectedPriority)
+                ModelPriority = ModelPriorityOptions.Serialize(expectedPriority),
+                AssistTurnBudget = 4,
+                OutsourceTurnBudget = 9,
+                ReviewTurnBudget = 3
             });
             var actual = await store.LoadAsync();
 
             Assert.Equal(expectedPriority, ModelPriorityOptions.Parse(actual.ModelPriority));
+            Assert.Equal(4, actual.AssistTurnBudget);
+            Assert.Equal(9, actual.OutsourceTurnBudget);
+            Assert.Equal(3, actual.ReviewTurnBudget);
         }
         finally { DeleteWorkspaceRoot(root); }
     }
@@ -481,10 +487,36 @@ public sealed class ConversationWorkspaceContextMenuTests
             Directory.CreateDirectory(root);
             await File.WriteAllTextAsync(path, "{\"conversationTurnLimit\":20}");
 
-            await new SettingsStore(path).LoadAsync();
+            var settings = await new SettingsStore(path).LoadAsync();
             var saved = await File.ReadAllTextAsync(path);
 
             Assert.DoesNotContain("conversationTurnLimit", saved, StringComparison.OrdinalIgnoreCase);
+            Assert.Equal(CollaborationBudgetOptions.DefaultAssist, settings.AssistTurnBudget);
+            Assert.Equal(CollaborationBudgetOptions.DefaultOutsource, settings.OutsourceTurnBudget);
+            Assert.Equal(CollaborationBudgetOptions.DefaultReview, settings.ReviewTurnBudget);
+        }
+        finally { DeleteWorkspaceRoot(root); }
+    }
+
+    [Theory]
+    [InlineData(0, 6, 1)]
+    [InlineData(2, 21, 1)]
+    [InlineData(2, 6, -1)]
+    public async Task SettingsRejectCollaborationBudgetsOutsideOneThroughTwenty(
+        int assist,
+        int outsource,
+        int review)
+    {
+        var root = CreateWorkspaceRoot();
+        try
+        {
+            var store = new SettingsStore(Path.Combine(root, "settings.json"));
+            await Assert.ThrowsAsync<InvalidDataException>(() => store.SaveAsync(new BridgeSettings
+            {
+                AssistTurnBudget = assist,
+                OutsourceTurnBudget = outsource,
+                ReviewTurnBudget = review
+            }));
         }
         finally { DeleteWorkspaceRoot(root); }
     }

@@ -160,6 +160,48 @@ public sealed class ConversationStorageV2Tests
         finally { DeleteRoot(root); }
     }
 
+    [Fact]
+    public async Task FindAsyncDoesNotCaptureABlockedSynchronizationContext()
+    {
+        var root = CreateRoot();
+        try
+        {
+            var store = new ConversationWorkspaceStore(root);
+            var conversation = await store.CreateConversationAsync(
+                ConversationWorkspaceStore.StandaloneProjectId,
+                "UI deadlock regression");
+            var completion = new TaskCompletionSource<ConversationDocument?>(
+                TaskCreationOptions.RunContinuationsAsynchronously);
+            var thread = new Thread(() =>
+            {
+                SynchronizationContext.SetSynchronizationContext(new BlockingSynchronizationContext());
+                try
+                {
+                    completion.SetResult(store.FindAsync(conversation.Id).GetAwaiter().GetResult());
+                }
+                catch (Exception exception)
+                {
+                    completion.SetException(exception);
+                }
+            }) { IsBackground = true };
+
+            thread.Start();
+            var restored = await completion.Task.WaitAsync(TimeSpan.FromSeconds(5));
+
+            Assert.NotNull(restored);
+            Assert.Equal(conversation.Id, restored!.Id);
+        }
+        finally { DeleteRoot(root); }
+    }
+
+    private sealed class BlockingSynchronizationContext : SynchronizationContext
+    {
+        public override void Post(SendOrPostCallback callback, object? state)
+        {
+            // Intentionally does not pump callbacks, matching a blocked UI dispatcher.
+        }
+    }
+
     private static string CreateRoot() => Path.Combine(
         Path.GetTempPath(), "CopilotBridge.Tests", Guid.NewGuid().ToString("N"));
 

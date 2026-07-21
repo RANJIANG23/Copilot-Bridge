@@ -162,7 +162,8 @@ internal sealed class CopilotPageDriver
         var composer = await FindUniqueVisibleAsync("message composer", _selectors.Composer);
         await composer.FillAsync(prompt);
         var readback = CanonicalComposerText(await ReadComposerTextAsync(composer));
-        if (!readback.Equals(prompt, StringComparison.Ordinal))
+        var expectedReadback = CanonicalComposerText(prompt);
+        if (!readback.Equals(expectedReadback, StringComparison.Ordinal))
         {
             await composer.FillAsync(string.Empty);
             throw new InvalidOperationException("Composer readback does not exactly match the prompt.");

@@ -22,15 +22,15 @@ Routine consultations do not simulate physical input, take foreground focus, or 
 
 从 [GitHub Releases](https://github.com/RANJIANG23/Copilot-Bridge/releases) 下载以下两个同版本文件。Download both matching-version files from [GitHub Releases](https://github.com/RANJIANG23/Copilot-Bridge/releases):
 
-- `CopilotBridge-1.2.2-win-x64.zip`
-- `CopilotBridge-1.2.2-win-x64.zip.sha256`
+- `CopilotBridge-1.3.0-win-x64.zip`
+- `CopilotBridge-1.3.0-win-x64.zip.sha256`
 
 ZIP 的 SHA-256 位于同名 `.sha256` 文件中。The ZIP SHA-256 is supplied in its matching `.sha256` file.
 
 安装前可在 PowerShell 中核对。Verify it in PowerShell before installation:
 
 ```powershell
-(Get-FileHash .\CopilotBridge-1.2.2-win-x64.zip -Algorithm SHA256).Hash.ToLowerInvariant()
+(Get-FileHash .\CopilotBridge-1.3.0-win-x64.zip -Algorithm SHA256).Hash.ToLowerInvariant()
 ```
 
 ### 使用前提 / Requirements
@@ -80,15 +80,15 @@ See [Installation](./INSTALL.md) for the complete procedure. Release owners must
 
 | 项目 / Item | 状态 / Status |
 |---|---|
-| 当前源码版本 / Current source version | `1.2.2` |
-| 发布状态 / Release status | v1.2.2 已发布 Windows x64 自包含安装包与 SHA-256 文件 / v1.2.2 released with a Windows x64 self-contained package and SHA-256 file |
-| 已通过 / Passed | Phase 0–27 and G1–G8 |
+| 当前源码版本 / Current source version | `1.3.0` |
+| 发布状态 / Release status | v1.3.0 已发布 Windows x64 自包含安装包与 SHA-256 文件 / v1.3.0 released with a Windows x64 self-contained package and SHA-256 file |
+| 已通过 / Passed | Phase 0–28 and G1–G8 |
 | 后续试点 / Follow-up pilot | 不同硬件、账号和企业策略环境 / Different hardware, account, and enterprise-policy environments |
 | 平台 / Platform | Windows 11 x64 |
 
-团队 v1.2.2 已达到项目定义的本机门禁，但不把本机隔离验收描述为跨设备兼容性证明。`1.2.2` 已作为 Windows x64 自包含安装包发布；安装前请核对 GitHub Release 中的同名 `.sha256` 文件。
+团队 v1.3.0 已达到项目定义的本机门禁，但不把本机隔离验收描述为跨设备兼容性证明。`1.3.0` 已作为 Windows x64 自包含安装包发布；安装前请核对 GitHub Release 中的同名 `.sha256` 文件。
 
-Team v1.2.2 satisfies the project's local gates, but local isolated acceptance is not presented as proof of cross-device compatibility. `1.2.2` is released as a Windows x64 self-contained package; verify the matching `.sha256` file in the GitHub Release before installation.
+Team v1.3.0 satisfies the project's local gates, but local isolated acceptance is not presented as proof of cross-device compatibility. `1.3.0` is released as a Windows x64 self-contained package; verify the matching `.sha256` file in the GitHub Release before installation.
 
 ## 架构开发思路 / Architecture and design rationale
 
@@ -99,7 +99,9 @@ Bridge prioritizes user control, verifiability, and a minimal runtime boundary r
 - **单一运行单元**：只有一个生产项目、一个生产可执行文件 `CopilotBridge.exe`；GUI 与 STDIO MCP 共享业务代码。**One production unit:** one production project and one executable, `CopilotBridge.exe`, with shared GUI and STDIO MCP business logic.
 - **浏览器边界**：只经 Edge CDP 与绑定标签页 DOM 操作，不使用 Computer Use、OCR、Windows UI Automation、物理鼠标键盘模拟或前台窗口切换。**Browser boundary:** only Edge CDP and the bound-tab DOM are used; no Computer Use, OCR, Windows UI Automation, physical input simulation, or foreground switching.
 - **单标签串行写入**：所有咨询在一个专用标签页中串行执行；发送后状态不确定即停止，不自动再次提交。**Single-tab serial writes:** consultations execute serially in one dedicated tab; an uncertain post-submit state stops without another submission.
+- **共享咨询生命周期**：GUI 与 MCP 共用同一个 Coordinator；策略、预算、状态与失败语义在获取 Edge 页面前统一判定。**Shared consultation lifecycle:** GUI and MCP use one coordinator; policy, budget, state, and failure semantics are decided before an Edge page is acquired.
 - **本地数据边界**：不保存页面 HTML、Cookie、令牌或其他 Edge 标签页正文；即时会话仅在用户选择的本地工作区保存实际发送与接收的 Markdown。**Local data boundary:** page HTML, cookies, tokens, and other Edge-tab content are not persisted; immediate conversations save sent and received Markdown only in a user-selected local workspace.
+- **本地统计缓存**：Dashboard 只读取 Bridge 本地记录，刷新时预计算一次；日期与倍率切换复用缓存，不扫描 Microsoft 365 历史。**Local statistics cache:** the dashboard reads Bridge-local records only and precomputes once per refresh; date and multiplier changes reuse the cache and never scan Microsoft 365 history.
 - **明确非目标**：不引入数据库、本地 Web 服务、后台守护进程、消息队列、通用 Provider 框架、在线更新、遥测后台、集中账号托管或管理员策略绕过。**Explicit non-goals:** no database, local web server, daemon, queue, generic provider framework, online updater, telemetry backend, shared-account hosting, or administrator-policy bypass.
 
 ## 文档 / Documentation

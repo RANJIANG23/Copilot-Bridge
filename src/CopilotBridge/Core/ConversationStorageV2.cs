@@ -162,10 +162,12 @@ internal sealed class ConversationStorageV2
 
     internal string RenderReadable(ConversationDocument document) => Render(document, includeMarkers: false);
 
-    internal string? RelativeMarkdownPath(string conversationId)
+    internal async Task<string?> RelativeMarkdownPathAsync(
+        string conversationId,
+        CancellationToken cancellationToken = default)
     {
-        var sidecar = ReadSidecarAsync(SidecarPath(conversationId), CancellationToken.None)
-            .GetAwaiter().GetResult();
+        var sidecar = await ReadSidecarAsync(SidecarPath(conversationId), cancellationToken)
+            .ConfigureAwait(false);
         return sidecar?.MarkdownRelativePath;
     }
 
@@ -238,7 +240,7 @@ internal sealed class ConversationStorageV2
         try
         {
             return JsonSerializer.Deserialize<ConversationSidecar>(
-                await File.ReadAllTextAsync(path, cancellationToken), JsonOptions);
+                await File.ReadAllTextAsync(path, cancellationToken).ConfigureAwait(false), JsonOptions);
         }
         catch (Exception exception) when (exception is JsonException or IOException or UnauthorizedAccessException)
         {

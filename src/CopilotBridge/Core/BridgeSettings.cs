@@ -30,6 +30,29 @@ internal enum AppTheme
     Dark
 }
 
+internal static class CollaborationBudgetOptions
+{
+    internal const int Minimum = 1;
+    internal const int Maximum = 20;
+    internal const int DefaultAssist = 2;
+    internal const int DefaultOutsource = 6;
+    internal const int DefaultReview = 1;
+
+    internal static int ForMode(BridgeSettings settings, CollaborationMode mode) => mode switch
+    {
+        CollaborationMode.Outsource => settings.OutsourceTurnBudget,
+        CollaborationMode.Review => settings.ReviewTurnBudget,
+        _ => settings.AssistTurnBudget
+    };
+
+    internal static int RecordedTurns(ConversationDocument document, CollaborationMode mode)
+    {
+        var deliveries = document.Turns.Count(turn =>
+            turn.Role.Equals("agent", StringComparison.OrdinalIgnoreCase));
+        return mode == CollaborationMode.Review ? (deliveries + 1) / 2 : deliveries;
+    }
+}
+
 internal static class ModelPriorityOptions
 {
     internal static readonly IReadOnlyList<string> Default =
@@ -65,11 +88,19 @@ internal sealed record BridgeSettings
 
     public int ReplyTimeoutSeconds { get; init; } = 300;
 
+    public double StatisticsTokenMultiplier { get; init; } = UsageStatisticsCalculator.DefaultMultiplier;
+
     public string ModelPriority { get; init; } = ModelPriorityOptions.Serialize(ModelPriorityOptions.Default);
 
     public ConsultationPolicy ConsultationPolicy { get; init; } = ConsultationPolicy.ManualOnly;
 
     public CollaborationMode CollaborationMode { get; init; } = CollaborationMode.Assist;
+
+    public int AssistTurnBudget { get; init; } = CollaborationBudgetOptions.DefaultAssist;
+
+    public int OutsourceTurnBudget { get; init; } = CollaborationBudgetOptions.DefaultOutsource;
+
+    public int ReviewTurnBudget { get; init; } = CollaborationBudgetOptions.DefaultReview;
 
     public AppLanguage DisplayLanguage { get; init; } = AppLanguage.Chinese;
 
@@ -175,7 +206,9 @@ internal sealed class SettingsStore
 
         if (settings.MenuMinimumWaitMilliseconds < 0 ||
             settings.MenuMaximumWaitMilliseconds < settings.MenuMinimumWaitMilliseconds ||
-            settings.ReplyTimeoutSeconds <= 0)
+            settings.ReplyTimeoutSeconds <= 0 ||
+            settings.StatisticsTokenMultiplier is < UsageStatisticsCalculator.MinimumMultiplier or
+                > UsageStatisticsCalculator.MaximumMultiplier)
         {
             throw new InvalidDataException("Settings contain invalid timeout values.");
         }
@@ -185,6 +218,17 @@ internal sealed class SettingsStore
             throw new InvalidDataException("Settings contain an invalid model priority.");
         }
 
+        if (!IsValidBudget(settings.AssistTurnBudget) ||
+            !IsValidBudget(settings.OutsourceTurnBudget) ||
+            !IsValidBudget(settings.ReviewTurnBudget))
+        {
+            throw new InvalidDataException(
+                $"Collaboration turn budgets must be between {CollaborationBudgetOptions.Minimum} and {CollaborationBudgetOptions.Maximum}.");
+        }
+
         return settings;
     }
+
+    private static bool IsValidBudget(int budget) =>
+        budget is >= CollaborationBudgetOptions.Minimum and <= CollaborationBudgetOptions.Maximum;
 }

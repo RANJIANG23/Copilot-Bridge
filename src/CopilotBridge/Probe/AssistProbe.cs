@@ -15,8 +15,8 @@ internal static class AssistProbe
         try
         {
             var settings = new BridgeSettings();
-            var coordinator = new ConsultationCoordinator(settings, ProviderSelectors.Load());
-            var result = await coordinator.AssistAsync(new AssistRequest(Prompt), endpoint);
+            var executor = new CopilotTurnExecutor(settings, ProviderSelectors.Load());
+            var result = await executor.AssistAsync(new AssistRequest(Prompt), endpoint);
             var replyMatches = result.ReplyMarkdown.Trim().Equals(ExpectedReply, StringComparison.Ordinal);
             var singleTurn = result.UserMessageDelta == 1 && result.AssistantMessageDelta == 1;
 

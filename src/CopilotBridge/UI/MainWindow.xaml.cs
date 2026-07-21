@@ -16,13 +16,13 @@ namespace CopilotBridge.UI;
 public partial class MainWindow : Window
 {
     private readonly SettingsStore _settingsStore = new();
-    private readonly ConsultationStateStore _stateStore = new();
     private readonly McpProcessRegistry _mcpProcessRegistry = new();
     private readonly ShortcutManager _shortcutManager = new();
     private readonly ProviderSelectors _selectors = ProviderSelectors.Load();
     private readonly DispatcherTimer _statusRefreshTimer = new();
     private readonly DispatcherTimer _noticeTimer = new() { Interval = TimeSpan.FromSeconds(5) };
     private readonly ObservableCollection<string> _modelPriority = [];
+    private readonly ConsultationCoordinator _consultationCoordinator;
     private SystemTrayController? _tray;
     private BridgeSettings _settings = new();
     private ConversationWorkspaceStore _workspace = new();
@@ -54,6 +54,10 @@ public partial class MainWindow : Window
 
     public MainWindow()
     {
+        _consultationCoordinator = new ConsultationCoordinator(
+            _settingsStore,
+            new ConsultationStateStore(),
+            _selectors);
         InitializeComponent();
         _statusRefreshTimer.Tick += StatusRefreshTimer_Tick;
         _noticeTimer.Tick += NoticeTimer_Tick;
@@ -94,16 +98,19 @@ public partial class MainWindow : Window
         if (sender is not Button button || button.Tag is not string page) return;
         _activePage = page;
         OverviewPanel.Visibility = page == "overview" ? Visibility.Visible : Visibility.Collapsed;
+        StatisticsPanel.Visibility = page == "statistics" ? Visibility.Visible : Visibility.Collapsed;
         HistoryPanel.Visibility = page == "history" ? Visibility.Visible : Visibility.Collapsed;
         CollaborationPanel.Visibility = page == "collaboration" ? Visibility.Visible : Visibility.Collapsed;
         BrowserPanel.Visibility = page == "browser" ? Visibility.Visible : Visibility.Collapsed;
         SettingsPanel.Visibility = page == "settings" ? Visibility.Visible : Visibility.Collapsed;
         SetNavState(OverviewNav, page == "overview");
+        SetNavState(StatisticsNav, page == "statistics");
         SetNavState(HistoryNav, page == "history");
         SetNavState(CollaborationNav, page == "collaboration");
         SetNavState(BrowserNav, page == "browser");
         SetNavState(SettingsNav, page == "settings");
         if (page == "history") await RefreshWorkspaceAsync();
+        if (page == "statistics") await RefreshStatisticsAsync();
         if (page == "settings") await RefreshStorageMigrationStatusAsync();
         ScheduleStatusRefresh();
         if (page == "overview" && !_busy)
@@ -390,95 +397,6 @@ public partial class MainWindow : Window
         catch (Exception exception) { ShowNotice(FriendlyMessage(exception), NoticeKind.Error); }
     }
 
-    private async void Test_Click(object sender, RoutedEventArgs e)
-    {
-        if (_busy) return;
-        if (_statusRefreshInProgress)
-        {
-            ShowNotice(T("状态刷新正在完成，请稍后再试。"), NoticeKind.Info);
-            return;
-        }
-        var prompt = TestPromptTextBox.Text.Trim();
-        if (prompt.Length == 0)
-        {
-            ShowNotice(T("请先输入即时咨询内容。"), NoticeKind.Error);
-            return;
-        }
-
-        using var lease = ConsultationLease.TryAcquire();
-        if (lease is null)
-        {
-            ShowNotice(T("已有一个咨询正在执行，请等待其完成。"), NoticeKind.Error);
-            return;
-        }
-
-        SetBusy(true, "正在咨询 Copilot");
-        try
-        {
-            await SaveSettingsFromControlsAsync();
-            if (_settings.ConsultationPolicy == ConsultationPolicy.Disabled)
-            {
-                throw new InvalidOperationException(T("征询策略当前为“关闭”，请先在协作页调整。"));
-            }
-
-            var conversation = _selectedConversation ?? await CreateImmediateConversationAsync();
-            var primaryUrl = conversation.CopilotConversationUrl ?? _settings.BoundConversationUrl;
-            if (_settings.CollaborationMode != CollaborationMode.Review && string.IsNullOrWhiteSpace(primaryUrl))
-            {
-                throw new InvalidOperationException(T("请先绑定一个专用 Copilot 标签页。 "));
-            }
-
-            var session = await GetSessionAsync();
-            var result = await new CollaborationRunner(_settings, _selectors, session.Page)
-                .RunAsync(new CollaborationContext(
-                    prompt,
-                    _settings.CollaborationMode,
-                    0,
-                    primaryUrl,
-                    null,
-                    null));
-            var last = result.Responses.Last();
-            _selectedConversation = await _workspace.AppendRunAsync(conversation, result);
-
-            var id = _selectedConversation.Id;
-            await _stateStore.SaveAsync(id, new ConsultationRecord
-            {
-                Mode = _settings.CollaborationMode.ToString().ToLowerInvariant(),
-                TurnCount = result.TurnCount,
-                PrimaryConversationUrl = result.PrimaryConversationUrl,
-                ComplexityConversationUrl = result.ComplexityConversationUrl,
-                EvidenceConversationUrl = result.EvidenceConversationUrl,
-                Status = "completed",
-                LastModel = last.Result.Model
-            });
-
-            if (result.PrimaryConversationUrl is not null)
-            {
-                _settings = _settings with { BoundConversationUrl = result.PrimaryConversationUrl };
-                await _settingsStore.SaveAsync(_settings);
-            }
-
-            BoundUrlText.Text = _settings.BoundConversationUrl ?? T("Review 使用两个隔离会话");
-            TabStatusText.Text = T("已绑定专用 Copilot 标签页");
-            ModelStatusText.Text = last.Result.Model;
-            await RefreshWorkspaceAsync(_selectedConversation.Id);
-            ShowNotice(T("即时会话已保存为本地 Markdown；不会自动读取旧网页历史。"), NoticeKind.Success);
-        }
-        catch (ReplyTimeoutException exception)
-        {
-            ShowNotice(exception.Message, NoticeKind.Error);
-        }
-        catch (SubmissionUnknownException exception)
-        {
-            ShowNotice(exception.Message, NoticeKind.Error);
-        }
-        catch (Exception exception)
-        {
-            ShowNotice(FriendlyMessage(exception), NoticeKind.Error);
-        }
-        finally { SetBusy(false, "就绪"); }
-    }
-
     private async void NewProject_Click(object sender, RoutedEventArgs e)
     {
         try
@@ -633,6 +551,12 @@ public partial class MainWindow : Window
 
     private void ConversationListBox_PreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
     {
+        if (!HasElementTag(e.OriginalSource as DependencyObject, "ConversationDragHandle"))
+        {
+            _conversationDragItem = null;
+            return;
+        }
+
         _conversationDragStart = e.GetPosition(ConversationListBox);
         _conversationDragItem = FindParent<ListBoxItem>(e.OriginalSource as DependencyObject)?.DataContext as ConversationSummary;
         if (_conversationDragItem is ConversationSummary summary)
@@ -640,6 +564,9 @@ public partial class MainWindow : Window
             ConversationListBox.SelectedItem = summary;
         }
     }
+
+    private void ConversationListBox_PreviewMouseLeftButtonUp(object sender, MouseButtonEventArgs e) =>
+        _conversationDragItem = null;
 
     private void ConversationListBox_PreviewMouseRightButtonDown(object sender, MouseButtonEventArgs e)
     {
@@ -1196,27 +1123,45 @@ public partial class MainWindow : Window
         {
             throw new InvalidDataException(T("设置数值无效：请检查等待时间和回复超时。"));
         }
+        if (!TryReadCollaborationBudget(AssistTurnBudgetTextBox, out var assistTurnBudget) ||
+            !TryReadCollaborationBudget(OutsourceTurnBudgetTextBox, out var outsourceTurnBudget) ||
+            !TryReadCollaborationBudget(ReviewTurnBudgetTextBox, out var reviewTurnBudget))
+        {
+            throw new InvalidDataException(T("协作模式轮次预算必须是 1–20 之间的整数。"));
+        }
         var workspaceDirectory = WorkspaceDirectoryTextBox.Text.Trim();
         if (workspaceDirectory.Length == 0) throw new InvalidDataException(T("本地会话工作区不能为空。"));
-        _settings = _settings with
+        var workspaceChanged = !SameWorkspaceDirectory(
+            _settings.ConversationWorkspaceDirectory,
+            workspaceDirectory);
+        var updatedSettings = _settings with
         {
             MenuMinimumWaitMilliseconds = menuMinimum,
             MenuMaximumWaitMilliseconds = menuMaximum,
             ReplyTimeoutSeconds = replyTimeout,
+            StatisticsTokenMultiplier = StatisticsMultiplierSlider.Value,
             ModelPriority = ModelPriorityOptions.Serialize(_modelPriority),
             ConsultationPolicy = (ConsultationPolicy)Math.Max(0, PolicyComboBox.SelectedIndex),
             CollaborationMode = ReviewRadio.IsChecked == true ? CollaborationMode.Review :
                 OutsourceRadio.IsChecked == true ? CollaborationMode.Outsource : CollaborationMode.Assist,
+            AssistTurnBudget = assistTurnBudget,
+            OutsourceTurnBudget = outsourceTurnBudget,
+            ReviewTurnBudget = reviewTurnBudget,
             DisplayLanguage = LanguageComboBox.SelectedIndex == 1 ? AppLanguage.English : AppLanguage.Chinese,
             Theme = ThemeComboBox.SelectedIndex == (int)AppTheme.Dark ? AppTheme.Dark : AppTheme.Light,
             KeepMcpRunningInBackground = KeepMcpRunningCheckBox.IsChecked == true,
             UseSystemTray = UseSystemTrayCheckBox.IsChecked == true,
             ConversationWorkspaceDirectory = workspaceDirectory
         };
-        await _settingsStore.SaveAsync(_settings);
+        var settingsChanged = updatedSettings != _settings;
+        _settings = updatedSettings;
+        if (settingsChanged) await _settingsStore.SaveAsync(_settings);
         if (_tray is not null) _tray.Visible = _settings.UseSystemTray;
-        _workspace = new ConversationWorkspaceStore(_settings.ConversationWorkspaceDirectory);
-        await RefreshWorkspaceAsync();
+        if (workspaceChanged)
+        {
+            _workspace = new ConversationWorkspaceStore(_settings.ConversationWorkspaceDirectory);
+            await RefreshWorkspaceAsync();
+        }
     }
 
     private void ApplySettingsToControls()
@@ -1225,9 +1170,16 @@ public partial class MainWindow : Window
         AssistRadio.IsChecked = _settings.CollaborationMode == CollaborationMode.Assist;
         OutsourceRadio.IsChecked = _settings.CollaborationMode == CollaborationMode.Outsource;
         ReviewRadio.IsChecked = _settings.CollaborationMode == CollaborationMode.Review;
+        AssistTurnBudgetTextBox.Text = _settings.AssistTurnBudget.ToString();
+        OutsourceTurnBudgetTextBox.Text = _settings.OutsourceTurnBudget.ToString();
+        ReviewTurnBudgetTextBox.Text = _settings.ReviewTurnBudget.ToString();
         MenuMinimumTextBox.Text = _settings.MenuMinimumWaitMilliseconds.ToString();
         MenuMaximumTextBox.Text = _settings.MenuMaximumWaitMilliseconds.ToString();
         ReplyTimeoutTextBox.Text = _settings.ReplyTimeoutSeconds.ToString();
+        StatisticsMultiplierSlider.Value = _settings.StatisticsTokenMultiplier;
+        StatisticsMultiplierText.Text = $"{_settings.StatisticsTokenMultiplier:0.0}×";
+        StatisticsFromDatePicker.SelectedDate = DateTime.Today.AddDays(-29);
+        StatisticsToDatePicker.SelectedDate = DateTime.Today;
         WorkspaceDirectoryTextBox.Text = _settings.ConversationWorkspaceDirectory;
         _modelPriority.Clear();
         foreach (var model in ModelPriorityOptions.Parse(_settings.ModelPriority)) _modelPriority.Add(model);
@@ -1236,6 +1188,27 @@ public partial class MainWindow : Window
         ThemeComboBox.SelectedIndex = (int)_settings.Theme;
         KeepMcpRunningCheckBox.IsChecked = _settings.KeepMcpRunningInBackground;
         UseSystemTrayCheckBox.IsChecked = _settings.UseSystemTray;
+    }
+
+    private static bool TryReadCollaborationBudget(TextBox textBox, out int budget) =>
+        int.TryParse(textBox.Text, out budget) &&
+        budget is >= CollaborationBudgetOptions.Minimum and <= CollaborationBudgetOptions.Maximum;
+
+    private static bool SameWorkspaceDirectory(string first, string second)
+    {
+        try
+        {
+            return Path.GetFullPath(first)
+                .TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar)
+                .Equals(
+                    Path.GetFullPath(second)
+                        .TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar),
+                    StringComparison.OrdinalIgnoreCase);
+        }
+        catch (Exception exception) when (exception is ArgumentException or NotSupportedException)
+        {
+            return first.Equals(second, StringComparison.OrdinalIgnoreCase);
+        }
     }
 
     private void SetBusy(bool busy, string status)
@@ -1444,6 +1417,7 @@ public partial class MainWindow : Window
         SetSystemBrush(SystemColors.MenuBrushKey, dark ? "#292929" : "#FFFFFF");
         SetSystemBrush(SystemColors.MenuTextBrushKey, dark ? "#F5F5F5" : "#242424");
         SetNavState(OverviewNav, _activePage == "overview");
+        SetNavState(StatisticsNav, _activePage == "statistics");
         SetNavState(HistoryNav, _activePage == "history");
         SetNavState(CollaborationNav, _activePage == "collaboration");
         SetNavState(BrowserNav, _activePage == "browser");
@@ -1469,6 +1443,17 @@ public partial class MainWindow : Window
         }
         return null;
     }
+
+    private static bool HasElementTag(DependencyObject? current, string tag)
+    {
+        while (current is not null)
+        {
+            if (current is FrameworkElement { Tag: string value } &&
+                value.Equals(tag, StringComparison.Ordinal)) return true;
+            current = VisualTreeHelper.GetParent(current);
+        }
+        return false;
+    }
     private void ApplyUiLanguage()
     {
         UiText.Apply(this, _settings.DisplayLanguage);
@@ -1478,6 +1463,7 @@ public partial class MainWindow : Window
         RenameConversationMenuItem.Header = T("重命名");
         DeleteConversationMenuItem.Header = T("删除");
         _tray?.UpdateText(T("打开 Copilot Bridge"), T("退出 Copilot Bridge"));
+        if (_activePage == "statistics" && _statisticsDataset.Deliveries.Count > 0) RenderStatistics();
         ScheduleStatusRefresh();
     }
 
