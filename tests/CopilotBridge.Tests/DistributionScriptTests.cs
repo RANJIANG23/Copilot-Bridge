@@ -7,12 +7,12 @@ namespace CopilotBridge.Tests;
 public sealed class DistributionScriptTests
 {
     [Fact]
-    public void ReleaseMetadataIsUnifiedForV121()
+    public void ReleaseMetadataIsUnifiedForV122()
     {
         var root = DistributionFixture.FindRepositoryRoot();
-        Assert.Contains("[string]$Version = '1.2.1'", File.ReadAllText(Path.Combine(root, "distribution", "Build-Release.ps1")));
-        Assert.Contains("<Version>1.2.1</Version>", File.ReadAllText(Path.Combine(root, "src", "CopilotBridge", "CopilotBridge.csproj")));
-        Assert.Contains("\"version\": \"1.2.1\"", File.ReadAllText(Path.Combine(
+        Assert.Contains("[string]$Version = '1.2.2'", File.ReadAllText(Path.Combine(root, "distribution", "Build-Release.ps1")));
+        Assert.Contains("<Version>1.2.2</Version>", File.ReadAllText(Path.Combine(root, "src", "CopilotBridge", "CopilotBridge.csproj")));
+        Assert.Contains("\"version\": \"1.2.2\"", File.ReadAllText(Path.Combine(
             root,
             "distribution",
             "marketplace",
@@ -20,6 +20,11 @@ public sealed class DistributionScriptTests
             "copilot-bridge",
             ".codex-plugin",
             "plugin.json")));
+        var upgradeScript = File.ReadAllText(Path.Combine(root, "distribution", "Test-IsolatedUpgrade.ps1"));
+        Assert.Contains("$previousVersion -like '1.2.1*'", upgradeScript);
+        Assert.Contains("$candidateVersion -like '1.2.2*'", upgradeScript);
+        Assert.Contains("$rollbackVersion -like '1.2.1*'", upgradeScript);
+        Assert.Contains("'CopilotBridge-Phase27'", upgradeScript);
         Assert.Contains("COPILOT_BRIDGE_SETTINGS_PATH", File.ReadAllText(Path.Combine(
             root,
             "distribution",
@@ -28,6 +33,33 @@ public sealed class DistributionScriptTests
             "copilot-bridge",
             "scripts",
             "start-mcp.ps1")));
+    }
+
+    [Fact]
+    public void CopilotSkillStopsBeforeReviewWhenGuiModeDoesNotMatch()
+    {
+        var root = DistributionFixture.FindRepositoryRoot();
+        var skillPaths = new[]
+        {
+            Path.Combine(root, ".agents", "skills", "copilot-consult", "SKILL.md"),
+            Path.Combine(
+                root,
+                "distribution",
+                "marketplace",
+                "plugins",
+                "copilot-bridge",
+                "skills",
+                "copilot-consult",
+                "SKILL.md")
+        };
+
+        foreach (var path in skillPaths)
+        {
+            var skill = File.ReadAllText(path);
+            Assert.Contains("collaborationMode` is not `review`, stop before calling `consult_copilot`", skill);
+            Assert.Contains("call status again and proceed only when it reads `review`", skill);
+            Assert.Contains("retryAction=none", skill);
+        }
     }
 
     [Fact]

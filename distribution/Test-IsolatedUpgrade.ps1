@@ -29,7 +29,7 @@ if (Test-Path -LiteralPath $evidencePath) {
 }
 
 $isolatedLocal = Join-Path $evidencePath 'LocalAppData'
-$codexTestParent = Join-Path $env:LOCALAPPDATA 'CopilotBridge-Phase23'
+$codexTestParent = Join-Path $env:LOCALAPPDATA 'CopilotBridge-Phase27'
 $isolatedCodex = Join-Path $codexTestParent ([IO.Path]::GetFileName($evidencePath))
 if (Test-Path -LiteralPath $isolatedCodex) {
     throw "Isolated Codex home already exists: $isolatedCodex"
@@ -240,9 +240,9 @@ $hostConfigAfter = if (Test-Path -LiteralPath $hostConfig) {
     (Get-FileHash -LiteralPath $hostConfig -Algorithm SHA256).Hash
 } else { 'missing' }
 
-$passed = $previousVersion -like '1.2.0*' -and
-    $candidateVersion -like '1.2.1*' -and
-    $rollbackVersion -like '1.2.0*' -and
+$passed = $previousVersion -like '1.2.1*' -and
+    $candidateVersion -like '1.2.2*' -and
+    $rollbackVersion -like '1.2.1*' -and
     $mcp.ToolNames.Count -eq 4 -and
     $mcp.SearchResultCount -eq 0 -and
     $userDataBefore -eq $userDataAfterMcp -and
@@ -274,7 +274,7 @@ if ($passed -and (Test-Path -LiteralPath $isolatedCodex)) {
     if (-not $resolvedCodexHome.StartsWith(
             $allowedCodexPrefix,
             [StringComparison]::OrdinalIgnoreCase) -or
-        [IO.Path]::GetFileName($resolvedCodexHome) -notlike 'v1.2.1-*') {
+        [IO.Path]::GetFileName($resolvedCodexHome) -notlike 'v1.2.2-*') {
         throw "Refusing to clean unexpected Codex home: $resolvedCodexHome"
     }
     Remove-Item -LiteralPath $resolvedCodexHome -Recurse -Force

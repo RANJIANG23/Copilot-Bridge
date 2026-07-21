@@ -49,7 +49,9 @@ internal static class Program
             {
                 ShutdownMode = ShutdownMode.OnMainWindowClose
             };
-            return application.Run(new MainWindow());
+            var mainWindow = new MainWindow();
+            application.SessionEnding += (_, _) => mainWindow.PrepareForSessionEnding();
+            return application.Run(mainWindow);
         }
 
         ConsoleHost.Attach();

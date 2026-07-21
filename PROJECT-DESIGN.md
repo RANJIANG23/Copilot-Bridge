@@ -1,8 +1,8 @@
 # Microsoft Copilot 项目完整设计
 
-> 设计基线：v1.2.1 开发基线
-> 日期：2026-07-20（Asia/Shanghai）
-> 状态：v1.2.1 Phase 20–23 已通过，用户已授权正式发布
+> 设计基线：v1.2.2 发布基线
+> 日期：2026-07-21（Asia/Shanghai）
+> 状态：v1.2.2 Phase 24–27 已通过并发布
 > 工作名称：Copilot Bridge
 > 项目目录：本仓库根目录
 > 目标模式执行路线图：[EXECUTION-ROADMAP.md](./EXECUTION-ROADMAP.md)
@@ -486,11 +486,14 @@ v1 只暴露两个工具。
       "markdown": "string"
     }
   ],
-  "canRetrySafely": false
+  "canRetrySafely": false,
+  "retryAction": "none | new_consultation | reuse_consultation"
 }
 ```
 
-`canRetrySafely` 只有在明确尚未点击发送时才为 `true`。
+`canRetrySafely` 只有在明确尚未点击发送时才为 `true`。`retryAction=new_consultation` 表示首次咨询尚未建立记录，安全重试必须省略 `consultationId`；`retryAction=reuse_consultation` 表示既有咨询的提交前失败，安全重试必须复用 ID；其他情况为 `none`，禁止重试。每次工具调用最多进行一次自动安全重试。
+
+模型选择前必须先判断菜单是否已经打开，并以 actionability 预检区分可点击按钮与页面 DOM 浮层。已打开的模型菜单可直接选择，不重复点击开关；未知浮层不得强制点击或自动关闭，分别以 `page_overlay_blocked` 或 `model_selector_blocked` 在发送前失败。日志只记录拦截元素的标签、role、`aria-modal`、`data-testid` 和截断 class，不记录页面正文。
 
 注解必须诚实：`readOnlyHint=false`、`destructiveHint=true`、`openWorldHint=true`。消息发送到外部企业服务且无法由本工具撤回，因此不能为了减少审批而错误标记为只读。
 
@@ -500,7 +503,8 @@ v1 只暴露两个工具。
 
 - 协作模式只由 GUI 决定；
 - 发送状态不确定时禁止重试；
-- 追问必须复用返回的 `consultationId`；
+- 已完成咨询的追问必须复用返回的 `consultationId`，提交前失败按 `retryAction` 决定复用或重新开始；
+- 用户明确要求双审查时，Skill 必须先确认 `collaborationMode=review`；模式不符时不得先按 Assist 或 Outsource 发送。
 - Copilot 只提供意见，Codex负责核验和执行。
 
 ## 12. 审批与自动调用
@@ -1093,3 +1097,12 @@ v1.2.0 的范围已经由用户确认并启动，详细设计以 [v1.2.0-design.
 v1.2.0 已正式发布。v1.2.1 以 [v1.2.1-design.md](./v1.2.1-design.md) 为权威范围，集中整理现有 WPF 主题资源、补齐组件状态与键盘/辅助技术路径，并完成最小窗口下的布局安全验证。Phase 23 同时修复团队试点确认的 `copilot.cloud.microsoft` 精确入口兼容和首次连接失败后的重复授权问题。
 
 本版本不改变 MCP、项目授权、Markdown、模型选择或发送边界；Edge/CDP 只增加两个精确 Copilot origin 的兼容和连接失败诊断，不放宽到通配域名，也不改变禁止自动重发。它不引入第三方 UI 库、MVVM 重构、完整 Adaptive、系统托盘、开机启动或会话存储 v2。WorkBuddy 仍只作为开发期草稿输入，任何内容进入正式设计和代码前必须由本仓库事实独立核验。
+
+## 28. v1.2.2 设计边界
+
+v1.2.2 只承接用户重新确认的两项 GLM-5.2 后续目标：可选系统托盘，以及会话 Markdown 正文与内部元数据分离。详细范围、迁移事务、托盘生命周期和停止条件以 [v1.2.2-design.md](./v1.2.2-design.md) 为准。
+
+- 托盘默认关闭；开启后关闭窗口只隐藏，显式“退出”才复用现有 MCP 终止语义。托盘不启动 MCP、不实现开机启动，也不增加服务或端口。
+- 存储 v2 使用干净 Markdown 与工作区 `.bridge/conversations/{id}.json` sidecar；sidecar 不重复保存正文。旧 v1.1 文件继续兼容，只读 MCP 不迁移或写盘。
+- 批量迁移必须由用户显式触发，先备份并保留 manifest；两文件写入使用临时文件、内容哈希和 pending 恢复边界，不能把顺序写入误称为原子。
+- 本版本继续保持一个生产项目、一个测试项目、一个 EXE、两个直接生产依赖和约 7000 行总体预算；不改变四个 MCP 工具、项目权限、Edge/CDP/DOM 或禁止自动重发。

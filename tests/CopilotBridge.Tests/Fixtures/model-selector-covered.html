@@ -1,0 +1,18 @@
+<!doctype html><meta charset="utf-8">
+<button id="gptModeSwitcher">自动</button>
+<div id="menu" hidden><button onclick="choose('Opus')">Opus</button></div>
+<textarea placeholder="消息"></textarea>
+<button aria-label="发送" onclick="window.sendCount++">发送</button>
+<div id="unclassified-blocker" style="position:fixed;inset:0;z-index:999;background:white"></div>
+<script>
+window.sendCount = 0;
+window.switcherClickCount = 0;
+document.querySelector('#gptModeSwitcher').onclick = () => {
+  window.switcherClickCount++;
+  document.querySelector('#menu').hidden = false;
+};
+function choose(label) {
+  document.querySelector('#gptModeSwitcher').textContent = label;
+  document.querySelector('#menu').hidden = true;
+}
+</script>

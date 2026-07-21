@@ -48,10 +48,22 @@ public sealed class McpProtocolTests
         Assert.Contains("collaboration mode", client.ServerInstructions, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("local project access", client.ServerInstructions, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("Never retry", client.ServerInstructions, StringComparison.Ordinal);
+        Assert.Contains("retryAction", client.ServerInstructions, StringComparison.Ordinal);
 
         var result = await status.CallAsync(new Dictionary<string, object?>());
         Assert.NotEqual(true, result.IsError);
         Assert.NotNull(result.StructuredContent);
+
+        var safeFailure = await consult.CallAsync(new Dictionary<string, object?>
+        {
+            ["requestMarkdown"] = "",
+            ["trigger"] = "user_explicit"
+        });
+        Assert.NotEqual(true, safeFailure.IsError);
+        var safeFailureContent = Assert.IsType<System.Text.Json.JsonElement>(safeFailure.StructuredContent);
+        Assert.Equal("not_submitted", safeFailureContent.GetProperty("status").GetString());
+        Assert.True(safeFailureContent.GetProperty("canRetrySafely").GetBoolean());
+        Assert.Equal("new_consultation", safeFailureContent.GetProperty("retryAction").GetString());
     }
 
     [Fact]

@@ -6,7 +6,7 @@
 
 发布者只需分发两项：
 
-- `CopilotBridge-1.2.1-win-x64.zip`
+- `CopilotBridge-1.2.2-win-x64.zip`
 - 同名 `.sha256` 文件
 
 不要从仓库的 `bin` 或 `obj` 目录拼装包，也不要单独发送 EXE。

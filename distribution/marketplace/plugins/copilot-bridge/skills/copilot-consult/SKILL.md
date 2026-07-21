@@ -20,7 +20,7 @@ Use local history only when it can materially reduce repeated work or provide ev
 
 ## Workflow
 
-1. Call `copilot_bridge_status`. Respect the GUI-selected consultation policy and collaboration mode.
+1. Call `copilot_bridge_status`. Respect the GUI-selected consultation policy and collaboration mode. If the user requested the Review workflow with two isolated reviewers and `collaborationMode` is not `review`, stop before calling `consult_copilot`, report the actual mode, and ask the user to switch to Review and save it in the GUI. After the change, call status again and proceed only when it reads `review`.
 2. Build a focused Markdown request with only relevant evidence:
 
 ```markdown
@@ -33,8 +33,8 @@ Use local history only when it can materially reduce repeated work or provide ev
 ```
 
 3. Call `consult_copilot` once. Use `trigger=user_explicit` only for an explicit user request; otherwise use the applicable automatic trigger. Never pass a mode or model.
-4. Preserve the returned `consultationId`. Reuse it for follow-ups on the same decision. Set `newConversation=true` only when the user explicitly requests a separate chat.
-5. Never retry `submission_unknown`, `reply_timeout`, or any response with `canRetrySafely=false`.
+4. Preserve the returned `consultationId` for completed follow-ups. Set `newConversation=true` only when the user explicitly requests a separate chat.
+5. Never retry `submission_unknown`, `reply_timeout`, any response with `canRetrySafely=false`, or `retryAction=none`. For one safe retry, obey `retryAction`: `reuse_consultation` reuses the returned `consultationId`; `new_consultation` omits `consultationId` because no consultation record exists yet. Never perform more than one automatic safe retry for a tool call.
 6. Treat the response as advice. Separate facts, inferences, and recommendations; verify checkable claims with local evidence, tests, or official documentation; state what is adopted or rejected; perform the actual work in Codex.
 
 ## GUI-selected collaboration modes

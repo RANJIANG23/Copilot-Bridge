@@ -23,6 +23,7 @@ public partial class MainWindow : Window
     private readonly DispatcherTimer _statusRefreshTimer = new();
     private readonly DispatcherTimer _noticeTimer = new() { Interval = TimeSpan.FromSeconds(5) };
     private readonly ObservableCollection<string> _modelPriority = [];
+    private SystemTrayController? _tray;
     private BridgeSettings _settings = new();
     private ConversationWorkspaceStore _workspace = new();
     private IReadOnlyList<WorkspaceProject> _projects = [];
@@ -44,6 +45,9 @@ public partial class MainWindow : Window
     private DateTimeOffset? _lastStatusRefresh;
     private bool _automaticStatusRefreshPaused;
     private bool _settingsAreLoaded;
+    private bool _explicitExit;
+    private bool _sessionEnding;
+    private WindowState _windowStateBeforeTrayHide = WindowState.Normal;
     private const string ConversationDragFormat = "CopilotBridge.Conversation";
     private const string ModelDragFormat = "CopilotBridge.Model";
     private const string ProjectDragFormat = "CopilotBridge.Project";
@@ -66,6 +70,8 @@ public partial class MainWindow : Window
             _windowIsActive = IsActive;
             _settings = await _settingsStore.LoadAsync();
             _workspace = new ConversationWorkspaceStore(_settings.ConversationWorkspaceDirectory);
+            _tray ??= new SystemTrayController(RestoreFromTray, ExitFromTray);
+            _tray.Visible = _settings.UseSystemTray;
             ModelPriorityListBox.ItemsSource = _modelPriority;
             ApplyTheme();
             ApplySettingsToControls();
@@ -98,6 +104,7 @@ public partial class MainWindow : Window
         SetNavState(BrowserNav, page == "browser");
         SetNavState(SettingsNav, page == "settings");
         if (page == "history") await RefreshWorkspaceAsync();
+        if (page == "settings") await RefreshStorageMigrationStatusAsync();
         ScheduleStatusRefresh();
         if (page == "overview" && !_busy)
         {
@@ -106,6 +113,91 @@ public partial class MainWindow : Window
     }
 
     private async void Refresh_Click(object sender, RoutedEventArgs e) => await RefreshStatusAsync();
+
+    private async Task RefreshStorageMigrationStatusAsync()
+    {
+        try
+        {
+            var preview = await _workspace.GetStorageMigrationPreviewAsync();
+            StorageMigrationStatusText.Text = preview.LegacyCount == 0
+                ? string.Format(T("已使用分离存储：{0} 个会话；没有待迁移的旧格式。"), preview.V2Count)
+                : string.Format(T("发现 {0} 个旧格式会话；已有 {1} 个会话使用分离存储。"), preview.LegacyCount, preview.V2Count);
+        }
+        catch (Exception exception)
+        {
+            StorageMigrationStatusText.Text = FriendlyMessage(exception);
+        }
+    }
+
+    private async void MigrateStorage_Click(object sender, RoutedEventArgs e)
+    {
+        if (_busy) return;
+        SetBusy(true, "正在迁移会话存储");
+        try
+        {
+            var preview = await _workspace.GetStorageMigrationPreviewAsync();
+            if (preview.LegacyCount == 0)
+            {
+                await RefreshStorageMigrationStatusAsync();
+                ShowNotice(T("没有需要迁移的旧格式会话。"), NoticeKind.Info);
+                return;
+            }
+
+            var prompt = string.Format(
+                T("将迁移 {0} 个旧格式会话。迁移前会在工作区的 .bridge/backups 中创建完整备份；不会读取或改写 Copilot 网页对话。是否继续？"),
+                preview.LegacyCount);
+            if (MessageBox.Show(prompt, T("确认迁移会话存储"), MessageBoxButton.YesNo, MessageBoxImage.Question) != MessageBoxResult.Yes)
+            {
+                ShowNotice(T("已取消迁移，未改写会话文件。"), NoticeKind.Info);
+                return;
+            }
+
+            var result = await _workspace.MigrateStorageV2Async();
+            await RefreshWorkspaceAsync(_selectedConversation?.Id);
+            await RefreshStorageMigrationStatusAsync();
+            ShowNotice(
+                string.Format(T("已迁移 {0} 个会话，并保留可回滚备份。"), result.MigratedCount),
+                NoticeKind.Success);
+        }
+        catch (Exception exception)
+        {
+            ShowNotice(FriendlyMessage(exception), NoticeKind.Error);
+            await RefreshStorageMigrationStatusAsync();
+        }
+        finally { SetBusy(false, "就绪"); }
+    }
+
+    private async void RollbackStorage_Click(object sender, RoutedEventArgs e)
+    {
+        if (_busy) return;
+        if (MessageBox.Show(
+                T("将回滚最近一次已完成的旧格式迁移。仅当迁移后的会话路径和内容都未变化时才会执行，避免覆盖你的修改。是否继续？"),
+                T("确认回滚会话存储"),
+                MessageBoxButton.YesNo,
+                MessageBoxImage.Warning) != MessageBoxResult.Yes)
+        {
+            return;
+        }
+
+        SetBusy(true, "正在回滚会话存储");
+        try
+        {
+            var result = await _workspace.RollbackLatestStorageMigrationAsync();
+            await RefreshWorkspaceAsync(_selectedConversation?.Id);
+            await RefreshStorageMigrationStatusAsync();
+            ShowNotice(
+                result.MigratedCount == 0
+                    ? T("没有可回滚的已完成迁移。")
+                    : string.Format(T("已回滚 {0} 个会话；分离元数据已移除。"), result.MigratedCount),
+                result.MigratedCount == 0 ? NoticeKind.Info : NoticeKind.Success);
+        }
+        catch (Exception exception)
+        {
+            ShowNotice(FriendlyMessage(exception), NoticeKind.Error);
+            await RefreshStorageMigrationStatusAsync();
+        }
+        finally { SetBusy(false, "就绪"); }
+    }
 
     private void BrowseWorkspace_Click(object sender, RoutedEventArgs e)
     {
@@ -221,6 +313,34 @@ public partial class MainWindow : Window
             _settings = previous;
             ThemeComboBox.SelectedIndex = (int)previous.Theme;
             ApplyTheme();
+            ShowNotice(FriendlyMessage(exception), NoticeKind.Error);
+        }
+    }
+
+    private async void UseSystemTray_Click(object sender, RoutedEventArgs e)
+    {
+        if (!_settingsAreLoaded) return;
+        var enabled = UseSystemTrayCheckBox.IsChecked == true;
+        if (_settings.UseSystemTray == enabled) return;
+
+        var previous = _settings;
+        try
+        {
+            _settings = _settings with { UseSystemTray = enabled };
+            await _settingsStore.SaveAsync(_settings);
+            if (_tray is not null) _tray.Visible = enabled;
+            ShowNotice(
+                T(enabled
+                    ? "系统托盘已开启；窗口关闭按钮现在会隐藏 GUI。"
+                    : "系统托盘已关闭；窗口关闭按钮现在会退出 GUI。"),
+                NoticeKind.Success);
+            HeaderStatusText.Text = T("设置已保存");
+        }
+        catch (Exception exception)
+        {
+            _settings = previous;
+            UseSystemTrayCheckBox.IsChecked = previous.UseSystemTray;
+            if (_tray is not null) _tray.Visible = previous.UseSystemTray;
             ShowNotice(FriendlyMessage(exception), NoticeKind.Error);
         }
     }
@@ -732,7 +852,7 @@ public partial class MainWindow : Window
     private void CopyConversation_Click(object sender, RoutedEventArgs e)
     {
         if (_selectedConversation is null) return;
-        Clipboard.SetText(_workspace.Render(_selectedConversation));
+        Clipboard.SetText(_workspace.RenderForDisplay(_selectedConversation));
         ShowNotice(T("当前会话 Markdown 已复制，可粘贴到 Codex 或其他工具。"), NoticeKind.Success);
     }
 
@@ -996,12 +1116,22 @@ public partial class MainWindow : Window
     {
         _statusRefreshTimer.Stop();
         _noticeTimer.Stop();
+        _tray?.Dispose();
+        _tray = null;
         base.OnClosed(e);
         await ResetSessionAsync();
     }
 
     protected override void OnClosing(CancelEventArgs e)
     {
+        if (TrayClosePolicy.ShouldHide(_settings.UseSystemTray, _explicitExit, _sessionEnding))
+        {
+            e.Cancel = true;
+            _windowStateBeforeTrayHide = WindowState == WindowState.Minimized ? WindowState.Normal : WindowState;
+            Hide();
+            return;
+        }
+
         if (_settingsAreLoaded)
         {
             var executablePath = Environment.ProcessPath ?? Process.GetCurrentProcess().MainModule?.FileName;
@@ -1025,6 +1155,28 @@ public partial class MainWindow : Window
         }
 
         base.OnClosing(e);
+    }
+
+    internal void PrepareForSessionEnding() => _sessionEnding = true;
+
+    private void RestoreFromTray()
+    {
+        Dispatcher.Invoke(() =>
+        {
+            if (!IsVisible) Show();
+            WindowState = _windowStateBeforeTrayHide;
+            Activate();
+            Focus();
+        });
+    }
+
+    private void ExitFromTray()
+    {
+        Dispatcher.Invoke(() =>
+        {
+            _explicitExit = true;
+            Close();
+        });
     }
 
     private void SetDisconnectedState()
@@ -1058,9 +1210,11 @@ public partial class MainWindow : Window
             DisplayLanguage = LanguageComboBox.SelectedIndex == 1 ? AppLanguage.English : AppLanguage.Chinese,
             Theme = ThemeComboBox.SelectedIndex == (int)AppTheme.Dark ? AppTheme.Dark : AppTheme.Light,
             KeepMcpRunningInBackground = KeepMcpRunningCheckBox.IsChecked == true,
+            UseSystemTray = UseSystemTrayCheckBox.IsChecked == true,
             ConversationWorkspaceDirectory = workspaceDirectory
         };
         await _settingsStore.SaveAsync(_settings);
+        if (_tray is not null) _tray.Visible = _settings.UseSystemTray;
         _workspace = new ConversationWorkspaceStore(_settings.ConversationWorkspaceDirectory);
         await RefreshWorkspaceAsync();
     }
@@ -1081,6 +1235,7 @@ public partial class MainWindow : Window
         LanguageComboBox.SelectedIndex = (int)_settings.DisplayLanguage;
         ThemeComboBox.SelectedIndex = (int)_settings.Theme;
         KeepMcpRunningCheckBox.IsChecked = _settings.KeepMcpRunningInBackground;
+        UseSystemTrayCheckBox.IsChecked = _settings.UseSystemTray;
     }
 
     private void SetBusy(bool busy, string status)
@@ -1109,6 +1264,10 @@ public partial class MainWindow : Window
         ConversationTitleTextBox.IsEnabled = !busy;
         MoveProjectComboBox.IsEnabled = !busy;
         MoveConversationButton.IsEnabled = !busy;
+        MigrateStorageButton.IsEnabled = !busy;
+        RollbackStorageButton.IsEnabled = !busy;
+        KeepMcpRunningCheckBox.IsEnabled = !busy;
+        UseSystemTrayCheckBox.IsEnabled = !busy;
     }
 
     private void ScheduleStatusRefresh()
@@ -1318,6 +1477,7 @@ public partial class MainWindow : Window
         DeleteProjectMenuItem.Header = T("删除");
         RenameConversationMenuItem.Header = T("重命名");
         DeleteConversationMenuItem.Header = T("删除");
+        _tray?.UpdateText(T("打开 Copilot Bridge"), T("退出 Copilot Bridge"));
         ScheduleStatusRefresh();
     }
 

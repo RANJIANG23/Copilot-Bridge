@@ -31,6 +31,50 @@ public sealed class CoreTests
     }
 
     [Fact]
+    public async Task AlreadyOpenModelMenuIsReusedWithoutClickingSwitcherOrSending()
+    {
+        await using var browser = await FixtureBrowser.OpenAsync("model-menu-open.html");
+        var driver = new CopilotPageDriver(browser.Page, Selectors, FastSettings());
+
+        var selected = await driver.SelectAllowedModelAsync();
+
+        Assert.Equal("Opus", selected);
+        Assert.Equal(0, await browser.Page.EvaluateAsync<int>("window.switcherClickCount"));
+        Assert.Equal(0, await browser.Page.EvaluateAsync<int>("window.sendCount"));
+        Assert.Equal(string.Empty, await browser.Page.Locator("textarea").InputValueAsync());
+    }
+
+    [Fact]
+    public async Task RecognizedPageOverlayBlocksModelSelectionBeforeComposerOrSend()
+    {
+        await using var browser = await FixtureBrowser.OpenAsync("model-overlay-blocked.html");
+        var driver = new CopilotPageDriver(browser.Page, Selectors, FastSettings());
+
+        var exception = await Assert.ThrowsAsync<PageOverlayBlockedException>(
+            () => driver.SelectAllowedModelAsync());
+
+        Assert.Contains("data-testid=welcome-modal", exception.Message, StringComparison.Ordinal);
+        Assert.DoesNotContain("Private announcement text", exception.Message, StringComparison.Ordinal);
+        Assert.Equal(0, await browser.Page.EvaluateAsync<int>("window.switcherClickCount"));
+        Assert.Equal(0, await browser.Page.EvaluateAsync<int>("window.sendCount"));
+        Assert.Equal(string.Empty, await browser.Page.Locator("textarea").InputValueAsync());
+    }
+
+    [Fact]
+    public async Task UnclassifiedBlockerReturnsModelSelectorErrorBeforeComposerOrSend()
+    {
+        await using var browser = await FixtureBrowser.OpenAsync("model-selector-covered.html");
+        var driver = new CopilotPageDriver(browser.Page, Selectors, FastSettings());
+
+        await Assert.ThrowsAsync<ModelSelectorBlockedException>(
+            () => driver.SelectAllowedModelAsync());
+
+        Assert.Equal(0, await browser.Page.EvaluateAsync<int>("window.switcherClickCount"));
+        Assert.Equal(0, await browser.Page.EvaluateAsync<int>("window.sendCount"));
+        Assert.Equal(string.Empty, await browser.Page.Locator("textarea").InputValueAsync());
+    }
+
+    [Fact]
     public async Task ForbiddenOnlyMenuSendsZeroTimes()
     {
         await using var browser = await FixtureBrowser.OpenAsync("model-forbidden-only.html");
@@ -168,7 +212,8 @@ public sealed class CoreTests
             ReplyTimeoutSeconds = 42,
             DisplayLanguage = AppLanguage.English,
             Theme = AppTheme.Dark,
-            KeepMcpRunningInBackground = false
+            KeepMcpRunningInBackground = false,
+            UseSystemTray = true
         };
 
         try
@@ -197,6 +242,12 @@ public sealed class CoreTests
     public void BackgroundResidentDefaultsToEnabled()
     {
         Assert.True(new BridgeSettings().KeepMcpRunningInBackground);
+    }
+
+    [Fact]
+    public void SystemTrayDefaultsToDisabled()
+    {
+        Assert.False(new BridgeSettings().UseSystemTray);
     }
 
     [Fact]
@@ -397,6 +448,19 @@ public sealed class CoreTests
     }
 
     [Fact]
+    public void ModelActionabilityFailuresHaveDedicatedStableCodes()
+    {
+        Assert.Equal(
+            "page_overlay_blocked",
+            Mcp.CopilotBridgeTools.MapPreSubmitError(
+                new PageOverlayBlockedException("safe metadata")));
+        Assert.Equal(
+            "model_selector_blocked",
+            Mcp.CopilotBridgeTools.MapPreSubmitError(
+                new ModelSelectorBlockedException("not actionable")));
+    }
+
+    [Fact]
     public void ConsultationLeaseReturnsBusyWithoutQueueing()
     {
         var path = Path.Combine(
@@ -570,7 +634,7 @@ public sealed class CoreTests
 
         Assert.StartsWith("<!-- copilot-bridge-conversation:", stored, StringComparison.Ordinal);
         Assert.DoesNotContain("copilot-bridge-conversation:", displayed, StringComparison.Ordinal);
-        Assert.StartsWith("---", displayed, StringComparison.Ordinal);
+        Assert.StartsWith("# 网页当前标题", displayed, StringComparison.Ordinal);
         Assert.Contains("# 网页当前标题", displayed, StringComparison.Ordinal);
         Assert.Contains("正文内容", displayed, StringComparison.Ordinal);
     }
