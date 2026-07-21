@@ -1,8 +1,8 @@
 # Microsoft Copilot 项目完整设计
 
-> 设计基线：v1.2.2 开发基线
-> 日期：2026-07-20（Asia/Shanghai）
-> 状态：v1.2.1 已发布；v1.2.2 Phase 24 已通过，Phase 25 进行中
+> 设计基线：v1.2.2 发布基线
+> 日期：2026-07-21（Asia/Shanghai）
+> 状态：v1.2.2 Phase 24–27 已通过并发布
 > 工作名称：Copilot Bridge
 > 项目目录：本仓库根目录
 > 目标模式执行路线图：[EXECUTION-ROADMAP.md](./EXECUTION-ROADMAP.md)
@@ -486,11 +486,14 @@ v1 只暴露两个工具。
       "markdown": "string"
     }
   ],
-  "canRetrySafely": false
+  "canRetrySafely": false,
+  "retryAction": "none | new_consultation | reuse_consultation"
 }
 ```
 
-`canRetrySafely` 只有在明确尚未点击发送时才为 `true`。
+`canRetrySafely` 只有在明确尚未点击发送时才为 `true`。`retryAction=new_consultation` 表示首次咨询尚未建立记录，安全重试必须省略 `consultationId`；`retryAction=reuse_consultation` 表示既有咨询的提交前失败，安全重试必须复用 ID；其他情况为 `none`，禁止重试。每次工具调用最多进行一次自动安全重试。
+
+模型选择前必须先判断菜单是否已经打开，并以 actionability 预检区分可点击按钮与页面 DOM 浮层。已打开的模型菜单可直接选择，不重复点击开关；未知浮层不得强制点击或自动关闭，分别以 `page_overlay_blocked` 或 `model_selector_blocked` 在发送前失败。日志只记录拦截元素的标签、role、`aria-modal`、`data-testid` 和截断 class，不记录页面正文。
 
 注解必须诚实：`readOnlyHint=false`、`destructiveHint=true`、`openWorldHint=true`。消息发送到外部企业服务且无法由本工具撤回，因此不能为了减少审批而错误标记为只读。
 
@@ -500,7 +503,8 @@ v1 只暴露两个工具。
 
 - 协作模式只由 GUI 决定；
 - 发送状态不确定时禁止重试；
-- 追问必须复用返回的 `consultationId`；
+- 已完成咨询的追问必须复用返回的 `consultationId`，提交前失败按 `retryAction` 决定复用或重新开始；
+- 用户明确要求双审查时，Skill 必须先确认 `collaborationMode=review`；模式不符时不得先按 Assist 或 Outsource 发送。
 - Copilot 只提供意见，Codex负责核验和执行。
 
 ## 12. 审批与自动调用

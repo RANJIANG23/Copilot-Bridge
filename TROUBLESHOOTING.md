@@ -1,6 +1,15 @@
 # Copilot Bridge 故障排查
 
-按顺序检查。不要反复点击发送；当结果为 `submission_unknown`、`reply_timeout` 或 `canRetrySafely=false` 时不得自动重试。
+按顺序检查。不要反复点击发送；当结果为 `submission_unknown`、`reply_timeout`、`canRetrySafely=false` 或 `retryAction=none` 时不得自动重试。只有 `canRetrySafely=true` 时允许一次安全重试：`retryAction=reuse_consultation` 复用返回的 `consultationId`，`retryAction=new_consultation` 必须省略该 ID 重新开始。
+
+## 模型选择器被页面浮层遮挡
+
+`page_overlay_blocked` 或 `model_selector_blocked` 表示 Bridge 尚未填写或发送消息。Edge 顶部的远程调试/自动化提示不属于网页 DOM，不应被归因于这两个错误。
+
+1. 查看日志中记录的 `tag`、`role`、`aria-modal`、`data-testid` 和 class，确认是 Copilot 页面元素；日志不会记录 prompt 或回复正文。
+2. 已经打开的模型菜单由 Bridge 直接复用；不要重复点击模型开关。
+3. 未识别的登录、权限、隐私、公告或 onboarding 弹窗必须由用户查看并处理；Bridge 不使用强制点击或坐标操作绕过。
+4. 处理后最多按 `retryAction` 安全重试一次；仍失败时停止并提供对应日志行。
 
 ## Edge 未连接
 

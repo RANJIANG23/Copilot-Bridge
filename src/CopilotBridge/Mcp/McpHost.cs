@@ -11,7 +11,7 @@ namespace CopilotBridge.Mcp;
 internal static class McpHost
 {
     private const string ServerInstructions =
-        "The GUI alone determines collaboration mode, model priority, and local project access. Never retry when send status is uncertain or when canRetrySafely is false. A follow-up must reuse the returned consultationId unless the user explicitly requests a new conversation. Copilot provides advice only; Codex must verify facts, adjudicate recommendations, and perform all execution. Local search/read tools are read-only: search narrowly, read one explicit conversation page only when relevant, and never probe inaccessible projects. Check copilot_bridge_status before consulting. Use trigger=user_explicit only when the user requested the consultation; obey the configured policy for automatic checkpoints.";
+        "The GUI alone determines collaboration mode, model priority, and local project access. Never retry when send status is uncertain or when canRetrySafely is false. When canRetrySafely is true, obey retryAction: reuse_consultation reuses consultationId, new_consultation omits it, and none stops. Completed follow-ups must reuse the returned consultationId unless the user explicitly requests a new conversation. Copilot provides advice only; Codex must verify facts, adjudicate recommendations, and perform all execution. Local search/read tools are read-only: search narrowly, read one explicit conversation page only when relevant, and never probe inaccessible projects. Check copilot_bridge_status before consulting. Use trigger=user_explicit only when the user requested the consultation; obey the configured policy for automatic checkpoints.";
 
     internal static async Task<int> RunAsync(string? settingsPath = null)
     {

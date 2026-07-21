@@ -33,6 +33,22 @@ internal sealed class ReplyTimeoutException : Exception
     }
 }
 
+internal sealed class PageOverlayBlockedException : InvalidOperationException
+{
+    internal PageOverlayBlockedException(string message)
+        : base(message)
+    {
+    }
+}
+
+internal sealed class ModelSelectorBlockedException : InvalidOperationException
+{
+    internal ModelSelectorBlockedException(string message)
+        : base(message)
+    {
+    }
+}
+
 internal sealed class CopilotPageDriver
 {
     private static readonly TimeSpan SubmissionAcknowledgementTimeout = TimeSpan.FromSeconds(60);
@@ -59,7 +75,19 @@ internal sealed class CopilotPageDriver
     {
         await EnsureAuthenticatedAsync();
         var switcher = await WaitForUniqueVisibleAsync("model switcher", _selectors.ModelSwitcher);
-        await switcher.ClickAsync();
+        var priority = ModelPriorityOptions.Parse(_settings.ModelPriority);
+        var menuAlreadyOpen = await IsAnyAllowedModelOptionVisibleAsync();
+        var readbackBefore = Normalize(await switcher.InnerTextAsync());
+        if (!menuAlreadyOpen && ModelReadbackMatches(priority[0], readbackBefore))
+        {
+            return priority[0];
+        }
+
+        if (!menuAlreadyOpen)
+        {
+            await OpenModelMenuAsync(switcher);
+        }
+
         var started = DateTime.UtcNow;
         var deadline = started.AddMilliseconds(_settings.MenuMaximumWaitMilliseconds);
         var minimum = started.AddMilliseconds(_settings.MenuMinimumWaitMilliseconds);
@@ -80,10 +108,10 @@ internal sealed class CopilotPageDriver
         }
 
         string? selected = null;
-        foreach (var preferredModel in ModelPriorityOptions.Parse(_settings.ModelPriority))
+        foreach (var preferredModel in priority)
         {
             if (preferredModel.Equals(_selectors.Opus, StringComparison.Ordinal) &&
-                await TryClickExactAsync(_selectors.Opus))
+                await TryClickModelOptionAsync(_selectors.Opus))
             {
                 selected = _selectors.Opus;
                 break;
@@ -97,8 +125,8 @@ internal sealed class CopilotPageDriver
             }
 
             if (preferredModel.Equals(_selectors.DeepThinkingChinese, StringComparison.Ordinal) &&
-                (await TryClickExactAsync(_selectors.DeepThinkingChinese) ||
-                 await TryClickExactAsync(_selectors.DeepThinkingEnglish)))
+                (await TryClickModelOptionAsync(_selectors.DeepThinkingChinese) ||
+                 await TryClickModelOptionAsync(_selectors.DeepThinkingEnglish)))
             {
                 selected = _selectors.DeepThinkingChinese;
                 break;
@@ -299,20 +327,19 @@ internal sealed class CopilotPageDriver
 
     private async Task<bool> TrySelectGpt56Async()
     {
-        var direct = _page.GetByText(_selectors.Gpt56, new PageGetByTextOptions { Exact = true });
-        if (await TryClickSingleEnabledAsync(direct))
+        if (await TryClickModelOptionAsync(_selectors.Gpt56))
         {
             return true;
         }
 
-        var parent = await SingleVisibleAsync(
-            _page.GetByText(_selectors.GptParent, new PageGetByTextOptions { Exact = true }));
+        var parent = await SingleVisibleModelOptionAsync(_selectors.GptParent);
         if (parent is null || !await parent.IsEnabledAsync())
         {
             return false;
         }
 
         await parent.HoverAsync();
+        var direct = _page.GetByText(_selectors.Gpt56, new PageGetByTextOptions { Exact = true });
         try
         {
             await direct.First.WaitForAsync(new LocatorWaitForOptions
@@ -326,8 +353,94 @@ internal sealed class CopilotPageDriver
             await parent.ClickAsync();
         }
 
-        return await TryClickSingleEnabledAsync(direct);
+        return await TryClickModelOptionAsync(_selectors.Gpt56);
     }
+
+    private async Task OpenModelMenuAsync(ILocator switcher)
+    {
+        const int timeout = 3_000;
+        try
+        {
+            await switcher.ClickAsync(new LocatorClickOptions { Trial = true, Timeout = timeout });
+            await switcher.ClickAsync(new LocatorClickOptions { Timeout = timeout });
+        }
+        catch (Exception exception) when (
+            !_page.IsClosed && exception is PlaywrightException or TimeoutException)
+        {
+            var overlay = await FindBlockingOverlayDescriptorAsync(switcher);
+            if (overlay is not null)
+            {
+                throw new PageOverlayBlockedException(
+                    $"A visible Copilot page overlay blocks the model selector ({overlay}). No message was submitted.");
+            }
+
+            throw new ModelSelectorBlockedException(
+                "The Copilot model selector is visible but not actionable. No message was submitted.");
+        }
+    }
+
+    private async Task<bool> IsAnyAllowedModelOptionVisibleAsync()
+    {
+        foreach (var text in new[]
+                 {
+                     _selectors.Opus,
+                     _selectors.GptParent,
+                     _selectors.Gpt56,
+                     _selectors.DeepThinkingChinese,
+                     _selectors.DeepThinkingEnglish
+                 })
+        {
+            if (await SingleVisibleModelOptionAsync(text) is not null) return true;
+        }
+
+        return false;
+    }
+
+    private async Task<bool> TryClickModelOptionAsync(string text)
+    {
+        var match = await SingleVisibleModelOptionAsync(text);
+        if (match is null || !await match.IsEnabledAsync()) return false;
+        await match.ClickAsync();
+        return true;
+    }
+
+    private async Task<ILocator?> SingleVisibleModelOptionAsync(string text)
+    {
+        var locator = _page.GetByText(text, new PageGetByTextOptions { Exact = true });
+        var switcherSelector = System.Text.Json.JsonSerializer.Serialize(
+            string.Join(", ", _selectors.ModelSwitcher));
+        ILocator? match = null;
+        for (var index = 0; index < await locator.CountAsync(); index++)
+        {
+            var candidate = locator.Nth(index);
+            if (!await candidate.IsVisibleAsync() ||
+                await candidate.EvaluateAsync<bool>(
+                    $"element => element.closest({switcherSelector}) !== null"))
+            {
+                continue;
+            }
+
+            if (match is not null) return null;
+            match = candidate;
+        }
+
+        return match;
+    }
+
+    private static Task<string?> FindBlockingOverlayDescriptorAsync(ILocator target) =>
+        target.EvaluateAsync<string?>(
+            "element => { " +
+            "const rect = element.getBoundingClientRect(); " +
+            "const hit = document.elementFromPoint(rect.left + rect.width / 2, rect.top + rect.height / 2); " +
+            "if (!hit || hit === element || element.contains(hit)) return null; " +
+            "const overlay = hit.closest(\"[role='dialog'][aria-modal='true'], [aria-modal='true'], " +
+            "[data-testid*='modal'], [class*='backdrop']\"); " +
+            "if (!overlay) return null; " +
+            "const clean = value => (value ?? '').replace(/\\s+/g, ' ').trim().slice(0, 120); " +
+            "return [`tag=${overlay.tagName.toLowerCase()}`, `role=${clean(overlay.getAttribute('role'))}`, " +
+            "`aria-modal=${clean(overlay.getAttribute('aria-modal'))}`, " +
+            "`data-testid=${clean(overlay.getAttribute('data-testid'))}`, " +
+            "`class=${clean(overlay.getAttribute('class'))}`].join(' '); }");
 
     internal async Task EnsureAuthenticatedAsync()
     {
@@ -451,9 +564,6 @@ internal sealed class CopilotPageDriver
 
     private Task<bool> IsExactTextVisibleAsync(string text) =>
         IsSingleVisibleAsync(_page.GetByText(text, new PageGetByTextOptions { Exact = true }));
-
-    private Task<bool> TryClickExactAsync(string text) =>
-        TryClickSingleEnabledAsync(_page.GetByText(text, new PageGetByTextOptions { Exact = true }));
 
     private static async Task<bool> IsSingleVisibleAsync(ILocator locator) =>
         await SingleVisibleAsync(locator) is not null;

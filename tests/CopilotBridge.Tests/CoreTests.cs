@@ -31,6 +31,50 @@ public sealed class CoreTests
     }
 
     [Fact]
+    public async Task AlreadyOpenModelMenuIsReusedWithoutClickingSwitcherOrSending()
+    {
+        await using var browser = await FixtureBrowser.OpenAsync("model-menu-open.html");
+        var driver = new CopilotPageDriver(browser.Page, Selectors, FastSettings());
+
+        var selected = await driver.SelectAllowedModelAsync();
+
+        Assert.Equal("Opus", selected);
+        Assert.Equal(0, await browser.Page.EvaluateAsync<int>("window.switcherClickCount"));
+        Assert.Equal(0, await browser.Page.EvaluateAsync<int>("window.sendCount"));
+        Assert.Equal(string.Empty, await browser.Page.Locator("textarea").InputValueAsync());
+    }
+
+    [Fact]
+    public async Task RecognizedPageOverlayBlocksModelSelectionBeforeComposerOrSend()
+    {
+        await using var browser = await FixtureBrowser.OpenAsync("model-overlay-blocked.html");
+        var driver = new CopilotPageDriver(browser.Page, Selectors, FastSettings());
+
+        var exception = await Assert.ThrowsAsync<PageOverlayBlockedException>(
+            () => driver.SelectAllowedModelAsync());
+
+        Assert.Contains("data-testid=welcome-modal", exception.Message, StringComparison.Ordinal);
+        Assert.DoesNotContain("Private announcement text", exception.Message, StringComparison.Ordinal);
+        Assert.Equal(0, await browser.Page.EvaluateAsync<int>("window.switcherClickCount"));
+        Assert.Equal(0, await browser.Page.EvaluateAsync<int>("window.sendCount"));
+        Assert.Equal(string.Empty, await browser.Page.Locator("textarea").InputValueAsync());
+    }
+
+    [Fact]
+    public async Task UnclassifiedBlockerReturnsModelSelectorErrorBeforeComposerOrSend()
+    {
+        await using var browser = await FixtureBrowser.OpenAsync("model-selector-covered.html");
+        var driver = new CopilotPageDriver(browser.Page, Selectors, FastSettings());
+
+        await Assert.ThrowsAsync<ModelSelectorBlockedException>(
+            () => driver.SelectAllowedModelAsync());
+
+        Assert.Equal(0, await browser.Page.EvaluateAsync<int>("window.switcherClickCount"));
+        Assert.Equal(0, await browser.Page.EvaluateAsync<int>("window.sendCount"));
+        Assert.Equal(string.Empty, await browser.Page.Locator("textarea").InputValueAsync());
+    }
+
+    [Fact]
     public async Task ForbiddenOnlyMenuSendsZeroTimes()
     {
         await using var browser = await FixtureBrowser.OpenAsync("model-forbidden-only.html");
@@ -401,6 +445,19 @@ public sealed class CoreTests
     {
         Assert.Equal(expected, Mcp.CopilotBridgeTools.MapPreSubmitError(
             new InvalidOperationException(message)));
+    }
+
+    [Fact]
+    public void ModelActionabilityFailuresHaveDedicatedStableCodes()
+    {
+        Assert.Equal(
+            "page_overlay_blocked",
+            Mcp.CopilotBridgeTools.MapPreSubmitError(
+                new PageOverlayBlockedException("safe metadata")));
+        Assert.Equal(
+            "model_selector_blocked",
+            Mcp.CopilotBridgeTools.MapPreSubmitError(
+                new ModelSelectorBlockedException("not actionable")));
     }
 
     [Fact]

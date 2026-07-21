@@ -28,7 +28,8 @@ public sealed record ConsultResponse(
     string ConsultationId,
     string CollaborationMode,
     IReadOnlyList<CopilotResponse> Responses,
-    bool CanRetrySafely);
+    bool CanRetrySafely,
+    string RetryAction);
 
 public sealed record ConversationSearchItemResponse(
     string ConversationId,
@@ -248,7 +249,7 @@ internal sealed class CopilotBridgeTools : IAsyncDisposable
         Idempotent = false,
         OpenWorld = true,
         UseStructuredContent = true)]
-    [Description("Send one verified Markdown request to the dedicated Microsoft 365 Copilot chat. Collaboration mode and model priority come only from GUI settings. Never retry an uncertain submission.")]
+    [Description("Send one verified Markdown request to the dedicated Microsoft 365 Copilot chat. Collaboration mode and model priority come only from GUI settings. When canRetrySafely is true, obey retryAction; never retry an uncertain submission.")]
     public async Task<ConsultResponse> ConsultAsync(
         [Description("Focused Markdown context and question to send unchanged to Copilot.")]
         string requestMarkdown,
@@ -268,7 +269,7 @@ internal sealed class CopilotBridgeTools : IAsyncDisposable
 
         if (string.IsNullOrWhiteSpace(requestMarkdown))
         {
-            return Failure("not_submitted", "invalid_request", id, "assist", true);
+            return Failure("not_submitted", "invalid_request", id, "assist", true, startFresh);
         }
 
         var settings = await _settingsStore.LoadAsync(cancellationToken);
@@ -276,13 +277,13 @@ internal sealed class CopilotBridgeTools : IAsyncDisposable
         var policyError = ValidatePolicy(settings, trigger);
         if (policyError is not null)
         {
-            return Failure("blocked", policyError, id, mode, false);
+            return Failure("blocked", policyError, id, mode, false, startFresh);
         }
 
         using var lease = ConsultationLease.TryAcquire();
         if (lease is null)
         {
-            return Failure("blocked", "busy", id, mode, true);
+            return Failure("blocked", "busy", id, mode, true, startFresh);
         }
 
         var existing = startFresh
@@ -290,19 +291,19 @@ internal sealed class CopilotBridgeTools : IAsyncDisposable
             : await _stateStore.FindAsync(id, cancellationToken);
         if (!startFresh && existing is null)
         {
-            return Failure("blocked", "consultation_not_found", id, mode, false);
+            return Failure("blocked", "consultation_not_found", id, mode, false, startFresh);
         }
 
         if (existing is not null && !existing.Mode.Equals(mode, StringComparison.OrdinalIgnoreCase))
         {
-            return Failure("blocked", "consultation_mode_mismatch", id, mode, false);
+            return Failure("blocked", "consultation_mode_mismatch", id, mode, false, startFresh);
         }
 
         if (settings.CollaborationMode != CollaborationMode.Review &&
             existing is null &&
             string.IsNullOrWhiteSpace(settings.BoundConversationUrl))
         {
-            return Failure("blocked", "tab_rebind_required", id, mode, false);
+            return Failure("blocked", "tab_rebind_required", id, mode, false, startFresh);
         }
 
         var primaryUrl = ResolvePrimaryConversationUrl(
@@ -314,7 +315,7 @@ internal sealed class CopilotBridgeTools : IAsyncDisposable
         if (settings.CollaborationMode != CollaborationMode.Review &&
             string.IsNullOrWhiteSpace(primaryUrl))
         {
-            return Failure("blocked", "tab_rebind_required", id, mode, false);
+            return Failure("blocked", "tab_rebind_required", id, mode, false, startFresh);
         }
 
         var context = new CollaborationContext(
@@ -348,7 +349,8 @@ internal sealed class CopilotBridgeTools : IAsyncDisposable
                     EffectiveModel(response.Result.Model),
                     response.Result.ConversationUrl,
                     response.Result.ReplyMarkdown)).ToArray(),
-                false);
+                false,
+                "none");
         }
         catch (PartialReviewException exception)
         {
@@ -365,23 +367,23 @@ internal sealed class CopilotBridgeTools : IAsyncDisposable
                     LastModel = EffectiveModel(exception.Completed.Result.Model)
                 },
                 cancellationToken);
-            return Failure("submission_unknown", "partial_review", id, mode, false);
+            return Failure("submission_unknown", "partial_review", id, mode, false, startFresh);
         }
         catch (ReplyTimeoutException exception)
         {
             DiagnosticLog.Write("reply_timeout", exception);
-            return Failure("reply_timeout", "reply_timeout", id, mode, false);
+            return Failure("reply_timeout", "reply_timeout", id, mode, false, startFresh);
         }
         catch (SubmissionUnknownException exception)
         {
             DiagnosticLog.Write("submission_unknown", exception);
-            return Failure("submission_unknown", "submission_unknown", id, mode, false);
+            return Failure("submission_unknown", "submission_unknown", id, mode, false, startFresh);
         }
         catch (Exception exception)
         {
             var errorCode = MapPreSubmitError(exception);
             DiagnosticLog.Write(errorCode, exception);
-            return Failure("not_submitted", errorCode, id, mode, true);
+            return Failure("not_submitted", errorCode, id, mode, true, startFresh);
         }
     }
 
@@ -521,13 +523,22 @@ internal sealed class CopilotBridgeTools : IAsyncDisposable
         string errorCode,
         string consultationId,
         string collaborationMode,
-        bool canRetrySafely) => new(
+        bool canRetrySafely,
+        bool startFresh) => new(
             status,
             errorCode,
             consultationId,
             collaborationMode,
             [],
-            canRetrySafely);
+            canRetrySafely,
+            RetryActionFor(canRetrySafely, startFresh));
+
+    internal static string RetryActionFor(bool canRetrySafely, bool startFresh) =>
+        !canRetrySafely
+            ? "none"
+            : startFresh
+                ? "new_consultation"
+                : "reuse_consultation";
 
     private static string ReadEdgeStatus(BridgeSettings settings)
     {
@@ -560,6 +571,10 @@ internal sealed class CopilotBridgeTools : IAsyncDisposable
 
     internal static string MapPreSubmitError(Exception exception) => exception.Message switch
     {
+        _ when exception is PageOverlayBlockedException =>
+            "page_overlay_blocked",
+        _ when exception is ModelSelectorBlockedException =>
+            "model_selector_blocked",
         var message when message.Contains("login is required", StringComparison.OrdinalIgnoreCase) =>
             "login_required",
         var message when message.Contains("DevToolsActivePort", StringComparison.OrdinalIgnoreCase) =>

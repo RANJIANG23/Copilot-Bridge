@@ -22,15 +22,15 @@ Routine consultations do not simulate physical input, take foreground focus, or 
 
 从 [GitHub Releases](https://github.com/RANJIANG23/Copilot-Bridge/releases) 下载以下两个同版本文件。Download both matching-version files from [GitHub Releases](https://github.com/RANJIANG23/Copilot-Bridge/releases):
 
-- `CopilotBridge-1.2.1-win-x64.zip`
-- `CopilotBridge-1.2.1-win-x64.zip.sha256`
+- `CopilotBridge-1.2.2-win-x64.zip`
+- `CopilotBridge-1.2.2-win-x64.zip.sha256`
 
 ZIP 的 SHA-256 位于同名 `.sha256` 文件中。The ZIP SHA-256 is supplied in its matching `.sha256` file.
 
 安装前可在 PowerShell 中核对。Verify it in PowerShell before installation:
 
 ```powershell
-(Get-FileHash .\CopilotBridge-1.2.1-win-x64.zip -Algorithm SHA256).Hash.ToLowerInvariant()
+(Get-FileHash .\CopilotBridge-1.2.2-win-x64.zip -Algorithm SHA256).Hash.ToLowerInvariant()
 ```
 
 ### 使用前提 / Requirements
@@ -76,7 +76,7 @@ v1.0 established a complete, verifiable path from Codex to Microsoft 365 Copilot
 - **一次性发送保护**：发送状态不确定时绝不自动重发；GUI 与 MCP 并发写入会立即返回 busy，而非排队。**One-time submission protection:** uncertain submissions are never retried; concurrent GUI and MCP writes return busy instead of queuing.
 - **本机团队门禁**：Phase 0–6 与 G1–G8 已完成；真实日常 Edge 后台 Assist、十次唯一发送、MCP 接入、本机隔离安装/卸载与前台无抢占均已验证。**Local team gates:** Phase 0–6 and G1–G8 are complete, including real daily-Edge background Assist, ten unique submissions, MCP integration, isolated local install/uninstall, and no foreground takeover.
 
-当前已发布团队安装包为 1.2.1。每次安装前均应核对同名 `.sha256` 文件。The current released team installer is 1.2.1. Verify its matching `.sha256` file before installation.
+当前已发布团队安装包为 1.2.2。每次安装前均应核对同名 `.sha256` 文件。The current released team installer is 1.2.2. Verify its matching `.sha256` file before installation.
 
 ## v1.1.1 会话工作台与体验更新 / v1.1.1 workspace and usability update
 
@@ -145,15 +145,18 @@ v1.1.2 focuses on conversation management, a Copilot-inspired interface, and des
 
 详细设计和阶段门见 [v1.2.1 设计](./v1.2.1-design.md)。See the [v1.2.1 design](./v1.2.1-design.md) for the exact scope and phase gates.
 
-## v1.2.2 开发中 / v1.2.2 in development
+## v1.2.2 系统托盘、分离存储与可靠性加固 / v1.2.2 tray, separated storage, and reliability hardening
 
-v1.2.2 的批准范围只有两项：可选系统托盘，以及人可读 Markdown 正文与 Bridge 内部元数据分离。当前已发布下载仍为 1.2.1；开发状态不代表已打包或发布。
+`1.2.2` 已完成 Phase 24–27 并正式发布。它交付可选系统托盘和人可读 Markdown 正文与内部元数据分离，同时修复团队试点发现的安全重试契约与模型选择器浮层诊断问题。Edge CDP/DOM、项目访问权限和禁止不确定状态自动重发的边界保持不变。
 
-The approved v1.2.2 scope contains only two items: an optional system tray and separation of human-readable Markdown content from Bridge internal metadata. The current released download remains 1.2.1; development status does not mean a package or release exists.
+`1.2.2` has completed Phases 24–27 and is released. It delivers the optional system tray and separates human-readable Markdown bodies from internal metadata, while fixing the safe-retry contract and model-selector overlay diagnostics found during team piloting. The Edge CDP/DOM, project-access, and no-automatic-resend-on-uncertainty boundaries remain unchanged.
 
 - 托盘默认关闭；开启后关闭窗口只隐藏，显式退出才处理已登记 MCP。Tray support is off by default; when enabled, closing hides the window and only explicit Exit handles registered MCP processes.
 - 新存储采用干净 Markdown 与 `.bridge/conversations/{id}.json` sidecar，JSON 不重复保存正文。The new storage uses clean Markdown plus `.bridge/conversations/{id}.json` sidecars without duplicating conversation bodies.
 - 旧格式继续兼容；迁移必须显式触发、先备份并可回滚，只读 MCP 不会迁移或写工作区。The old format remains readable; migration is explicit, backed up, and reversible, while read-only MCP calls never migrate or write the workspace.
+- 提交前失败会明确区分新建咨询与复用原咨询；提交状态不确定时继续返回不可重试。Pre-submit failures now distinguish creating a new consultation from reusing an existing one; uncertain submission states remain non-retryable.
+- 模型菜单已打开时直接复用；已知页面浮层与未知遮挡分别返回稳定错误码，不使用强制点击、坐标点击或自动关闭未知弹窗。An already-open model menu is reused; known page overlays and unknown blockers return stable error codes without forced clicks, coordinate clicks, or automatic dismissal of unknown dialogs.
+- Review 请求会先核对 GUI 协作模式；不是 Review 时停止发送并要求用户切换、保存后重新检查。Review requests verify the GUI collaboration mode first; when it is not Review, submission stops until the user switches modes, saves, and status is checked again.
 
 详细设计见 [v1.2.2 设计](./v1.2.2-design.md)。See the [v1.2.2 design](./v1.2.2-design.md) for details.
 
@@ -161,15 +164,15 @@ The approved v1.2.2 scope contains only two items: an optional system tray and s
 
 | 项目 / Item | 状态 / Status |
 |---|---|
-| 当前源码版本 / Current source version | `1.2.2-dev` |
-| 发布状态 / Release status | v1.2.1 已发布 Windows x64 自包含安装包与 SHA-256 文件 / v1.2.1 released with a Windows x64 self-contained package and SHA-256 file |
-| 已通过 / Passed | Phase 0–23 and G1–G8 |
+| 当前源码版本 / Current source version | `1.2.2` |
+| 发布状态 / Release status | v1.2.2 已发布 Windows x64 自包含安装包与 SHA-256 文件 / v1.2.2 released with a Windows x64 self-contained package and SHA-256 file |
+| 已通过 / Passed | Phase 0–27 and G1–G8 |
 | 后续试点 / Follow-up pilot | 不同硬件、账号和企业策略环境 / Different hardware, account, and enterprise-policy environments |
 | 平台 / Platform | Windows 11 x64 |
 
-团队 v1.2.1 已达到项目定义的本机门禁，但不把本机隔离验收描述为跨设备兼容性证明。`1.2.1` 已作为 Windows x64 自包含安装包发布；安装前请核对 GitHub Release 中的同名 `.sha256` 文件。
+团队 v1.2.2 已达到项目定义的本机门禁，但不把本机隔离验收描述为跨设备兼容性证明。`1.2.2` 已作为 Windows x64 自包含安装包发布；安装前请核对 GitHub Release 中的同名 `.sha256` 文件。
 
-Team v1.2.1 satisfies the project's local gates, but local isolated acceptance is not presented as proof of cross-device compatibility. `1.2.1` is released as a Windows x64 self-contained package; verify the matching `.sha256` file in the GitHub Release before installation.
+Team v1.2.2 satisfies the project's local gates, but local isolated acceptance is not presented as proof of cross-device compatibility. `1.2.2` is released as a Windows x64 self-contained package; verify the matching `.sha256` file in the GitHub Release before installation.
 
 ## 架构开发思路 / Architecture and design rationale
 
