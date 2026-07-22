@@ -1,8 +1,8 @@
 # Microsoft Copilot 项目完整设计
 
-> 设计基线：v1.3.0
-> 日期：2026-07-21（Asia/Shanghai）
-> 状态：v1.3.0 Phase 28 已通过并进入正式发布
+> 设计基线：v1.3.1 开发基线
+> 日期：2026-07-22（Asia/Shanghai）
+> 状态：v1.3.0 已发布；v1.3.1 Phase 29 已通过，Phase 30 待开始
 > 工作名称：Copilot Bridge
 > 项目目录：本仓库根目录
 > 目标模式执行路线图：[EXECUTION-ROADMAP.md](./EXECUTION-ROADMAP.md)
@@ -1135,3 +1135,14 @@ v1.3.0 的首个范围是把 Assist、Outsource、Review 的轮次预算放入�
 - GUI 与 MCP 共用同一个咨询生命周期；设置未变化时 GUI 咨询不重复写设置或重载工作区，所有门禁通过后才获取 Edge page。
 - 数据统计原型使用严格零写入的工作区读取和预计算缓存；显式刷新之外只重绘，不重复扫描 Markdown。
 - 本阶段不执行发布、安装、打包、标签或推送。
+
+## 30. v1.3.1 原生 WPF 微动效
+
+v1.3.1 以 [v1.3.1-design.md](./v1.3.1-design.md) 为权威范围，只为已有 WPF 状态增加克制、可关闭的一次性微动效。
+
+- 首轮只覆盖按钮 hover/pressed、通知淡入位移、设置/托盘开关滑块，以及现有拖拽动效的减少动画分支。
+- 使用 Windows `SystemParameters.ClientAreaAnimation`；关闭系统动画时立即呈现最终状态。
+- 动画不改变布局、命中区域、键盘焦点、自动化语义或任何业务状态。
+- 不改变 MCP、存储、统计、Edge/CDP/DOM、发送语义或禁止不确定重发的边界。
+- 不增加 WebView、React、Motion、第三方 UI 包、动画框架或新生产依赖。
+- 开发阶段源码进入 `1.3.1-dev`，已发布的 Plugin、脚本、下载与安装说明保持 1.3.0。
