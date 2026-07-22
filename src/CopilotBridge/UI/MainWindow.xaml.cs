@@ -5,7 +5,6 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
-using System.Windows.Media.Animation;
 using System.Windows.Threading;
 using CopilotBridge.Browser;
 using CopilotBridge.Core;
@@ -79,6 +78,7 @@ public partial class MainWindow : Window
             ModelPriorityListBox.ItemsSource = _modelPriority;
             ApplyTheme();
             ApplySettingsToControls();
+            InitializeMotionInteractions();
             _settingsAreLoaded = true;
             ApplyUiLanguage();
             UpdateHistoryColumns();
@@ -1280,12 +1280,14 @@ public partial class MainWindow : Window
     private void ShowNotice(string message, NoticeKind kind)
     {
         _noticeTimer.Stop();
+        var firstDisplay = NoticeBorder.Visibility != Visibility.Visible;
         NoticeText.Text = message;
         NoticeBorder.Visibility = Visibility.Visible;
         NoticeBorder.Background = ThemeBrush(kind switch { NoticeKind.Success => "NoticeSuccessBackgroundBrush", NoticeKind.Error => "NoticeErrorBackgroundBrush", _ => "NoticeInfoBackgroundBrush" });
         NoticeBorder.BorderBrush = ThemeBrush(kind switch { NoticeKind.Success => "NoticeSuccessBorderBrush", NoticeKind.Error => "NoticeErrorBorderBrush", _ => "NoticeInfoBorderBrush" });
         NoticeText.Foreground = ThemeBrush(kind switch { NoticeKind.Success => "NoticeSuccessTextBrush", NoticeKind.Error => "NoticeErrorTextBrush", _ => "NoticeInfoTextBrush" });
         NoticeCloseButton.Foreground = NoticeText.Foreground;
+        if (firstDisplay) AnimateNoticeEntrance();
         _noticeTimer.Start();
     }
 
@@ -1294,6 +1296,7 @@ public partial class MainWindow : Window
     private void ClearNotice()
     {
         _noticeTimer.Stop();
+        ResetNoticeMotion();
         NoticeBorder.Visibility = Visibility.Collapsed;
     }
 
@@ -1322,17 +1325,15 @@ public partial class MainWindow : Window
         container.RenderTransformOrigin = new Point(0.5, 0.5);
         var scale = container.RenderTransform as ScaleTransform ?? new ScaleTransform(1, 1);
         container.RenderTransform = scale;
-        var easeIn = new QuadraticEase { EasingMode = EasingMode.EaseOut };
-        container.BeginAnimation(OpacityProperty, new DoubleAnimation(1, 0.62, TimeSpan.FromMilliseconds(110)) { EasingFunction = easeIn });
-        scale.BeginAnimation(ScaleTransform.ScaleXProperty, new DoubleAnimation(1, 0.97, TimeSpan.FromMilliseconds(110)) { EasingFunction = easeIn });
-        scale.BeginAnimation(ScaleTransform.ScaleYProperty, new DoubleAnimation(1, 0.97, TimeSpan.FromMilliseconds(110)) { EasingFunction = easeIn });
+        AnimateMotionValue(container, OpacityProperty, 0.62, 110);
+        AnimateMotionValue(scale, ScaleTransform.ScaleXProperty, 0.97, 110);
+        AnimateMotionValue(scale, ScaleTransform.ScaleYProperty, 0.97, 110);
 
         DragDrop.DoDragDrop(listBox, data, DragDropEffects.Move);
 
-        var easeOut = new QuadraticEase { EasingMode = EasingMode.EaseOut };
-        container.BeginAnimation(OpacityProperty, new DoubleAnimation(container.Opacity, 1, TimeSpan.FromMilliseconds(180)) { EasingFunction = easeOut });
-        scale.BeginAnimation(ScaleTransform.ScaleXProperty, new DoubleAnimation(scale.ScaleX, 1, TimeSpan.FromMilliseconds(180)) { EasingFunction = easeOut });
-        scale.BeginAnimation(ScaleTransform.ScaleYProperty, new DoubleAnimation(scale.ScaleY, 1, TimeSpan.FromMilliseconds(180)) { EasingFunction = easeOut });
+        AnimateMotionValue(container, OpacityProperty, 1, 180);
+        AnimateMotionValue(scale, ScaleTransform.ScaleXProperty, 1, 180);
+        AnimateMotionValue(scale, ScaleTransform.ScaleYProperty, 1, 180);
     }
 
     private void UpdateDragHoverItem(ListBoxItem? item)
@@ -1344,10 +1345,9 @@ public partial class MainWindow : Window
         item.RenderTransformOrigin = new Point(0.5, 0.5);
         var scale = new ScaleTransform(1, 1);
         item.RenderTransform = scale;
-        var easing = new QuadraticEase { EasingMode = EasingMode.EaseOut };
-        item.BeginAnimation(OpacityProperty, new DoubleAnimation(1, 0.82, TimeSpan.FromMilliseconds(90)) { EasingFunction = easing });
-        scale.BeginAnimation(ScaleTransform.ScaleXProperty, new DoubleAnimation(1, 1.015, TimeSpan.FromMilliseconds(90)) { EasingFunction = easing });
-        scale.BeginAnimation(ScaleTransform.ScaleYProperty, new DoubleAnimation(1, 1.015, TimeSpan.FromMilliseconds(90)) { EasingFunction = easing });
+        AnimateMotionValue(item, OpacityProperty, 0.82, 90);
+        AnimateMotionValue(scale, ScaleTransform.ScaleXProperty, 1.015, 90);
+        AnimateMotionValue(scale, ScaleTransform.ScaleYProperty, 1.015, 90);
     }
 
     private void ClearDragHoverItem()
@@ -1355,22 +1355,20 @@ public partial class MainWindow : Window
         var item = _dragHoverItem;
         _dragHoverItem = null;
         if (item is null) return;
-        var easing = new QuadraticEase { EasingMode = EasingMode.EaseOut };
-        item.BeginAnimation(OpacityProperty, new DoubleAnimation(item.Opacity, 1, TimeSpan.FromMilliseconds(140)) { EasingFunction = easing });
+        AnimateMotionValue(item, OpacityProperty, 1, 140);
         if (item.RenderTransform is ScaleTransform scale)
         {
-            scale.BeginAnimation(ScaleTransform.ScaleXProperty, new DoubleAnimation(scale.ScaleX, 1, TimeSpan.FromMilliseconds(140)) { EasingFunction = easing });
-            scale.BeginAnimation(ScaleTransform.ScaleYProperty, new DoubleAnimation(scale.ScaleY, 1, TimeSpan.FromMilliseconds(140)) { EasingFunction = easing });
+            AnimateMotionValue(scale, ScaleTransform.ScaleXProperty, 1, 140);
+            AnimateMotionValue(scale, ScaleTransform.ScaleYProperty, 1, 140);
         }
     }
 
     private static void AnimateDropSettled(ListBox listBox)
     {
-        var easing = new QuadraticEase { EasingMode = EasingMode.EaseOut };
-        listBox.BeginAnimation(OpacityProperty, new DoubleAnimation(0.72, 1, TimeSpan.FromMilliseconds(190)) { EasingFunction = easing });
         var translate = new TranslateTransform(0, -5);
         listBox.RenderTransform = translate;
-        translate.BeginAnimation(TranslateTransform.YProperty, new DoubleAnimation(-5, 0, TimeSpan.FromMilliseconds(190)) { EasingFunction = easing });
+        AnimateMotionFrom(listBox, OpacityProperty, 0.72, 1, 190);
+        AnimateMotionFrom(translate, TranslateTransform.YProperty, -5, 0, 190);
     }
 
     private void SetNavState(Button button, bool selected)
