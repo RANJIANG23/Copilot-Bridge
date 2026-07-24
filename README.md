@@ -82,7 +82,7 @@ See [Installation](./INSTALL.md) for the complete procedure. Release owners must
 |---|---|
 | 当前源码版本 / Current source version | `1.3.1-dev`（原生体验与全屏连接保护开发基线 / native experience and fullscreen connection-protection baseline） |
 | 发布状态 / Release status | v1.3.0 已发布 Windows x64 自包含安装包与 SHA-256 文件 / v1.3.0 released with a Windows x64 self-contained package and SHA-256 file |
-| 已通过 / Passed | Phase 0–31 and G1–G8；Phase 32 待开始 / Phase 32 not started |
+| 已通过 / Passed | Phase 0–32 and G1–G8；Phase 33 待开始 / Phase 33 not started |
 | 后续试点 / Follow-up pilot | 不同硬件、账号和企业策略环境 / Different hardware, account, and enterprise-policy environments |
 | 平台 / Platform | Windows 11 x64 |
 

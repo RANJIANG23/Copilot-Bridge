@@ -259,6 +259,7 @@ internal sealed class ConsultationCoordinator
 
     internal static string MapPreSubmitError(Exception exception) => exception.Message switch
     {
+        _ when exception is FullscreenProtectionException => "fullscreen_guard_active",
         _ when exception is PageOverlayBlockedException => "page_overlay_blocked",
         _ when exception is ModelSelectorBlockedException => "model_selector_blocked",
         var message when message.Contains("login is required", StringComparison.OrdinalIgnoreCase) =>

@@ -34,7 +34,7 @@ public partial class MainWindow
                     "user_explicit",
                     NewConversation: createdForAttempt,
                     Conversation: conversation),
-                async _ => (await GetSessionAsync()).Page);
+                async _ => (await GetSessionAsync(bypassFullscreenProtection: true)).Page);
 
             await ApplyConsultationOutcomeAsync(outcome, conversation, createdForAttempt);
         }
@@ -120,6 +120,9 @@ public partial class MainWindow
         "tab_rebind_required" => T("请先绑定一个专用 Copilot 标签页。 "),
         "remote_debugging_disabled" =>
             T("Edge 远程调试尚未开启。请在 edge://inspect 的 Remote debugging 页面允许当前浏览器实例。"),
+        "fullscreen_guard_active" => Bilingual(
+            "检测到前台全屏窗口；为避免 Edge 授权提示切出应用，本次未连接、未发送。退出全屏后安全重试。",
+            "A foreground full-screen window is active. To avoid an Edge permission prompt interrupting it, nothing was connected or sent. Retry after leaving full screen."),
         "partial_review" =>
             T("部分审查已经发送，状态不确定；请勿重试此咨询，请新建咨询后人工核对原对话。"),
         "reply_timeout" => Bilingual(

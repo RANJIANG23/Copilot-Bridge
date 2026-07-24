@@ -30,8 +30,14 @@ internal sealed class EdgeSessionAdapter : IAsyncDisposable
         BridgeSettings settings,
         ProviderSelectors selectors,
         string? endpointOverride = null,
-        int timeoutMilliseconds = 10_000)
+        int timeoutMilliseconds = 10_000,
+        bool bypassFullscreenProtection = false,
+        Func<ForegroundWindowSnapshot?>? fullscreenSnapshotProvider = null)
     {
+        FullscreenConnectionGuard.ThrowIfBlocked(
+            settings,
+            bypassFullscreenProtection,
+            fullscreenSnapshotProvider);
         var endpoint = endpointOverride ?? ResolveEndpoint(settings.EdgeUserDataDirectory);
         var playwright = await Playwright.CreateAsync();
 

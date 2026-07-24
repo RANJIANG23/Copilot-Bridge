@@ -363,7 +363,7 @@ public partial class MainWindow : Window
         SetBusy(true, _session is null ? "等待 Edge 授权" : "正在绑定标签页");
         try
         {
-            var session = await GetSessionAsync();
+            var session = await GetSessionAsync(bypassFullscreenProtection: true);
             _settings = _settings with { BoundConversationUrl = session.Page.Url };
             await _settingsStore.SaveAsync(_settings);
             BoundUrlText.Text = session.Page.Url;
@@ -924,7 +924,7 @@ public partial class MainWindow : Window
         SetBusy(true, "正在读取旧对话预览");
         try
         {
-            var session = await GetSessionAsync();
+            var session = await GetSessionAsync(bypassFullscreenProtection: true);
             var snapshot = await new CopilotPageDriver(session.Page, _selectors, _settings)
                 .ReadCurrentConversationAsync();
             var userCount = snapshot.Turns.Count(turn => turn.Role == "user");
@@ -978,7 +978,7 @@ public partial class MainWindow : Window
         if (!automatic) SetBusy(true, _session is null ? "等待 Edge 授权" : "正在刷新状态");
         try
         {
-            var session = await GetSessionAsync();
+            var session = await GetSessionAsync(bypassFullscreenProtection: !automatic);
             await ReadConnectedStatusAsync(session);
             _consecutiveStatusRefreshFailures = 0;
             _lastStatusRefresh = DateTimeOffset.Now;
@@ -1019,7 +1019,7 @@ public partial class MainWindow : Window
         HeaderStatusText.Text = T("Edge 已连接");
     }
 
-    private async Task<EdgeSessionAdapter> GetSessionAsync()
+    private async Task<EdgeSessionAdapter> GetSessionAsync(bool bypassFullscreenProtection = false)
     {
         if (_session is not null && !_session.Page.IsClosed)
         {
@@ -1027,7 +1027,11 @@ public partial class MainWindow : Window
             return _session;
         }
         await ResetSessionAsync();
-        _session = await EdgeSessionAdapter.ConnectAsync(_settings, _selectors, timeoutMilliseconds: 30_000);
+        _session = await EdgeSessionAdapter.ConnectAsync(
+            _settings,
+            _selectors,
+            timeoutMilliseconds: 30_000,
+            bypassFullscreenProtection: bypassFullscreenProtection);
         _automaticStatusRefreshPaused = false;
         return _session;
     }
@@ -1151,6 +1155,7 @@ public partial class MainWindow : Window
             Theme = ThemeComboBox.SelectedIndex == (int)AppTheme.Dark ? AppTheme.Dark : AppTheme.Light,
             KeepMcpRunningInBackground = KeepMcpRunningCheckBox.IsChecked == true,
             UseSystemTray = UseSystemTrayCheckBox.IsChecked == true,
+            FullscreenProtectionEnabled = FullscreenProtectionCheckBox.IsChecked == true,
             ConversationWorkspaceDirectory = workspaceDirectory
         };
         var settingsChanged = updatedSettings != _settings;
@@ -1188,6 +1193,7 @@ public partial class MainWindow : Window
         ThemeComboBox.SelectedIndex = (int)_settings.Theme;
         KeepMcpRunningCheckBox.IsChecked = _settings.KeepMcpRunningInBackground;
         UseSystemTrayCheckBox.IsChecked = _settings.UseSystemTray;
+        FullscreenProtectionCheckBox.IsChecked = _settings.FullscreenProtectionEnabled;
     }
 
     private static bool TryReadCollaborationBudget(TextBox textBox, out int budget) =>
@@ -1241,6 +1247,7 @@ public partial class MainWindow : Window
         RollbackStorageButton.IsEnabled = !busy;
         KeepMcpRunningCheckBox.IsEnabled = !busy;
         UseSystemTrayCheckBox.IsEnabled = !busy;
+        FullscreenProtectionCheckBox.IsEnabled = !busy;
     }
 
     private void ScheduleStatusRefresh()
@@ -1467,14 +1474,22 @@ public partial class MainWindow : Window
 
     private string T(string chinese) => UiText.Get(chinese, _settings.DisplayLanguage);
 
-    private string FriendlyMessage(Exception exception) => exception.Message switch
+    private string FriendlyMessage(Exception exception)
     {
-        var message when message.Contains("DevToolsActivePort", StringComparison.OrdinalIgnoreCase) => T("Edge 远程调试尚未开启。请在 edge://inspect 的 Remote debugging 页面允许当前浏览器实例。"),
-        var message when message.Contains("No eligible", StringComparison.OrdinalIgnoreCase) => T("没有发现可用的 Copilot 聊天标签页。请打开 https://m365.cloud.microsoft/chat/ 或 https://copilot.cloud.microsoft/chat/。"),
-        var message when message.Contains("Found", StringComparison.OrdinalIgnoreCase) && message.Contains("eligible Copilot tabs", StringComparison.OrdinalIgnoreCase) => T("发现多个 Copilot 聊天标签页。请只保留一个专用标签页后重试。"),
-        var message when message.Contains("Timeout", StringComparison.OrdinalIgnoreCase) && message.Contains("ws connecting", StringComparison.OrdinalIgnoreCase) => T("等待 Edge 允许远程访问超时。请在 Edge 中选择“允许”，然后点击刷新状态；本次运行的后续操作会复用同一连接。"),
-        _ => exception.Message
-    };
+        if (exception is FullscreenProtectionException)
+        {
+            return T("检测到前台全屏窗口；为避免 Edge 授权提示切出应用，已暂停新的自动连接。退出全屏后点击“刷新状态”。");
+        }
+
+        return exception.Message switch
+        {
+            var message when message.Contains("DevToolsActivePort", StringComparison.OrdinalIgnoreCase) => T("Edge 远程调试尚未开启。请在 edge://inspect 的 Remote debugging 页面允许当前浏览器实例。"),
+            var message when message.Contains("No eligible", StringComparison.OrdinalIgnoreCase) => T("没有发现可用的 Copilot 聊天标签页。请打开 https://m365.cloud.microsoft/chat/ 或 https://copilot.cloud.microsoft/chat/。"),
+            var message when message.Contains("Found", StringComparison.OrdinalIgnoreCase) && message.Contains("eligible Copilot tabs", StringComparison.OrdinalIgnoreCase) => T("发现多个 Copilot 聊天标签页。请只保留一个专用标签页后重试。"),
+            var message when message.Contains("Timeout", StringComparison.OrdinalIgnoreCase) && message.Contains("ws connecting", StringComparison.OrdinalIgnoreCase) => T("等待 Edge 允许远程访问超时。请在 Edge 中选择“允许”，然后点击刷新状态；本次运行的后续操作会复用同一连接。"),
+            _ => exception.Message
+        };
+    }
 
     private enum NoticeKind { Info, Success, Error }
 }

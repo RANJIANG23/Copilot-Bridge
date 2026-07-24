@@ -229,7 +229,8 @@ public sealed class CoreTests
             DisplayLanguage = AppLanguage.English,
             Theme = AppTheme.Dark,
             KeepMcpRunningInBackground = false,
-            UseSystemTray = true
+            UseSystemTray = true,
+            FullscreenProtectionEnabled = false
         };
 
         try
@@ -264,6 +265,12 @@ public sealed class CoreTests
     public void SystemTrayDefaultsToDisabled()
     {
         Assert.False(new BridgeSettings().UseSystemTray);
+    }
+
+    [Fact]
+    public void FullscreenProtectionDefaultsToEnabled()
+    {
+        Assert.True(new BridgeSettings().FullscreenProtectionEnabled);
     }
 
     [Fact]
