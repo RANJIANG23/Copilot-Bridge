@@ -6,7 +6,7 @@
 - Microsoft Edge 已使用团队成员自己的 Microsoft 365 账号登录 Copilot。
 - Edge 由桌面或开始菜单正常启动，并使用成员日常默认配置档。
 - Edge 已在 `edge://inspect` 的 Remote debugging 页面为当前浏览器实例启用远程调试，并显示本地端口 `127.0.0.1:9222`。
-- Codex 桌面版或可执行 `codex` 命令的 Codex CLI。
+- 一个支持本地 STDIO MCP 的调用 Agent。使用随包 Codex Plugin 时，需要 Codex 桌面版或可执行 `codex` 命令的 Codex CLI。
 
 Copilot Bridge 不接管账号、Cookie 或 Edge 配置档，也不会自动修改企业策略。
 
@@ -38,7 +38,7 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\Install-CopilotBridge.
 5. 绑定专用于 Bridge 的 Copilot 标签页；1.3.1 精确支持 `m365.cloud.microsoft` 与 `copilot.cloud.microsoft` 两个入口。
 6. 在设置页选择征询策略和协作模式；初始建议为“仅手动 + Assist”。
 7. 保存并关闭窗口。后台咨询不依赖 GUI 保持打开。
-8. 新建 Codex 任务，再要求 Codex 使用 `copilot-consult`。
+8. 重新启动调用 Agent 的任务或 MCP 会话。使用 Codex Plugin 时，再要求 Codex 使用 `copilot-consult`。
 
 ## 授权本地会话复用
 
@@ -46,7 +46,7 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\Install-CopilotBridge.
 
 1. 在 GUI 的“对话管理”中选择一个项目。
 2. 在“Agent 访问权限”中选择“仅元数据”“检索片段”或“完整会话”，然后保存。
-3. 新建 Codex 任务，使升级后的 Plugin 与四个 MCP 工具生效。
+3. 重新启动调用 Agent 的 MCP 会话，使四个工具生效；使用 Codex Plugin 时新建 Codex 任务。
 
 `search_conversations` 只在已授权项目中检索；`read_conversation` 只允许分页读取权限为“完整会话”的一个明确会话。项目读取权限不代表允许发送，调用 `consult_copilot` 仍受独立征询策略约束。
 
@@ -54,13 +54,15 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\Install-CopilotBridge.
 
 实测发现：使用命令行参数拉起 Edge 时，授权后 Remote debugging 可能一直停在 `Starting`；改为从桌面正常启动默认配置档后工作正常。因此团队 v1 只支持后一条已验证路径，应用不会自动带参数启动 Edge。
 
-## 应用单独安装
+## 其他 STDIO MCP Agent
 
-只需要 GUI、不安装 Codex Plugin 时可执行：
+不安装 Codex Plugin、改由其他 STDIO MCP Agent 调用时可执行：
 
 ```powershell
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\Install-CopilotBridge.ps1 -SkipCodexPlugin
 ```
+
+然后按该 Agent 客户端的官方 MCP 配置方式登记安装目录中的 `CopilotBridge.exe --mcp`。通用命令、四工具安全语义、`agent_auto` 和重试规则见 [MCP 客户端接入](./MCP-CLIENTS.md)。这条路径不代表项目已经验证或内置任何特定第三方 Agent 适配器。
 
 ## 卸载
 

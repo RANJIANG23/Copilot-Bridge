@@ -2,7 +2,7 @@
 
 > 设计基线：v1.3.2 开发基线
 > 日期：2026-07-24（Asia/Shanghai）
-> 状态：v1.3.1 已正式发布；v1.3.2 Phase 34 范围冻结
+> 状态：v1.3.1 已正式发布；v1.3.2 Phase 34–35 已通过
 > 工作名称：Copilot Bridge
 > 项目目录：本仓库根目录
 > 目标模式执行路线图：[EXECUTION-ROADMAP.md](./EXECUTION-ROADMAP.md)
@@ -11,7 +11,7 @@
 
 本项目要做的不是一个通用浏览器自动化平台，也不是另一个多 Agent 框架，而是一个边界明确的 Windows 工具：
 
-> 让 Codex 通过本机已登录的日常 Microsoft Edge，在后台与 Microsoft 365 Copilot 对话，并把回复作为第二模型意见返回给 Codex；Codex始终负责最终判断与实际执行。
+> 让调用 Agent 通过本机已登录的日常 Microsoft Edge，在后台与 Microsoft 365 Copilot 对话，并把回复作为第二模型意见返回；调用 Agent 始终负责最终判断与实际执行。Codex Plugin 是当前已验证的一种具体宿主。
 
 最终交付由三部分组成：
 
@@ -21,7 +21,7 @@
 
 核心技术路线固定为：
 
-> `Codex → 本地 STDIO MCP → Copilot Bridge → Edge CDP/DOM → Microsoft 365 Copilot`
+> `调用 Agent → 本地 STDIO MCP → Copilot Bridge → Edge CDP/DOM → Microsoft 365 Copilot`
 
 日常运行不使用 Computer Use、屏幕识别、Windows UI Automation、物理鼠标键盘模拟或前台窗口切换。
 
@@ -34,15 +34,15 @@
 | 自动化方式 | Edge CDP + DOM，只控制一个专用 Copilot 标签页 |
 | 前台占用 | 禁止抢占窗口、切换用户当前标签页、移动鼠标或注入物理键盘输入 |
 | 协作模式 | Assist、Outsource、Review；由用户在 GUI 中手动选择 |
-| 自动路由模式 | v1 不实现；Codex 不得自行切换协作模式 |
+| 自动路由模式 | v1 不实现；调用 Agent 不得自行切换协作模式 |
 | 模型优先级 | Opus → GPT 5.6 Think deeper → 深度思考 |
 | 禁用模型 | 自动、快速答复、GPT 5.5 快速响应及其他快速模式 |
 | 模型菜单加载 | 打开后至少等待 2 秒，再观察菜单稳定；总等待默认最多 6 秒 |
-| 发送确认 | 日常咨询不逐条询问；通过 Codex 的 MCP 单工具审批策略预先授权 |
+| 发送确认 | 日常咨询不逐条询问；由调用方使用 MCP 单工具审批策略预先授权 |
 | 图形界面 | Microsoft Copilot 的中性层级、留白、圆角卡片与轻量动效 |
 | 团队复用 | Windows 应用与 Codex Plugin 组合分发 |
 | v1 数据形式 | 纯文本/Markdown；不做文件、图片和仓库批量上传 |
-| 会话默认 | 一个 Codex 任务对应一个 Copilot 咨询会话；后续追问复用咨询 ID |
+| 会话默认 | 一个调用 Agent 任务对应一个 Copilot 咨询会话；后续追问复用咨询 ID |
 
 最后两项是本设计为未决问题采用的默认假设，未来可以调整，但不影响首个闭环。
 
@@ -58,21 +58,21 @@ GUI 名称使用“征询策略”，避免与 Copilot 的“自动”模型混�
 |---|---|
 | 关闭 | 拒绝所有咨询调用 |
 | 仅手动 | 只有用户明确要求“问 Copilot/Opus”时才允许调用；首次安装默认值 |
-| Codex 可自动征询 | 用户明确要求时必定允许；复杂架构、重大方案或明显不确定时，Codex也可以主动调用 |
+| Agent 可自动征询 | 用户明确要求时必定允许；复杂架构、重大方案或明显不确定时，调用 Agent 也可以主动调用 |
 | 关键设计必须征询 | 对新项目架构、重大重构和高影响决策设置强制核验点；调用失败必须向用户说明，不得静默跳过 |
 
 ### 3.2 协作模式：怎样分工
 
 协作模式只能由用户在 GUI 中选择：
 
-- **Assist**：Codex 主导，Copilot 回答一个聚焦问题。
-- **Outsource**：Copilot 负责主要的开放式推理或长方案，Codex提供上下文并最终核验。
-- **Review**：使用相互隔离的 Copilot 会话执行独立审查，Codex 汇总分歧并裁决。
+- **Assist**：调用 Agent 主导，Copilot 回答一个聚焦问题。
+- **Outsource**：Copilot 负责主要的开放式推理或长方案，调用 Agent 提供上下文并最终核验。
+- **Review**：使用相互隔离的 Copilot 会话执行独立审查，调用 Agent 汇总分歧并裁决。
 
 硬性规则：
 
 - MCP 的 `consult_copilot` 工具不接受 `mode` 参数。
-- Codex 不能在工具调用中临时改模式。
+- 调用 Agent 不能在工具调用中临时改模式。
 - GUI 修改只影响下一次咨询，不改变正在进行的咨询。
 - v1 不实现 Assist → Outsource → Review 的自动升级。
 
@@ -84,7 +84,7 @@ GUI 名称使用“征询策略”，避免与 Copilot 的“自动”模型混�
 2. GPT 5.6 Think deeper
 3. 深度思考
 
-这个队列与征询策略、协作模式无关。即使征询策略为“Codex 可自动征询”，也绝不选择 Copilot 页面中的“自动”模型。
+这个队列与征询策略、协作模式无关。即使征询策略为“Agent 可自动征询”，也绝不选择 Copilot 页面中的“自动”模型。
 
 ## 4. 目标、非目标与成功标准
 
@@ -93,7 +93,7 @@ GUI 名称使用“征询策略”，避免与 Copilot 的“自动”模型混�
 - 在不抢占用户前台操作的情况下，连接日常 Edge 中已登录的 Microsoft 365 Copilot。
 - 在后台专用标签页中可靠完成模型选择、消息发送、生成等待与 Markdown 回复提取。
 - 支持手动选择的 Assist、Outsource、Review 三种协作模式。
-- 支持用户明确调用，以及按 GUI 策略允许 Codex 在复杂任务中主动调用。
+- 支持用户明确调用，以及按 GUI 策略允许调用 Agent 在复杂任务中主动调用。
 - 通过本地 STDIO MCP 暴露最小工具面。
 - 提供简洁 GUI，完成配置、状态查看、连接诊断与测试咨询。
 - 可以打包给使用 Edge 和 Microsoft 365 企业账号的团队成员。
@@ -122,7 +122,7 @@ v1 不做以下内容：
 2. 10 次咨询没有重复发送；任何发送状态不确定时都不自动重试。
 3. 延迟加载的模型菜单能够按既定优先级选择并验证实际模型。
 4. Edge 未启动、远程调试未启用、登录失效和模型不可用时均返回可理解的错误。
-5. Codex 可以通过 MCP 发起咨询、读取结构化结果并继续完成原任务。
+5. 调用 Agent 可以通过 MCP 发起咨询、读取结构化结果并继续完成原任务。
 6. 本机隔离环境能够按文档完成安装、Plugin/MCP 启动和卸载，且用户完成 Edge 远程访问授权后，本机真实日常 Edge 能完成后台咨询；不同硬件、账号和企业策略环境作为 v1 后团队试点。
 
 ## 5. 总体架构
@@ -130,7 +130,7 @@ v1 不做以下内容：
 ```mermaid
 flowchart LR
     U["用户"] -->|"选择征询策略与协作模式"| GUI["Copilot Bridge GUI"]
-    C["Codex"] -->|"Skill 组织上下文"| MCP["本地 STDIO MCP"]
+    C["调用 Agent"] -->|"组织必要上下文"| MCP["本地 STDIO MCP"]
     GUI --> CORE["Consultation Coordinator"]
     MCP --> CORE
     CORE -->|"预算与状态门禁通过后才获取"| EDGE["Edge Session Adapter"]
@@ -153,7 +153,7 @@ flowchart LR
 - `CopilotBridge.exe --mcp`：作为无窗口 STDIO MCP server 运行。
 - `CopilotBridge.exe --probe`：开发阶段执行连接与 DOM 探测；稳定后可以保留为诊断命令，但不增加第二个程序。
 
-GUI 不必常驻，Codex 启动的 MCP 进程可以独立工作。两者共享配置文件；跨进程文件租约只用于阻止两个进程同时向 Copilot 写入，不承担任务队列职责。
+GUI 不必常驻，调用 Agent 启动的 MCP 进程可以独立工作。两者共享配置文件；跨进程文件租约只用于阻止两个进程同时向 Copilot 写入，不承担任务队列职责。
 
 ### 5.2 技术栈
 
@@ -162,7 +162,7 @@ GUI 不必常驻，Codex 启动的 MCP 进程可以独立工作。两者共享�
 | 运行时 | C# / .NET 10，`net10.0-windows` | 当前机器已具备 SDK；适合单文件 Windows 应用和企业部署 |
 | GUI | WPF | 成熟、轻量、无需引入 WinUI 打包复杂度，足以实现 Microsoft Copilot 风格 |
 | 浏览器 | Microsoft.Playwright for .NET，通过 `ConnectOverCDPAsync` 连接 Edge | 使用现有浏览器状态并执行 DOM 级操作 |
-| MCP | 官方 C# MCP SDK，STDIO transport | 与 Codex 本地客户端直接集成，无需端口和后台服务 |
+| MCP | 官方 C# MCP SDK，STDIO transport | 与本地 MCP 客户端直接集成，无需端口和后台服务 |
 | 配置 | `System.Text.Json` | 无数据库，配置可读、可迁移、易诊断 |
 | 测试 | xUnit + 静态 DOM fixtures | 覆盖状态机与延迟加载，不依赖每次真实发送 |
 | 日志 | `Microsoft.Extensions.Logging` 的简单文件/控制台输出 | 只保留必要诊断，不建事件平台 |
@@ -310,7 +310,7 @@ GPT 5.6 位于 GPT 子菜单时，必须先确认父项为 GPT，再等待子菜
 
 1. **点击发送前**：允许重新解析 DOM、重新连接一次或安全重试读取。
 2. **点击发送后**：永不自动再次点击、按 Enter 或重新提交。
-3. 如果点击后的页面状态无法判断，返回 `submission_unknown`，由 Codex 告知用户检查原会话。
+3. 如果点击后的页面状态无法判断，返回 `submission_unknown`，由调用 Agent 告知用户检查原会话。
 
 不得通过在 prompt 中插入内部幂等 ID 来污染对话。幂等性依靠页面回读、消息计数和“发送后不重试”保证。
 
@@ -462,7 +462,7 @@ v1 只暴露两个工具。
 ```json
 {
   "requestMarkdown": "string",
-  "trigger": "user_explicit | codex_auto | required_checkpoint",
+  "trigger": "user_explicit | agent_auto | codex_auto | required_checkpoint",
   "consultationId": "optional string",
   "newConversation": false
 }
@@ -471,7 +471,7 @@ v1 只暴露两个工具。
 设计约束：
 
 - 不包含 `mode` 或 `model` 参数；两者由 GUI 配置决定。
-- `trigger` 用于执行征询策略；“仅手动”会拒绝 `codex_auto`。
+- `trigger` 用于执行征询策略；“仅手动”会拒绝 `agent_auto` 和兼容旧值 `codex_auto`。
 - 未传 `consultationId` 时创建新咨询。
 - 传入 ID 时复用对应 Copilot conversation。
 - `newConversation=true` 显式结束复用并新建会话。
@@ -511,7 +511,7 @@ v1 只暴露两个工具。
 - 发送状态不确定时禁止重试；
 - 已完成咨询的追问必须复用返回的 `consultationId`，提交前失败按 `retryAction` 决定复用或重新开始；
 - 用户明确要求双审查时，Skill 必须先确认 `collaborationMode=review`；模式不符时不得先按 Assist 或 Outsource 发送。
-- Copilot 只提供意见，Codex负责核验和执行。
+- Copilot 只提供意见，调用 Agent 负责核验和执行。
 
 ## 12. 审批与自动调用
 

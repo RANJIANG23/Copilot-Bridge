@@ -49,6 +49,9 @@ public sealed class McpProtocolTests
         Assert.Contains("local project access", client.ServerInstructions, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("Never retry", client.ServerInstructions, StringComparison.Ordinal);
         Assert.Contains("retryAction", client.ServerInstructions, StringComparison.Ordinal);
+        Assert.Contains("calling agent", client.ServerInstructions, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("agent_auto", consult.JsonSchema.GetRawText(), StringComparison.Ordinal);
+        Assert.Contains("codex_auto", consult.JsonSchema.GetRawText(), StringComparison.Ordinal);
 
         var result = await status.CallAsync(new Dictionary<string, object?>());
         Assert.NotEqual(true, result.IsError);

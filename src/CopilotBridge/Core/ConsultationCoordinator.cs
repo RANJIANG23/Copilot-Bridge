@@ -228,7 +228,7 @@ internal sealed class ConsultationCoordinator
     internal static string? ValidatePolicy(BridgeSettings settings, string trigger)
     {
         if (settings.ConsultationPolicy == ConsultationPolicy.Disabled) return "blocked_by_policy";
-        if (trigger is not ("user_explicit" or "codex_auto" or "required_checkpoint"))
+        if (trigger is not ("user_explicit" or "agent_auto" or "codex_auto" or "required_checkpoint"))
         {
             return "invalid_trigger";
         }

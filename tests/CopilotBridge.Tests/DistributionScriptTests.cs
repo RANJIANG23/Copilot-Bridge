@@ -7,7 +7,7 @@ namespace CopilotBridge.Tests;
 public sealed class DistributionScriptTests
 {
     [Fact]
-    public void ReleaseMetadataIsConsistentForVersion131()
+    public void DevelopmentSourceKeepsReleased131DistributionMetadata()
     {
         var root = DistributionFixture.FindRepositoryRoot();
         Assert.Contains("[string]$Version = '1.3.1'", File.ReadAllText(Path.Combine(root, "distribution", "Build-Release.ps1")));
@@ -34,6 +34,27 @@ public sealed class DistributionScriptTests
             "copilot-bridge",
             "scripts",
             "start-mcp.ps1")));
+    }
+
+    [Fact]
+    public void AgentNeutralMcpGuideKeepsTheGenericBoundaryExplicit()
+    {
+        var root = DistributionFixture.FindRepositoryRoot();
+        var guide = File.ReadAllText(Path.Combine(root, "MCP-CLIENTS.md"));
+        var xaml = File.ReadAllText(Path.Combine(
+            root,
+            "src",
+            "CopilotBridge",
+            "UI",
+            "MainWindow.xaml"));
+
+        Assert.Contains("CopilotBridge.exe --mcp", guide);
+        Assert.Contains("agent_auto", guide);
+        Assert.Contains("codex_auto", guide);
+        Assert.Contains("-SkipCodexPlugin", guide);
+        Assert.Contains("不代表已验证每一种第三方 Agent 客户端", guide);
+        Assert.Contains("Agent 可自动征询", xaml);
+        Assert.DoesNotContain("Codex 可自动征询", xaml);
     }
 
     [Fact]
