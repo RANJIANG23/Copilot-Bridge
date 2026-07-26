@@ -2,7 +2,7 @@
 
 > 设计基线：v1.4.0 工作台与桌面就绪
 > 日期：2026-07-27（Asia/Shanghai）
-> 状态：v1.3.1 已正式发布；v1.3.2 Phase 36 保持部分完成；v1.4.0 Phase 37 已通过
+> 状态：v1.3.1 已正式发布；v1.3.2 Phase 36 保持部分完成；v1.4.0 Phase 37–38 已通过
 > 工作名称：Copilot Bridge
 > 项目目录：本仓库根目录
 > 目标模式执行路线图：[EXECUTION-ROADMAP.md](./EXECUTION-ROADMAP.md)
