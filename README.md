@@ -76,8 +76,9 @@ See [Installation](./INSTALL.md) for the complete procedure. Release owners must
 - **三种协作模式**：Assist 提供聚焦协助，Outsource 承担开放式前置推理，Review 使用两个串行且隔离的会话进行独立审核。协作模式和模型策略只能由用户在 GUI 中设置。**Three collaboration modes:** Assist provides focused help, Outsource performs open-ended upfront reasoning, and Review uses two serial, isolated conversations for independent review. Collaboration mode and model policy are controlled only through the GUI.
 - **四个窄 MCP 工具**：状态与咨询工具之外，`search_conversations` 和 `read_conversation` 只在用户按项目授权的范围内检索或分页读取本地会话。项目默认关闭，可分别授权元数据、检索片段或完整会话。**Four narrow MCP tools:** alongside status and consultation, `search_conversations` and `read_conversation` search or page through local conversations only within project scopes authorized by the user. Projects are off by default and can separately allow metadata, snippets, or full conversations.
 - **本地会话工作台**：即时咨询保存为人可读 Markdown，并以不重复正文的 sidecar 记录内部元数据；支持项目归类、检索、移动、改名、置顶、排序、复制，以及用户确认后的当前旧对话导入。**Local conversation workspace:** immediate consultations are stored as human-readable Markdown with body-free metadata sidecars, supporting project organization, search, move, rename, pin, ordering, copy, and user-confirmed import of the current legacy conversation.
+- **可复用工作台工具**：会话标签只写入分离元数据并参与授权检索；本地提示模板只填入现有输入框，可信原对话入口和待发送文本复制不会自动发送或重试。**Reusable workbench tools:** conversation tags stay in split metadata and participate in authorized search; local prompt templates only populate the existing composer, while trusted original-conversation links and unsent-text copy never send or retry automatically.
 - **明确的数据与迁移控制**：旧会话格式继续可读；迁移必须由用户显式触发，先备份并支持受保护的回滚。只读 MCP 调用不会迁移或改写工作区，Bridge 也不会自动把历史正文发送给 Copilot。**Explicit data and migration control:** legacy conversations remain readable; migration is user-initiated, backed up, and guarded for rollback. Read-only MCP calls do not migrate or modify the workspace, and Bridge never sends historical content to Copilot automatically.
-- **桌面体验**：提供中英文界面、明暗主题、键盘排序和辅助技术语义、工作区与快捷方式入口，以及默认关闭的可选系统托盘。**Desktop experience:** includes Chinese and English UI, light and dark themes, keyboard ordering and assistive-technology semantics, workspace and shortcut actions, and an opt-in system tray that is off by default.
+- **桌面体验**：提供中英文界面、明暗/系统高对比度、键盘排序、有限响应式、首次使用清单、工作区与快捷方式入口，以及默认关闭的系统托盘和当前用户开机启动。**Desktop experience:** includes Chinese and English UI, light/dark/system-high-contrast rendering, keyboard ordering, bounded responsive layout, a first-use checklist, workspace and shortcut actions, plus opt-in system tray and current-user startup.
 - **可靠性边界**：精确支持 `m365.cloud.microsoft` 与 `copilot.cloud.microsoft`；并发写入立即返回 busy，提交前失败会指明新建或复用咨询，提交状态不确定时禁止自动重发。已知页面浮层和未知遮挡返回稳定错误，不执行强制点击或自动关闭未知弹窗。**Reliability boundaries:** exactly supports `m365.cloud.microsoft` and `copilot.cloud.microsoft`; concurrent writes return busy, pre-submit failures distinguish new from reused consultations, and uncertain submission states are never retried automatically. Known overlays and unknown blockers return stable errors without forced clicks or automatic dismissal of unknown dialogs.
 
 逐版本新增、修复、验证结果、安装包和 SHA-256 见 [GitHub Releases](https://github.com/RANJIANG23/Copilot-Bridge/releases)。For version-by-version changes, fixes, validation results, packages, and SHA-256 values, see [GitHub Releases](https://github.com/RANJIANG23/Copilot-Bridge/releases).
@@ -86,9 +87,9 @@ See [Installation](./INSTALL.md) for the complete procedure. Release owners must
 
 | 项目 / Item | 状态 / Status |
 |---|---|
-| 当前源码版本 / Current source version | `1.4.0-dev`（工作台与桌面就绪） / `1.4.0-dev` (workbench and desktop readiness) |
+| 当前源码版本 / Current source version | `1.4.0` 发布候选（工作台与桌面就绪） / `1.4.0` release candidate (workbench and desktop readiness) |
 | 发布状态 / Release status | v1.3.1 已发布 Windows x64 自包含安装包与 SHA-256 文件 / v1.3.1 released with a Windows x64 self-contained package and SHA-256 file |
-| 已通过 / Passed | Phase 0–35、Phase 37–39 and G1–G8；Phase 36 自动门禁已通过但人工 GUI 门禁保持未完成；Phase 40 进行中 / Phase 36 automated gates passed while its human GUI gate remains incomplete; Phase 37–39 passed and Phase 40 is in progress |
+| 已通过 / Passed | Phase 0–35、Phase 37–39 and G1–G8；Phase 36 与 Phase 40 自动门禁已通过但人工 GUI 门禁保持未完成 / Phase 36 and Phase 40 automated gates passed while their human GUI gates remain incomplete |
 | 后续试点 / Follow-up pilot | 不同硬件、账号和企业策略环境 / Different hardware, account, and enterprise-policy environments |
 | 平台 / Platform | Windows 11 x64 |
 
