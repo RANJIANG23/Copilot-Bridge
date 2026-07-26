@@ -11,7 +11,7 @@ public sealed class DistributionScriptTests
     {
         var root = DistributionFixture.FindRepositoryRoot();
         Assert.Contains("[string]$Version = '1.3.1'", File.ReadAllText(Path.Combine(root, "distribution", "Build-Release.ps1")));
-        Assert.Contains("<Version>1.3.1</Version>", File.ReadAllText(Path.Combine(root, "src", "CopilotBridge", "CopilotBridge.csproj")));
+        Assert.Contains("<Version>1.3.2-dev</Version>", File.ReadAllText(Path.Combine(root, "src", "CopilotBridge", "CopilotBridge.csproj")));
         Assert.Contains("\"version\": \"1.3.1\"", File.ReadAllText(Path.Combine(
             root,
             "distribution",

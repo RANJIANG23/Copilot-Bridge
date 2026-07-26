@@ -1,8 +1,8 @@
 # Microsoft Copilot 项目完整设计
 
-> 设计基线：v1.3.1 开发基线
+> 设计基线：v1.3.2 开发基线
 > 日期：2026-07-24（Asia/Shanghai）
-> 状态：v1.3.1 已正式发布；Phase 29–33 已通过
+> 状态：v1.3.1 已正式发布；v1.3.2 Phase 34 范围冻结
 > 工作名称：Copilot Bridge
 > 项目目录：本仓库根目录
 > 目标模式执行路线图：[EXECUTION-ROADMAP.md](./EXECUTION-ROADMAP.md)
@@ -1149,3 +1149,14 @@ v1.3.1 以 [v1.3.1-design.md](./v1.3.1-design.md) 为权威范围：为已有 WP
 - 全屏保护只在建立新 CDP 会话前读取前台窗口和显示器几何；已复用会话不受影响。
 - GUI 自动刷新和 MCP 冷连接遇到全屏时返回 `fullscreen_guard_active`，不调用 `ConnectOverCDPAsync`、不触发 Edge 授权提示、不发送消息。
 - GUI 显式刷新、绑定或用户主动咨询可建立连接；设置页允许关闭保护。实现不读取窗口标题或进程名，不增加 Hook、服务、RPC 或第二套自动化。
+
+## 31. v1.3.2 多 Agent 中性化
+
+v1.3.2 以 [v1.3.2-design.md](./v1.3.2-design.md) 为权威范围：把当前标准 STDIO MCP 能力从 Codex 专属产品表达收敛为调用方中立的 Agent 契约，同时保留 Codex Plugin 作为已验证的具体宿主。
+
+- GUI 与通用文档使用“Agent/调用 Agent”，具体 Codex Plugin、Skill 和安装命令继续保留真实名称。
+- `consult_copilot.trigger` 新增 `agent_auto`，并继续兼容旧 `codex_auto`；两者使用同一征询策略门禁。
+- MCP server instructions 改为要求 calling agent 核验 Copilot 建议并负责实际执行。
+- 新增通用 STDIO MCP 接入说明，但不声称已验证 WorkBuddy、OpenClaw、opencode 或其他第三方客户端。
+- 四个 MCP 工具、写工具其他 schema、安全注解、单写入锁、预算、存储、Edge/CDP/DOM 和禁止不确定重发边界保持不变。
+- 不增加多 Agent 调度、身份协议、Provider 框架、服务、端口、队列、RPC 或专用第三方适配器。
