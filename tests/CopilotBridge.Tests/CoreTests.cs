@@ -314,6 +314,11 @@ public sealed class CoreTests
         Assert.Equal(
             "Agent may consult automatically",
             UiText.Get("Agent 可自动征询", AppLanguage.English));
+        Assert.Equal(
+            "The current conversation Markdown was copied. You can paste it into the calling agent or another tool.",
+            UiText.Get(
+                "当前会话 Markdown 已复制，可粘贴到调用 Agent 或其他工具。",
+                AppLanguage.English));
     }
 
     [Fact]

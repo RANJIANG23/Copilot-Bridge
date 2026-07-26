@@ -1,8 +1,8 @@
 # Microsoft Copilot 项目完整设计
 
-> 设计基线：v1.3.2 开发基线
+> 设计基线：v1.3.2 发布候选
 > 日期：2026-07-24（Asia/Shanghai）
-> 状态：v1.3.1 已正式发布；v1.3.2 Phase 34–35 已通过
+> 状态：v1.3.1 已正式发布；v1.3.2 Phase 34–35 已通过，Phase 36 自动化门禁通过、GUI 目视待确认
 > 工作名称：Copilot Bridge
 > 项目目录：本仓库根目录
 > 目标模式执行路线图：[EXECUTION-ROADMAP.md](./EXECUTION-ROADMAP.md)

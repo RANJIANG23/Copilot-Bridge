@@ -1,4 +1,6 @@
 using System.Diagnostics;
+using CopilotBridge.Core;
+using CopilotBridge.Mcp;
 using ModelContextProtocol.Client;
 using Xunit;
 
@@ -6,6 +8,31 @@ namespace CopilotBridge.Tests;
 
 public sealed class McpProtocolTests
 {
+    [Fact]
+    public async Task StatusKeepsLegacyCodexMayConsultWireValue()
+    {
+        var root = Path.Combine(Path.GetTempPath(), "CopilotBridgeStatusTests", Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(root);
+        try
+        {
+            var store = new SettingsStore(Path.Combine(root, "settings.json"));
+            await store.SaveAsync(new BridgeSettings
+            {
+                ConsultationPolicy = ConsultationPolicy.CodexMayConsult,
+                EdgeUserDataDirectory = Path.Combine(root, "missing-edge")
+            });
+            await using var tools = new CopilotBridgeTools(store);
+
+            var status = await tools.GetStatusAsync();
+
+            Assert.Equal("codex_may_consult", status.ConsultationPolicy);
+        }
+        finally
+        {
+            if (Directory.Exists(root)) Directory.Delete(root, true);
+        }
+    }
+
     [Fact]
     public async Task StdioServerExposesExactlyFourHonestlyAnnotatedTools()
     {

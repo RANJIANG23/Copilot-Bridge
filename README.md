@@ -59,8 +59,8 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\Install-CopilotBridge.
 3. 从开始菜单打开 Copilot Bridge。Open Copilot Bridge from the Start menu.
 4. 确认 Edge 与 Microsoft 365 Copilot 状态正常，然后绑定专用 Copilot 标签页。Confirm the Edge and Microsoft 365 Copilot status, then bind the dedicated Copilot tab.
 5. 首次建议使用“仅手动 + Assist”。For the first run, use `Manual only + Assist`.
-6. 保存设置，关闭 GUI，并新建一个 Codex 任务。Save the settings, close the GUI, and start a new Codex task.
-7. 要求 Codex 使用 `copilot-consult` 对一个具体方案进行二次核验。Ask Codex to use `copilot-consult` for a focused second opinion.
+6. 保存设置，关闭 GUI，并重启调用 Agent 的 MCP 会话。Save the settings, close the GUI, and restart the calling agent's MCP session.
+7. 使用 Codex Plugin 时，新建 Codex 任务并要求它使用 `copilot-consult`；其他客户端先调用 `copilot_bridge_status`，再按通用契约调用工具。With the Codex Plugin, start a new Codex task and ask it to use `copilot-consult`; other clients call `copilot_bridge_status` first, then use the tools under the generic contract.
 
 其他 STDIO MCP Agent 使用应用单独安装和通用接入契约；这不代表项目已验证某个第三方产品的专用配置。Other STDIO MCP agents use the app-only installation and generic integration contract; this does not claim product-specific verification. See [MCP 客户端接入 / MCP client integration](./MCP-CLIENTS.md).
 
@@ -86,9 +86,9 @@ See [Installation](./INSTALL.md) for the complete procedure. Release owners must
 
 | 项目 / Item | 状态 / Status |
 |---|---|
-| 当前源码版本 / Current source version | `1.3.2-dev`（多 Agent 中性化 / calling-agent neutralization） |
+| 当前源码版本 / Current source version | `1.3.2` 发布候选（多 Agent 中性化） / `1.3.2` release candidate (calling-agent neutralization) |
 | 发布状态 / Release status | v1.3.1 已发布 Windows x64 自包含安装包与 SHA-256 文件 / v1.3.1 released with a Windows x64 self-contained package and SHA-256 file |
-| 已通过 / Passed | Phase 0–35 and G1–G8；Phase 36 待开始 / Phase 36 not started |
+| 已通过 / Passed | Phase 0–35 and G1–G8；Phase 36 自动化门禁通过，GUI 目视待确认 / Phase 36 automated gates passed; GUI visual confirmation pending |
 | 后续试点 / Follow-up pilot | 不同硬件、账号和企业策略环境 / Different hardware, account, and enterprise-policy environments |
 | 平台 / Platform | Windows 11 x64 |
 

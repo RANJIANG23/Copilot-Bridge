@@ -12,7 +12,7 @@ Copilot Bridge 不接管账号、Cookie 或 Edge 配置档，也不会自动修�
 
 ## 安装
 
-1. 解压整个 `CopilotBridge-1.3.1-win-x64.zip`，不要只复制 EXE。
+1. 解压整个 `CopilotBridge-1.3.2-win-x64.zip`，不要只复制 EXE。
 2. 可选：用发布者提供的 `.sha256` 文件核对 ZIP 的 SHA-256。
 3. 在解压目录运行：
 
@@ -35,7 +35,7 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\Install-CopilotBridge.
 2. 打开 `edge://inspect` 的 Remote debugging 页面，允许当前浏览器实例，并确认显示 `127.0.0.1:9222`。
 3. 从开始菜单打开 Copilot Bridge。
 4. 在诊断页确认 Edge、Microsoft 365 Copilot 登录和模型菜单均可用。
-5. 绑定专用于 Bridge 的 Copilot 标签页；1.3.1 精确支持 `m365.cloud.microsoft` 与 `copilot.cloud.microsoft` 两个入口。
+5. 绑定专用于 Bridge 的 Copilot 标签页；1.3.2 继续精确支持 `m365.cloud.microsoft` 与 `copilot.cloud.microsoft` 两个入口。
 6. 在设置页选择征询策略和协作模式；初始建议为“仅手动 + Assist”。
 7. 保存并关闭窗口。后台咨询不依赖 GUI 保持打开。
 8. 重新启动调用 Agent 的任务或 MCP 会话。使用 Codex Plugin 时，再要求 Codex 使用 `copilot-consult`。

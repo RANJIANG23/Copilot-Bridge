@@ -29,7 +29,7 @@ if (Test-Path -LiteralPath $evidencePath) {
 }
 
 $isolatedLocal = Join-Path $evidencePath 'LocalAppData'
-$codexTestParent = Join-Path $env:LOCALAPPDATA 'CopilotBridge-Phase33'
+$codexTestParent = Join-Path $env:LOCALAPPDATA 'CopilotBridge-Phase36'
 $isolatedCodex = Join-Path $codexTestParent ([IO.Path]::GetFileName($evidencePath))
 if (Test-Path -LiteralPath $isolatedCodex) {
     throw "Isolated Codex home already exists: $isolatedCodex"
@@ -63,7 +63,7 @@ $deepThinking = -join @([char]0x6df1, [char]0x5ea6, [char]0x601d, [char]0x8003)
     menuMaximumWaitMilliseconds = 6000
     replyTimeoutSeconds = 300
     modelPriority = 'Opus|GPT 5.6 Think deeper|' + $deepThinking
-    consultationPolicy = 'ManualOnly'
+    consultationPolicy = 'CodexMayConsult'
     collaborationMode = 'Assist'
     displayLanguage = 'Chinese'
     theme = 'Light'
@@ -127,6 +127,15 @@ function Install-Package([string]$Package) {
     if ($LASTEXITCODE -ne 0) { throw "Installer failed: $Package" }
 }
 
+function Install-AppOnlyPackage([string]$Package, [string]$InstallDirectory) {
+    & powershell.exe -NoProfile -ExecutionPolicy Bypass -File `
+        (Join-Path $Package 'Install-CopilotBridge.ps1') `
+        -InstallDirectory $InstallDirectory `
+        -StartMenuDirectory $startMenu `
+        -SkipCodexPlugin | Out-Null
+    if ($LASTEXITCODE -ne 0) { throw "App-only installer failed: $Package" }
+}
+
 function Uninstall-Package([string]$InstallDirectory) {
     & powershell.exe -NoProfile -ExecutionPolicy Bypass -File `
         (Join-Path $InstallDirectory 'Uninstall-CopilotBridge.ps1') `
@@ -134,7 +143,16 @@ function Uninstall-Package([string]$InstallDirectory) {
     if ($LASTEXITCODE -ne 0) { throw "Uninstaller failed: $InstallDirectory" }
 }
 
-function Invoke-PackagedMcp([string]$InstallDirectory) {
+function Uninstall-AppOnlyPackage([string]$InstallDirectory) {
+    & powershell.exe -NoProfile -ExecutionPolicy Bypass -File `
+        (Join-Path $InstallDirectory 'Uninstall-CopilotBridge.ps1') `
+        -InstallDirectory $InstallDirectory `
+        -StartMenuDirectory $startMenu `
+        -SkipCodexPlugin | Out-Null
+    if ($LASTEXITCODE -ne 0) { throw "App-only uninstaller failed: $InstallDirectory" }
+}
+
+function Invoke-PackagedMcp([string]$InstallDirectory, [string]$TranscriptName) {
     $info = [Diagnostics.ProcessStartInfo]::new()
     $info.FileName = Join-Path $InstallDirectory 'CopilotBridge.exe'
     $info.Arguments = "--mcp --settings-path `"$settingsPath`""
@@ -149,17 +167,19 @@ function Invoke-PackagedMcp([string]$InstallDirectory) {
     $process = [Diagnostics.Process]::Start($info)
     $errorTask = $process.StandardError.ReadToEndAsync()
     $process.StandardInput.WriteLine(
-        '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"phase19","version":"1"}}}')
+        '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"generic-stdio-phase36","version":"1"}}}')
     $process.StandardInput.WriteLine(
         '{"jsonrpc":"2.0","method":"notifications/initialized","params":{}}')
     $process.StandardInput.WriteLine(
         '{"jsonrpc":"2.0","id":2,"method":"tools/list","params":{}}')
     $process.StandardInput.WriteLine(
-        '{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"search_conversations","arguments":{}}}')
+        '{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"copilot_bridge_status","arguments":{}}}')
+    $process.StandardInput.WriteLine(
+        '{"jsonrpc":"2.0","id":4,"method":"tools/call","params":{"name":"search_conversations","arguments":{}}}')
     $process.StandardInput.Flush()
     $outputLines = [Collections.Generic.List[string]]::new()
     $received = [Collections.Generic.HashSet[int]]::new()
-    while ($received.Count -lt 3 -and $outputLines.Count -lt 8) {
+    while ($received.Count -lt 4 -and $outputLines.Count -lt 10) {
         $readTask = $process.StandardOutput.ReadLineAsync()
         if (-not $readTask.Wait(5000)) {
             $process.Kill()
@@ -178,9 +198,9 @@ function Invoke-PackagedMcp([string]$InstallDirectory) {
     }
     $output = $outputLines -join "`r`n"
     $errorText = $errorTask.GetAwaiter().GetResult()
-    Set-Content -LiteralPath (Join-Path $evidencePath 'mcp-stdout.jsonl') `
+    Set-Content -LiteralPath (Join-Path $evidencePath "$TranscriptName-stdout.jsonl") `
         -Value $output -Encoding utf8
-    Set-Content -LiteralPath (Join-Path $evidencePath 'mcp-stderr.txt') `
+    Set-Content -LiteralPath (Join-Path $evidencePath "$TranscriptName-stderr.txt") `
         -Value $errorText -Encoding utf8
     if ($process.ExitCode -ne 0) { throw "Packaged MCP failed: $errorText" }
     $messages = @($output -split "`r?`n" |
@@ -188,8 +208,34 @@ function Invoke-PackagedMcp([string]$InstallDirectory) {
         ForEach-Object { $_ | ConvertFrom-Json })
     $toolNames = @(($messages | Where-Object id -eq 2).result.tools |
         ForEach-Object name | Sort-Object)
-    $searchResults = @(($messages | Where-Object id -eq 3).result.structuredContent.results)
-    [pscustomobject]@{ ToolNames = $toolNames; SearchResultCount = $searchResults.Count }
+    $expectedToolNames = @(
+        'consult_copilot',
+        'copilot_bridge_status',
+        'read_conversation',
+        'search_conversations')
+    $initialize = $messages | Where-Object id -eq 1
+    $status = $messages | Where-Object id -eq 3
+    $statusContent = $status.result.structuredContent
+    $statusRead = $null -ne $statusContent -and
+        $null -ne $statusContent.PSObject.Properties['consultationPolicy'] -and
+        $status.result.isError -ne $true
+    $search = $messages | Where-Object id -eq 4
+    $searchContent = $search.result.structuredContent
+    $searchRead = $null -ne $searchContent -and
+        $null -ne $searchContent.PSObject.Properties['results'] -and
+        $search.result.isError -ne $true
+    $searchResults = if ($searchRead) { @($searchContent.results) } else { @() }
+    [pscustomobject]@{
+        ToolNames = $toolNames
+        ToolSetMatches = (@(Compare-Object $expectedToolNames $toolNames).Count -eq 0)
+        SearchRead = $searchRead
+        SearchResultCount = $searchResults.Count
+        StatusRead = $statusRead
+        StatusPolicy = if ($statusRead) { [string]$statusContent.consultationPolicy } else { $null }
+        AgentNeutralInstructions = (
+            [string]$initialize.result.instructions -like '*calling agent*' -and
+            $output -like '*agent_auto*')
+    }
 }
 
 $hostConfig = Join-Path $env:USERPROFILE '.codex\config.toml'
@@ -215,7 +261,7 @@ try {
     $plugin = ((codex plugin list --json | ConvertFrom-Json).installed |
         Where-Object pluginId -eq 'copilot-bridge@copilot-bridge-team' |
         Select-Object -First 1)
-    $mcp = Invoke-PackagedMcp $installDirectory
+    $mcp = Invoke-PackagedMcp $installDirectory 'plugin-mcp'
     $userDataAfterMcp = Get-TreeHash $settingsDirectory
 
     Uninstall-Package $installDirectory
@@ -230,6 +276,17 @@ try {
     $rollbackVersion = (Get-Item -LiteralPath `
         (Join-Path $installDirectory 'CopilotBridge.exe')).VersionInfo.ProductVersion
     Uninstall-Package $installDirectory
+
+    $appOnlyInstallDirectory = Join-Path $isolatedLocal 'Programs\CopilotBridge-AppOnly'
+    Install-AppOnlyPackage $candidatePackage $appOnlyInstallDirectory
+    $appOnlyVersion = (Get-Item -LiteralPath `
+        (Join-Path $appOnlyInstallDirectory 'CopilotBridge.exe')).VersionInfo.ProductVersion
+    $appOnlyGuideInstalled = Test-Path -LiteralPath `
+        (Join-Path $appOnlyInstallDirectory 'MCP-CLIENTS.md') -PathType Leaf
+    $appOnlyMcp = Invoke-PackagedMcp $appOnlyInstallDirectory 'app-only-mcp'
+    $userDataAfterAppOnlyMcp = Get-TreeHash $settingsDirectory
+    Uninstall-AppOnlyPackage $appOnlyInstallDirectory
+    $appOnlyRemoved = -not (Test-Path -LiteralPath $appOnlyInstallDirectory)
 }
 finally {
     $env:LOCALAPPDATA = $originalLocalAppData
@@ -240,15 +297,32 @@ $hostConfigAfter = if (Test-Path -LiteralPath $hostConfig) {
     (Get-FileHash -LiteralPath $hostConfig -Algorithm SHA256).Hash
 } else { 'missing' }
 
-$passed = $previousVersion -like '1.3.0*' -and
-    $candidateVersion -like '1.3.1*' -and
-    $rollbackVersion -like '1.3.0*' -and
+$passed = $previousVersion -like '1.3.1*' -and
+    $candidateVersion -like '1.3.2*' -and
+    $rollbackVersion -like '1.3.1*' -and
+    $appOnlyVersion -like '1.3.2*' -and
     $mcp.ToolNames.Count -eq 4 -and
+    $mcp.ToolSetMatches -and
+    $mcp.StatusRead -and
+    $mcp.StatusPolicy -eq 'codex_may_consult' -and
+    $mcp.AgentNeutralInstructions -and
+    $mcp.SearchRead -and
     $mcp.SearchResultCount -eq 0 -and
+    $appOnlyMcp.ToolNames.Count -eq 4 -and
+    $appOnlyMcp.ToolSetMatches -and
+    $appOnlyMcp.StatusRead -and
+    $appOnlyMcp.StatusPolicy -eq 'codex_may_consult' -and
+    $appOnlyMcp.AgentNeutralInstructions -and
+    $appOnlyMcp.SearchRead -and
+    $appOnlyMcp.SearchResultCount -eq 0 -and
+    $appOnlyGuideInstalled -and
+    $appOnlyRemoved -and
     $userDataBefore -eq $userDataAfterMcp -and
+    $userDataBefore -eq $userDataAfterAppOnlyMcp -and
     $uninstallPreservedData -and
     $pluginCountAfterUninstall -eq 0 -and
     $marketplaceCountAfterUninstall -eq 0 -and
+    $plugin.version -eq '1.3.2' -and
     $hostConfigBefore -eq $hostConfigAfter
 $result = [ordered]@{
     result = if ($passed) { 'passed' } else { 'failed' }
@@ -256,10 +330,27 @@ $result = [ordered]@{
     previousVersion = $previousVersion
     candidateVersion = $candidateVersion
     rollbackVersion = $rollbackVersion
+    appOnlyVersion = $appOnlyVersion
     pluginVersion = $plugin.version
     mcpTools = $mcp.ToolNames
+    mcpToolSetMatches = $mcp.ToolSetMatches
+    genericClientName = 'generic-stdio-phase36'
+    statusRead = $mcp.StatusRead
+    statusPolicy = $mcp.StatusPolicy
+    agentNeutralInstructions = $mcp.AgentNeutralInstructions
+    searchRead = $mcp.SearchRead
     legacyOffSearchResults = $mcp.SearchResultCount
+    appOnlyMcpTools = $appOnlyMcp.ToolNames
+    appOnlyMcpToolSetMatches = $appOnlyMcp.ToolSetMatches
+    appOnlyStatusRead = $appOnlyMcp.StatusRead
+    appOnlyStatusPolicy = $appOnlyMcp.StatusPolicy
+    appOnlyAgentNeutralInstructions = $appOnlyMcp.AgentNeutralInstructions
+    appOnlySearchRead = $appOnlyMcp.SearchRead
+    appOnlyLegacyOffSearchResults = $appOnlyMcp.SearchResultCount
+    appOnlyGuideInstalled = $appOnlyGuideInstalled
+    appOnlyRemoved = $appOnlyRemoved
     userDataPreserved = ($userDataBefore -eq $userDataAfterMcp)
+    appOnlyUserDataPreserved = ($userDataBefore -eq $userDataAfterAppOnlyMcp)
     uninstallPreservedUserData = $uninstallPreservedData
     pluginRemoved = ($pluginCountAfterUninstall -eq 0)
     marketplaceRemoved = ($marketplaceCountAfterUninstall -eq 0)
@@ -274,7 +365,7 @@ if ($passed -and (Test-Path -LiteralPath $isolatedCodex)) {
     if (-not $resolvedCodexHome.StartsWith(
             $allowedCodexPrefix,
             [StringComparison]::OrdinalIgnoreCase) -or
-        [IO.Path]::GetFileName($resolvedCodexHome) -notlike 'v1.3.1-*') {
+        [IO.Path]::GetFileName($resolvedCodexHome) -notlike 'v1.3.2-*') {
         throw "Refusing to clean unexpected Codex home: $resolvedCodexHome"
     }
     Remove-Item -LiteralPath $resolvedCodexHome -Recurse -Force

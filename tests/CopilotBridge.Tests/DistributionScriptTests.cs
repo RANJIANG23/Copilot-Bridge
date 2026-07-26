@@ -7,12 +7,12 @@ namespace CopilotBridge.Tests;
 public sealed class DistributionScriptTests
 {
     [Fact]
-    public void DevelopmentSourceKeepsReleased131DistributionMetadata()
+    public void CandidateMetadataIsConsistentForVersion132()
     {
         var root = DistributionFixture.FindRepositoryRoot();
-        Assert.Contains("[string]$Version = '1.3.1'", File.ReadAllText(Path.Combine(root, "distribution", "Build-Release.ps1")));
-        Assert.Contains("<Version>1.3.2-dev</Version>", File.ReadAllText(Path.Combine(root, "src", "CopilotBridge", "CopilotBridge.csproj")));
-        Assert.Contains("\"version\": \"1.3.1\"", File.ReadAllText(Path.Combine(
+        Assert.Contains("[string]$Version = '1.3.2'", File.ReadAllText(Path.Combine(root, "distribution", "Build-Release.ps1")));
+        Assert.Contains("<Version>1.3.2</Version>", File.ReadAllText(Path.Combine(root, "src", "CopilotBridge", "CopilotBridge.csproj")));
+        Assert.Contains("\"version\": \"1.3.2\"", File.ReadAllText(Path.Combine(
             root,
             "distribution",
             "marketplace",
@@ -21,11 +21,33 @@ public sealed class DistributionScriptTests
             ".codex-plugin",
             "plugin.json")));
         var upgradeScript = File.ReadAllText(Path.Combine(root, "distribution", "Test-IsolatedUpgrade.ps1"));
-        Assert.Contains("$previousVersion -like '1.3.0*'", upgradeScript);
-        Assert.Contains("$candidateVersion -like '1.3.1*'", upgradeScript);
-        Assert.Contains("$rollbackVersion -like '1.3.0*'", upgradeScript);
-        Assert.Contains("'CopilotBridge-Phase33'", upgradeScript);
-        Assert.Contains("-notlike 'v1.3.1-*'", upgradeScript);
+        Assert.Contains("$previousVersion -like '1.3.1*'", upgradeScript);
+        Assert.Contains("$candidateVersion -like '1.3.2*'", upgradeScript);
+        Assert.Contains("$rollbackVersion -like '1.3.1*'", upgradeScript);
+        Assert.Contains("$appOnlyVersion -like '1.3.2*'", upgradeScript);
+        Assert.Contains("'CopilotBridge-Phase36'", upgradeScript);
+        Assert.Contains("-notlike 'v1.3.2-*'", upgradeScript);
+        Assert.Contains("-SkipCodexPlugin", upgradeScript);
+        Assert.Contains("generic-stdio-phase36", upgradeScript);
+        Assert.Contains("copilot_bridge_status", upgradeScript);
+        Assert.Contains("AgentNeutralInstructions", upgradeScript);
+        Assert.Contains("ToolSetMatches", upgradeScript);
+        Assert.Contains("SearchRead", upgradeScript);
+        Assert.Contains("$mcp.StatusPolicy -eq 'codex_may_consult'", upgradeScript);
+        Assert.Contains("$appOnlyMcp.StatusPolicy -eq 'codex_may_consult'", upgradeScript);
+        Assert.Contains("$plugin.version -eq '1.3.2'", upgradeScript);
+        Assert.Contains("'plugin-mcp'", upgradeScript);
+        Assert.Contains("'app-only-mcp'", upgradeScript);
+        Assert.Contains("appOnlyGuideInstalled", upgradeScript);
+        Assert.Contains("appOnlyRemoved", upgradeScript);
+        Assert.Contains("'MCP-CLIENTS.md'", File.ReadAllText(Path.Combine(
+            root,
+            "distribution",
+            "Build-Release.ps1")));
+        Assert.Contains("'MCP-CLIENTS.md'", File.ReadAllText(Path.Combine(
+            root,
+            "distribution",
+            "Install-CopilotBridge.ps1")));
         Assert.Contains("COPILOT_BRIDGE_SETTINGS_PATH", File.ReadAllText(Path.Combine(
             root,
             "distribution",
