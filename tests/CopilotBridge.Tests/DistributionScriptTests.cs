@@ -7,11 +7,11 @@ namespace CopilotBridge.Tests;
 public sealed class DistributionScriptTests
 {
     [Fact]
-    public void CandidateMetadataIsConsistentForVersion132()
+    public void DevelopmentSourceKeepsVersion132CandidateMetadataStable()
     {
         var root = DistributionFixture.FindRepositoryRoot();
         Assert.Contains("[string]$Version = '1.3.2'", File.ReadAllText(Path.Combine(root, "distribution", "Build-Release.ps1")));
-        Assert.Contains("<Version>1.3.2</Version>", File.ReadAllText(Path.Combine(root, "src", "CopilotBridge", "CopilotBridge.csproj")));
+        Assert.Contains("<Version>1.4.0-dev</Version>", File.ReadAllText(Path.Combine(root, "src", "CopilotBridge", "CopilotBridge.csproj")));
         Assert.Contains("\"version\": \"1.3.2\"", File.ReadAllText(Path.Combine(
             root,
             "distribution",

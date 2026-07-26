@@ -86,9 +86,9 @@ See [Installation](./INSTALL.md) for the complete procedure. Release owners must
 
 | 项目 / Item | 状态 / Status |
 |---|---|
-| 当前源码版本 / Current source version | `1.3.2` 发布候选（多 Agent 中性化） / `1.3.2` release candidate (calling-agent neutralization) |
+| 当前源码版本 / Current source version | `1.4.0-dev`（工作台与桌面就绪） / `1.4.0-dev` (workbench and desktop readiness) |
 | 发布状态 / Release status | v1.3.1 已发布 Windows x64 自包含安装包与 SHA-256 文件 / v1.3.1 released with a Windows x64 self-contained package and SHA-256 file |
-| 已通过 / Passed | Phase 0–35 and G1–G8；Phase 36 自动化门禁通过，GUI 目视待确认 / Phase 36 automated gates passed; GUI visual confirmation pending |
+| 已通过 / Passed | Phase 0–35、Phase 37 and G1–G8；Phase 36 自动门禁已通过但人工 GUI 门禁保持未完成；Phase 38 进行中 / Phase 36 automated gates passed while its human GUI gate remains incomplete; Phase 37 passed and Phase 38 is in progress |
 | 后续试点 / Follow-up pilot | 不同硬件、账号和企业策略环境 / Different hardware, account, and enterprise-policy environments |
 | 平台 / Platform | Windows 11 x64 |
 
