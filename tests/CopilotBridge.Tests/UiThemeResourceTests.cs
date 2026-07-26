@@ -65,6 +65,7 @@ public sealed class UiThemeResourceTests
         var root = FindRepositoryRoot();
         var xaml = File.ReadAllText(Path.Combine(root, "src", "CopilotBridge", "UI", "MainWindow.xaml"));
         var code = File.ReadAllText(Path.Combine(root, "src", "CopilotBridge", "UI", "MainWindow.xaml.cs"));
+        var layout = File.ReadAllText(Path.Combine(root, "src", "CopilotBridge", "UI", "DesktopLayout.cs"));
 
         Assert.Contains("PreviewKeyDown=\"ProjectListBox_PreviewKeyDown\"", xaml);
         Assert.Contains("PreviewKeyDown=\"ModelPriorityListBox_PreviewKeyDown\"", xaml);
@@ -74,7 +75,8 @@ public sealed class UiThemeResourceTests
         Assert.True(Regex.Matches(xaml, "AutomationProperties.Name=").Count >= 12);
         Assert.Contains("MinWidth=\"1080\"", xaml);
         Assert.Contains("MinHeight=\"700\"", xaml);
-        Assert.Contains("ActualWidth < 1180", code);
+        Assert.Contains("DesktopLayout.ForWidth(ActualWidth)", code);
+        Assert.Contains("width < 1180", layout);
         Assert.Contains("KeyboardMoveDirection", code);
         Assert.Contains("ReorderProjectAsync", code);
         Assert.Contains("MoveModelPriorityToIndex", code);

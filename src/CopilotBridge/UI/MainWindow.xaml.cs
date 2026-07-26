@@ -66,6 +66,7 @@ public partial class MainWindow : Window
         Deactivated += Window_Deactivated;
         StateChanged += Window_StateChanged;
         SizeChanged += Window_SizeChanged;
+        SystemParameters.StaticPropertyChanged += SystemParameters_StaticPropertyChanged;
     }
 
     private async void Window_Loaded(object sender, RoutedEventArgs e)
@@ -99,6 +100,11 @@ public partial class MainWindow : Window
     private async void Navigation_Click(object sender, RoutedEventArgs e)
     {
         if (sender is not Button button || button.Tag is not string page) return;
+        await NavigateToPageAsync(page);
+    }
+
+    private async Task NavigateToPageAsync(string page)
+    {
         _activePage = page;
         OverviewPanel.Visibility = page == "overview" ? Visibility.Visible : Visibility.Collapsed;
         StatisticsPanel.Visibility = page == "statistics" ? Visibility.Visible : Visibility.Collapsed;
@@ -351,6 +357,84 @@ public partial class MainWindow : Window
             _settings = previous;
             UseSystemTrayCheckBox.IsChecked = previous.UseSystemTray;
             if (_tray is not null) _tray.Visible = previous.UseSystemTray;
+            ShowNotice(FriendlyMessage(exception), NoticeKind.Error);
+        }
+    }
+
+    private async void StartWithWindows_Click(object sender, RoutedEventArgs e)
+    {
+        if (!_settingsAreLoaded) return;
+        var enabled = StartWithWindowsCheckBox.IsChecked == true;
+        if (_settings.StartWithWindows == enabled && _shortcutManager.IsStartupEnabled == enabled) return;
+
+        var previous = _settings;
+        var previousShortcutEnabled = _shortcutManager.IsStartupEnabled;
+        try
+        {
+            _shortcutManager.SetStartupEnabled(enabled);
+            _settings = _settings with { StartWithWindows = enabled };
+            await _settingsStore.SaveAsync(_settings);
+            ShowNotice(
+                T(enabled
+                    ? "已启用当前用户开机启动；只会启动 Bridge GUI。"
+                    : "已关闭当前用户开机启动。"),
+                NoticeKind.Success);
+        }
+        catch (Exception exception)
+        {
+            try { _shortcutManager.SetStartupEnabled(previousShortcutEnabled); }
+            catch (Exception rollbackException)
+            {
+                DiagnosticLog.Write("startup_shortcut_rollback_failed", rollbackException);
+            }
+            _settings = previous;
+            StartWithWindowsCheckBox.IsChecked = previous.StartWithWindows;
+            ShowNotice(FriendlyMessage(exception), NoticeKind.Error);
+        }
+    }
+
+    private async void OnboardingOpenSettings_Click(object sender, RoutedEventArgs e) =>
+        await NavigateToPageAsync("settings");
+
+    private async void OnboardingOpenCollaboration_Click(object sender, RoutedEventArgs e) =>
+        await NavigateToPageAsync("collaboration");
+
+    private async void SkipOnboarding_Click(object sender, RoutedEventArgs e) =>
+        await SetOnboardingCompletedAsync(T("首次使用清单已跳过；可在设置中重新打开。"));
+
+    private async void CompleteOnboarding_Click(object sender, RoutedEventArgs e) =>
+        await SetOnboardingCompletedAsync(T("首次使用清单已完成。"));
+
+    private async void ReopenOnboarding_Click(object sender, RoutedEventArgs e)
+    {
+        var previous = _settings;
+        try
+        {
+            _settings = _settings with { OnboardingCompleted = false };
+            await _settingsStore.SaveAsync(_settings);
+            OnboardingCard.Visibility = Visibility.Visible;
+            await NavigateToPageAsync("overview");
+        }
+        catch (Exception exception)
+        {
+            _settings = previous;
+            ShowNotice(FriendlyMessage(exception), NoticeKind.Error);
+        }
+    }
+
+    private async Task SetOnboardingCompletedAsync(string notice)
+    {
+        var previous = _settings;
+        try
+        {
+            _settings = _settings with { OnboardingCompleted = true };
+            await _settingsStore.SaveAsync(_settings);
+            OnboardingCard.Visibility = Visibility.Collapsed;
+            ShowNotice(notice, NoticeKind.Success);
+        }
+        catch (Exception exception)
+        {
+            _settings = previous;
             ShowNotice(FriendlyMessage(exception), NoticeKind.Error);
         }
     }
@@ -1184,6 +1268,7 @@ public partial class MainWindow : Window
     {
         _statusRefreshTimer.Stop();
         _noticeTimer.Stop();
+        SystemParameters.StaticPropertyChanged -= SystemParameters_StaticPropertyChanged;
         _tray?.Dispose();
         _tray = null;
         base.OnClosed(e);
@@ -1292,6 +1377,7 @@ public partial class MainWindow : Window
             Theme = ThemeComboBox.SelectedIndex == (int)AppTheme.Dark ? AppTheme.Dark : AppTheme.Light,
             KeepMcpRunningInBackground = KeepMcpRunningCheckBox.IsChecked == true,
             UseSystemTray = UseSystemTrayCheckBox.IsChecked == true,
+            StartWithWindows = StartWithWindowsCheckBox.IsChecked == true,
             FullscreenProtectionEnabled = FullscreenProtectionCheckBox.IsChecked == true,
             ConversationWorkspaceDirectory = workspaceDirectory
         };
@@ -1330,6 +1416,11 @@ public partial class MainWindow : Window
         ThemeComboBox.SelectedIndex = (int)_settings.Theme;
         KeepMcpRunningCheckBox.IsChecked = _settings.KeepMcpRunningInBackground;
         UseSystemTrayCheckBox.IsChecked = _settings.UseSystemTray;
+        StartWithWindowsCheckBox.IsChecked =
+            _settings.StartWithWindows && _shortcutManager.IsStartupEnabled;
+        OnboardingCard.Visibility = _settings.OnboardingCompleted
+            ? Visibility.Collapsed
+            : Visibility.Visible;
         FullscreenProtectionCheckBox.IsChecked = _settings.FullscreenProtectionEnabled;
     }
 
@@ -1395,6 +1486,8 @@ public partial class MainWindow : Window
         RollbackStorageButton.IsEnabled = !busy;
         KeepMcpRunningCheckBox.IsEnabled = !busy;
         UseSystemTrayCheckBox.IsEnabled = !busy;
+        StartWithWindowsCheckBox.IsEnabled = !busy;
+        ReopenOnboardingButton.IsEnabled = !busy;
         FullscreenProtectionCheckBox.IsEnabled = !busy;
     }
 
@@ -1464,10 +1557,16 @@ public partial class MainWindow : Window
 
     private void UpdateHistoryColumns()
     {
-        if (HistoryProjectColumn is null || HistoryConversationColumn is null) return;
-        var compact = ActualWidth < 1180;
-        HistoryProjectColumn.Width = new GridLength(compact ? 170 : 220);
-        HistoryConversationColumn.Width = new GridLength(compact ? 210 : 280);
+        if (HistoryProjectColumn is null || HistoryConversationColumn is null || SidebarColumn is null) return;
+        var layout = DesktopLayout.ForWidth(ActualWidth);
+        SidebarColumn.Width = new GridLength(layout.SidebarWidth);
+        HistoryProjectColumn.Width = new GridLength(layout.ProjectColumnWidth);
+        HistoryConversationColumn.Width = new GridLength(layout.ConversationColumnWidth);
+        var secondaryVisibility = layout.ShowSecondarySidebarText
+            ? Visibility.Visible
+            : Visibility.Collapsed;
+        SidebarVersionText.Visibility = secondaryVisibility;
+        SidebarSecondaryText.Visibility = secondaryVisibility;
     }
 
     private static bool PassedDragThreshold(Point current, Point start) =>
@@ -1532,8 +1631,24 @@ public partial class MainWindow : Window
         button.Foreground = ThemeBrush(selected ? "NavSelectedTextBrush" : "NavTextBrush");
     }
 
+    private void SystemParameters_StaticPropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (string.IsNullOrEmpty(e.PropertyName) ||
+            e.PropertyName.Equals(nameof(SystemParameters.HighContrast), StringComparison.Ordinal))
+        {
+            Dispatcher.Invoke(ApplyTheme);
+        }
+    }
+
     private void ApplyTheme()
     {
+        if (SystemParameters.HighContrast)
+        {
+            ApplyHighContrastTheme();
+            ApplyNavigationTheme();
+            return;
+        }
+
         var dark = _settings.Theme == AppTheme.Dark;
         SetThemeBrush("CanvasBrush", dark ? "#1F1F1F" : "#FAFAFA");
         SetThemeBrush("SurfaceBrush", dark ? "#242424" : "#FFFFFF");
@@ -1569,6 +1684,67 @@ public partial class MainWindow : Window
         SetSystemBrush(SystemColors.ControlTextBrushKey, dark ? "#F5F5F5" : "#242424");
         SetSystemBrush(SystemColors.MenuBrushKey, dark ? "#292929" : "#FFFFFF");
         SetSystemBrush(SystemColors.MenuTextBrushKey, dark ? "#F5F5F5" : "#242424");
+        ApplyNavigationTheme();
+    }
+
+    private void ApplyHighContrastTheme()
+    {
+        SetThemeBrush("CanvasBrush", SystemColors.WindowBrush);
+        SetThemeBrush("SurfaceBrush", SystemColors.WindowBrush);
+        SetThemeBrush("SidebarBrush", SystemColors.ControlBrush);
+        SetThemeBrush("SoftSurfaceBrush", SystemColors.ControlBrush);
+        SetThemeBrush("ElevatedSurfaceBrush", SystemColors.WindowBrush);
+        SetThemeBrush("TextPrimaryBrush", SystemColors.WindowTextBrush);
+        SetThemeBrush("AccentBrush", SystemColors.HighlightBrush);
+        SetThemeBrush("AccentTextBrush", SystemColors.WindowTextBrush);
+        SetThemeBrush("OnAccentBrush", SystemColors.HighlightTextBrush);
+        SetThemeBrush("SubtleTextBrush", SystemColors.WindowTextBrush);
+        SetThemeBrush("MutedTextBrush", SystemColors.GrayTextBrush);
+        SetThemeBrush("LineBrush", SystemColors.ActiveBorderBrush);
+        SetThemeBrush("ControlBorderBrush", SystemColors.WindowTextBrush);
+        SetThemeBrush("NavTextBrush", SystemColors.WindowTextBrush);
+        SetThemeBrush("NavHoverBrush", SystemColors.HighlightBrush);
+        SetThemeBrush("NavSelectedBrush", SystemColors.HighlightBrush);
+        SetThemeBrush("NavSelectedTextBrush", SystemColors.HighlightTextBrush);
+        SetThemeBrush("SecondaryActionBrush", SystemColors.HighlightBrush);
+        SetThemeBrush("StatusUnknownBrush", SystemColors.GrayTextBrush);
+        foreach (var key in new[]
+                 {
+                     "NoticeInfoBackgroundBrush",
+                     "NoticeSuccessBackgroundBrush",
+                     "NoticeErrorBackgroundBrush"
+                 })
+        {
+            SetThemeBrush(key, SystemColors.WindowBrush);
+        }
+        foreach (var key in new[]
+                 {
+                     "NoticeInfoBorderBrush",
+                     "NoticeSuccessBorderBrush",
+                     "NoticeErrorBorderBrush"
+                 })
+        {
+            SetThemeBrush(key, SystemColors.HighlightBrush);
+        }
+        foreach (var key in new[]
+                 {
+                     "NoticeInfoTextBrush",
+                     "NoticeSuccessTextBrush",
+                     "NoticeErrorTextBrush"
+                 })
+        {
+            SetThemeBrush(key, SystemColors.WindowTextBrush);
+        }
+        SetSystemBrush(SystemColors.WindowBrushKey, SystemColors.WindowBrush);
+        SetSystemBrush(SystemColors.WindowTextBrushKey, SystemColors.WindowTextBrush);
+        SetSystemBrush(SystemColors.ControlBrushKey, SystemColors.ControlBrush);
+        SetSystemBrush(SystemColors.ControlTextBrushKey, SystemColors.ControlTextBrush);
+        SetSystemBrush(SystemColors.MenuBrushKey, SystemColors.MenuBrush);
+        SetSystemBrush(SystemColors.MenuTextBrushKey, SystemColors.MenuTextBrush);
+    }
+
+    private void ApplyNavigationTheme()
+    {
         SetNavState(OverviewNav, _activePage == "overview");
         SetNavState(StatisticsNav, _activePage == "statistics");
         SetNavState(HistoryNav, _activePage == "history");
@@ -1580,12 +1756,17 @@ public partial class MainWindow : Window
     private SolidColorBrush ThemeBrush(string key) => (SolidColorBrush)Resources[key];
     private void SetThemeBrush(string key, string color)
     {
-        var brush = Brush(color);
+        SetThemeBrush(key, Brush(color));
+    }
+
+    private void SetThemeBrush(string key, Brush brush)
+    {
         Resources[key] = brush;
         Application.Current.Resources[key] = brush;
     }
 
     private static void SetSystemBrush(object key, string color) => Application.Current.Resources[key] = Brush(color);
+    private static void SetSystemBrush(object key, Brush brush) => Application.Current.Resources[key] = brush;
     private static SolidColorBrush Brush(string value) => new((Color)ColorConverter.ConvertFromString(value));
     private static T? FindParent<T>(DependencyObject? current) where T : DependencyObject
     {

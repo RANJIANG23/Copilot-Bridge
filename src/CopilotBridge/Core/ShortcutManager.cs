@@ -15,11 +15,13 @@ internal sealed class ShortcutManager
     private readonly string _executablePath;
     private readonly string _programsDirectory;
     private readonly string _desktopDirectory;
+    private readonly string _startupDirectory;
 
     internal ShortcutManager(
         string? executablePath = null,
         string? programsDirectory = null,
-        string? desktopDirectory = null)
+        string? desktopDirectory = null,
+        string? startupDirectory = null)
     {
         _executablePath = executablePath ?? Environment.ProcessPath
             ?? throw new InvalidOperationException("无法确定 Copilot Bridge 可执行文件路径。");
@@ -27,11 +29,34 @@ internal sealed class ShortcutManager
             ?? Environment.GetFolderPath(Environment.SpecialFolder.Programs);
         _desktopDirectory = desktopDirectory
             ?? Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory);
+        var resolvedStartup = startupDirectory
+            ?? Environment.GetFolderPath(Environment.SpecialFolder.Startup);
+        if (string.IsNullOrWhiteSpace(resolvedStartup) || !Path.IsPathFullyQualified(resolvedStartup))
+        {
+            throw new InvalidOperationException("无法确定当前用户的 Windows Startup 文件夹。");
+        }
+        _startupDirectory = Path.GetFullPath(resolvedStartup);
     }
 
     internal string CreateStartMenuShortcut() => CreateShortcut(_programsDirectory);
 
     internal string CreateDesktopShortcut() => CreateShortcut(_desktopDirectory);
+
+    internal string StartupShortcutPath => Path.Combine(_startupDirectory, ShortcutFileName);
+
+    internal bool IsStartupEnabled => File.Exists(StartupShortcutPath);
+
+    internal void SetStartupEnabled(bool enabled)
+    {
+        if (enabled)
+        {
+            CreateShortcut(_startupDirectory);
+        }
+        else if (File.Exists(StartupShortcutPath))
+        {
+            File.Delete(StartupShortcutPath);
+        }
+    }
 
     internal ShortcutPinResult PinToTaskbar(out string shortcutPath)
     {
