@@ -148,6 +148,27 @@ public sealed class ConsultationCoordinatorTests
     }
 
     [Fact]
+    public async Task FullscreenGuardIsASafePreSubmitFailure()
+    {
+        var root = CreateRoot();
+        try
+        {
+            var coordinator = CreateCoordinator(root);
+            var outcome = await coordinator.ConsultAsync(
+                Settings(),
+                new ConsultationCommand("test", "user_explicit"),
+                _ => Task.FromException<Microsoft.Playwright.IPage>(
+                    new CopilotBridge.Browser.FullscreenProtectionException()));
+
+            Assert.Equal("not_submitted", outcome.Status);
+            Assert.Equal("fullscreen_guard_active", outcome.ErrorCode);
+            Assert.True(outcome.CanRetrySafely);
+            Assert.Equal("new_consultation", outcome.RetryAction);
+        }
+        finally { DeleteRoot(root); }
+    }
+
+    [Fact]
     public async Task FailedDiskSaveStillRetainsUnsafeStateInMemory()
     {
         var root = CreateRoot();

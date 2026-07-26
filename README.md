@@ -16,21 +16,25 @@ Every collaboration is governed by three independent control planes: **consultat
 
 Routine consultations do not simulate physical input, take foreground focus, or switch the user's active Edge tab. Copilot does not execute local actions and is not an authorization source.
 
+v1.3.1 默认开启全屏保护：当前台窗口覆盖所在显示器时，自动刷新和 MCP 不会建立新的 Edge/CDP 连接，从而避免首次远程访问授权提示切出全屏应用；已经建立的会话继续复用。需要新授权时，请退出全屏后在 GUI 中显式刷新或绑定。
+
+v1.3.1 enables full-screen protection by default. When the foreground window covers its monitor, automatic refresh and MCP do not create a new Edge/CDP connection, preventing a first-time remote-access prompt from interrupting the full-screen application. Existing sessions continue to be reused. Leave full screen and explicitly refresh or bind in the GUI when new authorization is required.
+
 ## 快速开始 / Quick start
 
 ### 下载 / Download
 
 从 [GitHub Releases](https://github.com/RANJIANG23/Copilot-Bridge/releases) 下载以下两个同版本文件。Download both matching-version files from [GitHub Releases](https://github.com/RANJIANG23/Copilot-Bridge/releases):
 
-- `CopilotBridge-1.3.0-win-x64.zip`
-- `CopilotBridge-1.3.0-win-x64.zip.sha256`
+- `CopilotBridge-1.3.1-win-x64.zip`
+- `CopilotBridge-1.3.1-win-x64.zip.sha256`
 
 ZIP 的 SHA-256 位于同名 `.sha256` 文件中。The ZIP SHA-256 is supplied in its matching `.sha256` file.
 
 安装前可在 PowerShell 中核对。Verify it in PowerShell before installation:
 
 ```powershell
-(Get-FileHash .\CopilotBridge-1.3.0-win-x64.zip -Algorithm SHA256).Hash.ToLowerInvariant()
+(Get-FileHash .\CopilotBridge-1.3.1-win-x64.zip -Algorithm SHA256).Hash.ToLowerInvariant()
 ```
 
 ### 使用前提 / Requirements
@@ -80,15 +84,15 @@ See [Installation](./INSTALL.md) for the complete procedure. Release owners must
 
 | 项目 / Item | 状态 / Status |
 |---|---|
-| 当前源码版本 / Current source version | `1.3.0` |
-| 发布状态 / Release status | v1.3.0 已发布 Windows x64 自包含安装包与 SHA-256 文件 / v1.3.0 released with a Windows x64 self-contained package and SHA-256 file |
-| 已通过 / Passed | Phase 0–28 and G1–G8 |
+| 当前源码版本 / Current source version | `1.3.1`（原生体验与全屏连接保护 / native experience and fullscreen connection protection） |
+| 发布状态 / Release status | v1.3.1 已发布 Windows x64 自包含安装包与 SHA-256 文件 / v1.3.1 released with a Windows x64 self-contained package and SHA-256 file |
+| 已通过 / Passed | Phase 0–32 and G1–G8；Phase 33 待开始 / Phase 33 not started |
 | 后续试点 / Follow-up pilot | 不同硬件、账号和企业策略环境 / Different hardware, account, and enterprise-policy environments |
 | 平台 / Platform | Windows 11 x64 |
 
-团队 v1.3.0 已达到项目定义的本机门禁，但不把本机隔离验收描述为跨设备兼容性证明。`1.3.0` 已作为 Windows x64 自包含安装包发布；安装前请核对 GitHub Release 中的同名 `.sha256` 文件。
+团队 v1.3.1 已达到项目定义的本机门禁，但不把本机隔离验收描述为跨设备兼容性证明。`1.3.1` 已作为 Windows x64 自包含安装包发布；安装前请核对 GitHub Release 中的同名 `.sha256` 文件。
 
-Team v1.3.0 satisfies the project's local gates, but local isolated acceptance is not presented as proof of cross-device compatibility. `1.3.0` is released as a Windows x64 self-contained package; verify the matching `.sha256` file in the GitHub Release before installation.
+Team v1.3.1 satisfies the project's local gates, but local isolated acceptance is not presented as proof of cross-device compatibility. `1.3.1` is released as a Windows x64 self-contained package; verify the matching `.sha256` file in the GitHub Release before installation.
 
 ## 架构开发思路 / Architecture and design rationale
 

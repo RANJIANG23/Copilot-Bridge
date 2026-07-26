@@ -57,6 +57,8 @@ public sealed class McpProtocolTests
         Assert.InRange(statusContent.GetProperty("assistTurnBudget").GetInt32(), 1, 20);
         Assert.InRange(statusContent.GetProperty("outsourceTurnBudget").GetInt32(), 1, 20);
         Assert.InRange(statusContent.GetProperty("reviewTurnBudget").GetInt32(), 1, 20);
+        Assert.True(statusContent.GetProperty("fullscreenProtectionEnabled").ValueKind is
+            System.Text.Json.JsonValueKind.True or System.Text.Json.JsonValueKind.False);
 
         var safeFailure = await consult.CallAsync(new Dictionary<string, object?>
         {

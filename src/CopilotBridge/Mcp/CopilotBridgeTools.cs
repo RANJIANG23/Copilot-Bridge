@@ -16,6 +16,7 @@ public sealed record BridgeStatusResponse(
     int AssistTurnBudget,
     int OutsourceTurnBudget,
     int ReviewTurnBudget,
+    bool FullscreenProtectionEnabled,
     IReadOnlyList<string> ModelPriority,
     bool Busy);
 
@@ -123,6 +124,7 @@ internal sealed class CopilotBridgeTools : IAsyncDisposable
             settings.AssistTurnBudget,
             settings.OutsourceTurnBudget,
             settings.ReviewTurnBudget,
+            settings.FullscreenProtectionEnabled,
             ModelPriorityOptions.Parse(settings.ModelPriority),
             ConsultationLease.IsBusy());
     }

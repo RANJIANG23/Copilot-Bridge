@@ -11,7 +11,7 @@ internal static class UiText
     private static readonly IReadOnlyDictionary<string, string> English = new Dictionary<string, string>
     {
         ["Copilot Bridge"] = "Copilot Bridge",
-        ["v1.3.0 协作模式设定"] = "v1.3.0 Collaboration Mode Settings",
+        ["v1.3.1 原生体验"] = "v1.3.1 Native Experience",
         ["概览"] = "Overview",
         ["数据统计"] = "Statistics",
         ["对话管理"] = "Conversation Management",
@@ -166,6 +166,10 @@ internal static class UiText
         ["默认关闭。开关会立即保存；开启后，窗口关闭按钮只隐藏 GUI。双击托盘图标或选择“打开”可恢复，托盘菜单“退出”才真正关闭。"] = "Off by default and saved immediately. When enabled, the window close button only hides the GUI. Double-click the tray icon or choose Open to restore it; only Exit closes it.",
         ["系统托盘已开启；窗口关闭按钮现在会隐藏 GUI。"] = "System tray enabled; the window close button now hides the GUI.",
         ["系统托盘已关闭；窗口关闭按钮现在会退出 GUI。"] = "System tray disabled; the window close button now exits the GUI.",
+        ["全屏保护"] = "Full-screen protection",
+        ["全屏期间暂停自动 Edge 冷连接"] = "Pause automatic cold Edge connections while full screen is active",
+        ["默认开启。自动刷新或 MCP 检测到全屏窗口时不会建立新的 Edge 连接；已有连接继续复用。需要授权时，请退出全屏后点击“刷新状态”。"] = "On by default. Automatic refresh and MCP do not create a new Edge connection while a full-screen window is active; existing connections are reused. Leave full screen and choose Refresh status when authorization is needed.",
+        ["检测到前台全屏窗口；为避免 Edge 授权提示切出应用，已暂停新的自动连接。退出全屏后点击“刷新状态”。"] = "A foreground full-screen window is active. New automatic connections are paused to avoid an Edge permission prompt interrupting it. Leave full screen and choose Refresh status.",
         ["打开 Copilot Bridge"] = "Open Copilot Bridge",
         ["退出 Copilot Bridge"] = "Exit Copilot Bridge",
         ["会话存储"] = "Conversation storage",

@@ -110,6 +110,8 @@ internal sealed record BridgeSettings
 
     public bool UseSystemTray { get; init; }
 
+    public bool FullscreenProtectionEnabled { get; init; } = true;
+
     public string? BoundConversationUrl { get; init; }
 
     public string ConversationWorkspaceDirectory { get; init; } = Path.Combine(

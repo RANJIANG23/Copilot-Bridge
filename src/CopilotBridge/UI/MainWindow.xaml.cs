@@ -5,7 +5,6 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
-using System.Windows.Media.Animation;
 using System.Windows.Threading;
 using CopilotBridge.Browser;
 using CopilotBridge.Core;
@@ -79,6 +78,7 @@ public partial class MainWindow : Window
             ModelPriorityListBox.ItemsSource = _modelPriority;
             ApplyTheme();
             ApplySettingsToControls();
+            InitializeMotionInteractions();
             _settingsAreLoaded = true;
             ApplyUiLanguage();
             UpdateHistoryColumns();
@@ -363,7 +363,7 @@ public partial class MainWindow : Window
         SetBusy(true, _session is null ? "等待 Edge 授权" : "正在绑定标签页");
         try
         {
-            var session = await GetSessionAsync();
+            var session = await GetSessionAsync(bypassFullscreenProtection: true);
             _settings = _settings with { BoundConversationUrl = session.Page.Url };
             await _settingsStore.SaveAsync(_settings);
             BoundUrlText.Text = session.Page.Url;
@@ -924,7 +924,7 @@ public partial class MainWindow : Window
         SetBusy(true, "正在读取旧对话预览");
         try
         {
-            var session = await GetSessionAsync();
+            var session = await GetSessionAsync(bypassFullscreenProtection: true);
             var snapshot = await new CopilotPageDriver(session.Page, _selectors, _settings)
                 .ReadCurrentConversationAsync();
             var userCount = snapshot.Turns.Count(turn => turn.Role == "user");
@@ -978,7 +978,7 @@ public partial class MainWindow : Window
         if (!automatic) SetBusy(true, _session is null ? "等待 Edge 授权" : "正在刷新状态");
         try
         {
-            var session = await GetSessionAsync();
+            var session = await GetSessionAsync(bypassFullscreenProtection: !automatic);
             await ReadConnectedStatusAsync(session);
             _consecutiveStatusRefreshFailures = 0;
             _lastStatusRefresh = DateTimeOffset.Now;
@@ -1019,7 +1019,7 @@ public partial class MainWindow : Window
         HeaderStatusText.Text = T("Edge 已连接");
     }
 
-    private async Task<EdgeSessionAdapter> GetSessionAsync()
+    private async Task<EdgeSessionAdapter> GetSessionAsync(bool bypassFullscreenProtection = false)
     {
         if (_session is not null && !_session.Page.IsClosed)
         {
@@ -1027,7 +1027,11 @@ public partial class MainWindow : Window
             return _session;
         }
         await ResetSessionAsync();
-        _session = await EdgeSessionAdapter.ConnectAsync(_settings, _selectors, timeoutMilliseconds: 30_000);
+        _session = await EdgeSessionAdapter.ConnectAsync(
+            _settings,
+            _selectors,
+            timeoutMilliseconds: 30_000,
+            bypassFullscreenProtection: bypassFullscreenProtection);
         _automaticStatusRefreshPaused = false;
         return _session;
     }
@@ -1151,6 +1155,7 @@ public partial class MainWindow : Window
             Theme = ThemeComboBox.SelectedIndex == (int)AppTheme.Dark ? AppTheme.Dark : AppTheme.Light,
             KeepMcpRunningInBackground = KeepMcpRunningCheckBox.IsChecked == true,
             UseSystemTray = UseSystemTrayCheckBox.IsChecked == true,
+            FullscreenProtectionEnabled = FullscreenProtectionCheckBox.IsChecked == true,
             ConversationWorkspaceDirectory = workspaceDirectory
         };
         var settingsChanged = updatedSettings != _settings;
@@ -1188,6 +1193,7 @@ public partial class MainWindow : Window
         ThemeComboBox.SelectedIndex = (int)_settings.Theme;
         KeepMcpRunningCheckBox.IsChecked = _settings.KeepMcpRunningInBackground;
         UseSystemTrayCheckBox.IsChecked = _settings.UseSystemTray;
+        FullscreenProtectionCheckBox.IsChecked = _settings.FullscreenProtectionEnabled;
     }
 
     private static bool TryReadCollaborationBudget(TextBox textBox, out int budget) =>
@@ -1241,6 +1247,7 @@ public partial class MainWindow : Window
         RollbackStorageButton.IsEnabled = !busy;
         KeepMcpRunningCheckBox.IsEnabled = !busy;
         UseSystemTrayCheckBox.IsEnabled = !busy;
+        FullscreenProtectionCheckBox.IsEnabled = !busy;
     }
 
     private void ScheduleStatusRefresh()
@@ -1280,12 +1287,14 @@ public partial class MainWindow : Window
     private void ShowNotice(string message, NoticeKind kind)
     {
         _noticeTimer.Stop();
+        var firstDisplay = NoticeBorder.Visibility != Visibility.Visible;
         NoticeText.Text = message;
         NoticeBorder.Visibility = Visibility.Visible;
         NoticeBorder.Background = ThemeBrush(kind switch { NoticeKind.Success => "NoticeSuccessBackgroundBrush", NoticeKind.Error => "NoticeErrorBackgroundBrush", _ => "NoticeInfoBackgroundBrush" });
         NoticeBorder.BorderBrush = ThemeBrush(kind switch { NoticeKind.Success => "NoticeSuccessBorderBrush", NoticeKind.Error => "NoticeErrorBorderBrush", _ => "NoticeInfoBorderBrush" });
         NoticeText.Foreground = ThemeBrush(kind switch { NoticeKind.Success => "NoticeSuccessTextBrush", NoticeKind.Error => "NoticeErrorTextBrush", _ => "NoticeInfoTextBrush" });
         NoticeCloseButton.Foreground = NoticeText.Foreground;
+        if (firstDisplay) AnimateNoticeEntrance();
         _noticeTimer.Start();
     }
 
@@ -1294,6 +1303,7 @@ public partial class MainWindow : Window
     private void ClearNotice()
     {
         _noticeTimer.Stop();
+        ResetNoticeMotion();
         NoticeBorder.Visibility = Visibility.Collapsed;
     }
 
@@ -1322,17 +1332,15 @@ public partial class MainWindow : Window
         container.RenderTransformOrigin = new Point(0.5, 0.5);
         var scale = container.RenderTransform as ScaleTransform ?? new ScaleTransform(1, 1);
         container.RenderTransform = scale;
-        var easeIn = new QuadraticEase { EasingMode = EasingMode.EaseOut };
-        container.BeginAnimation(OpacityProperty, new DoubleAnimation(1, 0.62, TimeSpan.FromMilliseconds(110)) { EasingFunction = easeIn });
-        scale.BeginAnimation(ScaleTransform.ScaleXProperty, new DoubleAnimation(1, 0.97, TimeSpan.FromMilliseconds(110)) { EasingFunction = easeIn });
-        scale.BeginAnimation(ScaleTransform.ScaleYProperty, new DoubleAnimation(1, 0.97, TimeSpan.FromMilliseconds(110)) { EasingFunction = easeIn });
+        AnimateMotionValue(container, OpacityProperty, 0.62, 110);
+        AnimateMotionValue(scale, ScaleTransform.ScaleXProperty, 0.97, 110);
+        AnimateMotionValue(scale, ScaleTransform.ScaleYProperty, 0.97, 110);
 
         DragDrop.DoDragDrop(listBox, data, DragDropEffects.Move);
 
-        var easeOut = new QuadraticEase { EasingMode = EasingMode.EaseOut };
-        container.BeginAnimation(OpacityProperty, new DoubleAnimation(container.Opacity, 1, TimeSpan.FromMilliseconds(180)) { EasingFunction = easeOut });
-        scale.BeginAnimation(ScaleTransform.ScaleXProperty, new DoubleAnimation(scale.ScaleX, 1, TimeSpan.FromMilliseconds(180)) { EasingFunction = easeOut });
-        scale.BeginAnimation(ScaleTransform.ScaleYProperty, new DoubleAnimation(scale.ScaleY, 1, TimeSpan.FromMilliseconds(180)) { EasingFunction = easeOut });
+        AnimateMotionValue(container, OpacityProperty, 1, 180);
+        AnimateMotionValue(scale, ScaleTransform.ScaleXProperty, 1, 180);
+        AnimateMotionValue(scale, ScaleTransform.ScaleYProperty, 1, 180);
     }
 
     private void UpdateDragHoverItem(ListBoxItem? item)
@@ -1344,10 +1352,9 @@ public partial class MainWindow : Window
         item.RenderTransformOrigin = new Point(0.5, 0.5);
         var scale = new ScaleTransform(1, 1);
         item.RenderTransform = scale;
-        var easing = new QuadraticEase { EasingMode = EasingMode.EaseOut };
-        item.BeginAnimation(OpacityProperty, new DoubleAnimation(1, 0.82, TimeSpan.FromMilliseconds(90)) { EasingFunction = easing });
-        scale.BeginAnimation(ScaleTransform.ScaleXProperty, new DoubleAnimation(1, 1.015, TimeSpan.FromMilliseconds(90)) { EasingFunction = easing });
-        scale.BeginAnimation(ScaleTransform.ScaleYProperty, new DoubleAnimation(1, 1.015, TimeSpan.FromMilliseconds(90)) { EasingFunction = easing });
+        AnimateMotionValue(item, OpacityProperty, 0.82, 90);
+        AnimateMotionValue(scale, ScaleTransform.ScaleXProperty, 1.015, 90);
+        AnimateMotionValue(scale, ScaleTransform.ScaleYProperty, 1.015, 90);
     }
 
     private void ClearDragHoverItem()
@@ -1355,22 +1362,20 @@ public partial class MainWindow : Window
         var item = _dragHoverItem;
         _dragHoverItem = null;
         if (item is null) return;
-        var easing = new QuadraticEase { EasingMode = EasingMode.EaseOut };
-        item.BeginAnimation(OpacityProperty, new DoubleAnimation(item.Opacity, 1, TimeSpan.FromMilliseconds(140)) { EasingFunction = easing });
+        AnimateMotionValue(item, OpacityProperty, 1, 140);
         if (item.RenderTransform is ScaleTransform scale)
         {
-            scale.BeginAnimation(ScaleTransform.ScaleXProperty, new DoubleAnimation(scale.ScaleX, 1, TimeSpan.FromMilliseconds(140)) { EasingFunction = easing });
-            scale.BeginAnimation(ScaleTransform.ScaleYProperty, new DoubleAnimation(scale.ScaleY, 1, TimeSpan.FromMilliseconds(140)) { EasingFunction = easing });
+            AnimateMotionValue(scale, ScaleTransform.ScaleXProperty, 1, 140);
+            AnimateMotionValue(scale, ScaleTransform.ScaleYProperty, 1, 140);
         }
     }
 
     private static void AnimateDropSettled(ListBox listBox)
     {
-        var easing = new QuadraticEase { EasingMode = EasingMode.EaseOut };
-        listBox.BeginAnimation(OpacityProperty, new DoubleAnimation(0.72, 1, TimeSpan.FromMilliseconds(190)) { EasingFunction = easing });
         var translate = new TranslateTransform(0, -5);
         listBox.RenderTransform = translate;
-        translate.BeginAnimation(TranslateTransform.YProperty, new DoubleAnimation(-5, 0, TimeSpan.FromMilliseconds(190)) { EasingFunction = easing });
+        AnimateMotionFrom(listBox, OpacityProperty, 0.72, 1, 190);
+        AnimateMotionFrom(translate, TranslateTransform.YProperty, -5, 0, 190);
     }
 
     private void SetNavState(Button button, bool selected)
@@ -1469,14 +1474,22 @@ public partial class MainWindow : Window
 
     private string T(string chinese) => UiText.Get(chinese, _settings.DisplayLanguage);
 
-    private string FriendlyMessage(Exception exception) => exception.Message switch
+    private string FriendlyMessage(Exception exception)
     {
-        var message when message.Contains("DevToolsActivePort", StringComparison.OrdinalIgnoreCase) => T("Edge 远程调试尚未开启。请在 edge://inspect 的 Remote debugging 页面允许当前浏览器实例。"),
-        var message when message.Contains("No eligible", StringComparison.OrdinalIgnoreCase) => T("没有发现可用的 Copilot 聊天标签页。请打开 https://m365.cloud.microsoft/chat/ 或 https://copilot.cloud.microsoft/chat/。"),
-        var message when message.Contains("Found", StringComparison.OrdinalIgnoreCase) && message.Contains("eligible Copilot tabs", StringComparison.OrdinalIgnoreCase) => T("发现多个 Copilot 聊天标签页。请只保留一个专用标签页后重试。"),
-        var message when message.Contains("Timeout", StringComparison.OrdinalIgnoreCase) && message.Contains("ws connecting", StringComparison.OrdinalIgnoreCase) => T("等待 Edge 允许远程访问超时。请在 Edge 中选择“允许”，然后点击刷新状态；本次运行的后续操作会复用同一连接。"),
-        _ => exception.Message
-    };
+        if (exception is FullscreenProtectionException)
+        {
+            return T("检测到前台全屏窗口；为避免 Edge 授权提示切出应用，已暂停新的自动连接。退出全屏后点击“刷新状态”。");
+        }
+
+        return exception.Message switch
+        {
+            var message when message.Contains("DevToolsActivePort", StringComparison.OrdinalIgnoreCase) => T("Edge 远程调试尚未开启。请在 edge://inspect 的 Remote debugging 页面允许当前浏览器实例。"),
+            var message when message.Contains("No eligible", StringComparison.OrdinalIgnoreCase) => T("没有发现可用的 Copilot 聊天标签页。请打开 https://m365.cloud.microsoft/chat/ 或 https://copilot.cloud.microsoft/chat/。"),
+            var message when message.Contains("Found", StringComparison.OrdinalIgnoreCase) && message.Contains("eligible Copilot tabs", StringComparison.OrdinalIgnoreCase) => T("发现多个 Copilot 聊天标签页。请只保留一个专用标签页后重试。"),
+            var message when message.Contains("Timeout", StringComparison.OrdinalIgnoreCase) && message.Contains("ws connecting", StringComparison.OrdinalIgnoreCase) => T("等待 Edge 允许远程访问超时。请在 Edge 中选择“允许”，然后点击刷新状态；本次运行的后续操作会复用同一连接。"),
+            _ => exception.Message
+        };
+    }
 
     private enum NoticeKind { Info, Success, Error }
 }
