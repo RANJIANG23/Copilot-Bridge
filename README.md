@@ -26,15 +26,15 @@ v1.3.1 enables full-screen protection by default. When the foreground window cov
 
 从 [GitHub Releases](https://github.com/RANJIANG23/Copilot-Bridge/releases) 下载以下两个同版本文件。Download both matching-version files from [GitHub Releases](https://github.com/RANJIANG23/Copilot-Bridge/releases):
 
-- `CopilotBridge-1.3.1-win-x64.zip`
-- `CopilotBridge-1.3.1-win-x64.zip.sha256`
+- `CopilotBridge-1.3.2-win-x64.zip`
+- `CopilotBridge-1.3.2-win-x64.zip.sha256`
 
 ZIP 的 SHA-256 位于同名 `.sha256` 文件中。The ZIP SHA-256 is supplied in its matching `.sha256` file.
 
 安装前可在 PowerShell 中核对。Verify it in PowerShell before installation:
 
 ```powershell
-(Get-FileHash .\CopilotBridge-1.3.1-win-x64.zip -Algorithm SHA256).Hash.ToLowerInvariant()
+(Get-FileHash .\CopilotBridge-1.3.2-win-x64.zip -Algorithm SHA256).Hash.ToLowerInvariant()
 ```
 
 ### 使用前提 / Requirements
@@ -86,15 +86,15 @@ See [Installation](./INSTALL.md) for the complete procedure. Release owners must
 
 | 项目 / Item | 状态 / Status |
 |---|---|
-| 当前源码版本 / Current source version | `1.3.2` 发布候选（多 Agent 中性化） / `1.3.2` release candidate (calling-agent neutralization) |
-| 发布状态 / Release status | v1.3.1 已发布 Windows x64 自包含安装包与 SHA-256 文件 / v1.3.1 released with a Windows x64 self-contained package and SHA-256 file |
-| 已通过 / Passed | Phase 0–35 and G1–G8；Phase 36 自动化门禁通过，GUI 目视待确认 / Phase 36 automated gates passed; GUI visual confirmation pending |
+| 当前源码版本 / Current source version | `1.3.2`（多 Agent 中性化） / `1.3.2` (calling-agent neutralization) |
+| 发布状态 / Release status | v1.3.2 已发布 Windows x64 自包含安装包与 SHA-256 文件 / v1.3.2 released with a Windows x64 self-contained package and SHA-256 file |
+| 已通过 / Passed | Phase 0–36 and G1–G8 / Phase 0–36 and G1–G8 |
 | 后续试点 / Follow-up pilot | 不同硬件、账号和企业策略环境 / Different hardware, account, and enterprise-policy environments |
 | 平台 / Platform | Windows 11 x64 |
 
-团队 v1.3.1 已达到项目定义的本机门禁，但不把本机隔离验收描述为跨设备兼容性证明。`1.3.1` 已作为 Windows x64 自包含安装包发布；安装前请核对 GitHub Release 中的同名 `.sha256` 文件。
+团队 v1.3.2 已达到项目定义的本机门禁，但不把本机隔离验收描述为跨设备兼容性证明。`1.3.2` 已作为 Windows x64 自包含安装包发布；安装前请核对 GitHub Release 中的同名 `.sha256` 文件。
 
-Team v1.3.1 satisfies the project's local gates, but local isolated acceptance is not presented as proof of cross-device compatibility. `1.3.1` is released as a Windows x64 self-contained package; verify the matching `.sha256` file in the GitHub Release before installation.
+Team v1.3.2 satisfies the project's local gates, but local isolated acceptance is not presented as proof of cross-device compatibility. `1.3.2` is released as a Windows x64 self-contained package; verify the matching `.sha256` file in the GitHub Release before installation.
 
 ## 架构开发思路 / Architecture and design rationale
 
