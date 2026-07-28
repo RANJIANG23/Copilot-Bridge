@@ -80,6 +80,34 @@ public sealed class UiThemeResourceTests
         Assert.Contains("MoveModelPriorityToIndex", code);
     }
 
+    [Fact]
+    public void NeutralCollaborationSettingsRemainReachableAtMinimumWindowSize()
+    {
+        var root = FindRepositoryRoot();
+        var document = XDocument.Load(Path.Combine(root, "src", "CopilotBridge", "UI", "MainWindow.xaml"));
+        XNamespace xaml = "http://schemas.microsoft.com/winfx/2006/xaml";
+        var window = Assert.IsType<XElement>(document.Root);
+        var collaborationPanel = document
+            .Descendants()
+            .Single(element => (string?)element.Attribute(xaml + "Name") == "CollaborationPanel");
+        var policyComboBox = collaborationPanel
+            .Descendants()
+            .Single(element => (string?)element.Attribute(xaml + "Name") == "PolicyComboBox");
+
+        Assert.Equal("1080", (string?)window.Attribute("MinWidth"));
+        Assert.Equal("700", (string?)window.Attribute("MinHeight"));
+        Assert.Contains(
+            collaborationPanel.Descendants(),
+            element => element.Name.LocalName == "ScrollViewer" &&
+                (string?)element.Attribute("VerticalScrollBarVisibility") == "Auto");
+        Assert.Contains(
+            policyComboBox.Elements(),
+            element => (string?)element.Attribute("Content") == "Agent 可自动征询");
+        Assert.DoesNotContain(
+            policyComboBox.Elements(),
+            element => (string?)element.Attribute("Content") == "Codex 可自动征询");
+    }
+
     private static string FindRepositoryRoot()
     {
         for (var directory = new DirectoryInfo(AppContext.BaseDirectory);

@@ -1,10 +1,10 @@
 # Copilot Bridge 目标模式执行路线图
 
-> 版本：v1.3.1 开发基线
+> 版本：v1.3.2 开发基线
 > 日期：2026-07-24（Asia/Shanghai）
 > 适用目录：本仓库根目录
 > 上位设计：[PROJECT-DESIGN.md](./PROJECT-DESIGN.md)
-> 当前状态：v1.3.1 已正式发布；Phase 29–33 已通过
+> 当前状态：v1.3.2 已获发布授权；Phase 34–36 已通过
 
 ## 1. 文档用途
 
@@ -166,6 +166,9 @@ Computer Use 不得被写入产品运行时，不得成为 CDP/DOM 失败后的�
 | Phase 31 | 全屏保护范围与基线冻结 | 1–2 小时 | 冷连接边界、默认设置、错误契约与预算 | 通过 |
 | Phase 32 | 全屏连接保护纵切 | 3–5 小时 | 自动/MCP 冷连接零提示、零发送 | 通过 |
 | Phase 33 | v1.3.1 视觉与发布候选门禁 | 3–5 小时 | 双主题、全屏保护、隔离升级与打包 | 通过 |
+| Phase 34 | v1.3.2 范围与开发基线冻结 | 1–2 小时 | 调用方边界、兼容 trigger、预算与版本一致 | 通过 |
+| Phase 35 | 多 Agent 中性化纵切 | 3–5 小时 | 中性 GUI/MCP、`agent_auto` 与旧客户端兼容 | 通过 |
+| Phase 36 | v1.3.2 兼容与发布候选门禁 | 3–5 小时 | 通用 STDIO、双语 GUI、隔离升级与打包 | 通过 |
 
 时间预算是路线健康检查，不是要求为了赶时间跳过验证。超过单阶段上限且没有接近门禁时，应停止并报告路线问题。
 
@@ -669,6 +672,9 @@ MCP 启动、卸载和宿主配置保护，再以真实日常 Edge 完成后台 
 | Phase 31 | 通过 | 2026-07-24 20:21 +08:00 | 2026-07-24 20:25 +08:00 | 4 分钟 | `phase 31` | 用户确认继续推进后，基于团队全屏游戏切出案例重开 v1.3.1 窄范围：只在新 CDP 连接前使用只读窗口/显示器几何门禁，默认开启；GUI 自动刷新和 MCP 冷连接遇到全屏时返回 `fullscreen_guard_active`，显式 GUI 动作可连接，既有会话继续复用。固定不读取标题/进程名、不增加 Hook、服务、RPC、依赖或 MCP 工具，C# + XAML 总增量预算由 260 修订为 420 行。Debug/Release 均 0 警告/0 错误，176/176 测试通过；基线仍为 8156 行 C# + XAML、1 个生产项目 + 1 个测试项目、2 个直接依赖、4 个 MCP 工具、`.workbuddy/` 跟踪文件 0。未连接 Edge、未发送 Copilot 消息、未修改用户工作区，未打包、安装、标记、推送或发布。 |
 | Phase 32 | 通过 | 2026-07-24 20:25 +08:00 | 2026-07-24 20:35 +08:00 | 10 分钟 | `phase 32` | 新增单一 `FullscreenConnectionGuard.cs`，使用只读 `GetForegroundWindow`、`GetWindowRect`、`MonitorFromWindow` 和 `GetMonitorInfo` 判断前台窗口是否覆盖所在显示器；不读取标题或进程名。保护默认开启，设置页可关闭；GUI 自动刷新和 MCP 冷连接在全屏时于端点解析/CDP 连接/发送前返回 `fullscreen_guard_active`，显式 GUI 刷新、绑定、导入和用户咨询可连接，既有会话继续复用。状态工具只读返回保护开关，工具数量不变。新增测试覆盖默认/持久化、几何与负坐标多显示器、禁用/显式例外、连接前门禁、安全重试契约和 GUI/MCP 调用边界。Debug/Release 均 0 警告/0 错误，186/186 测试通过；8302 行 C# + XAML，相对 v1.3.0 增加 354 行，低于 420 行预算；1 个生产项目 + 1 个测试项目、2 个直接依赖、4 个 MCP 工具、`.workbuddy/` 跟踪文件 0。未连接 Edge、未发送 Copilot 消息、未修改用户工作区，未打包、安装、标记、推送或发布。 |
 | Phase 33 | 通过 | 2026-07-26 12:43 +08:00 | 2026-07-26 13:12 +08:00 | 29 分钟 | `phase 33` | 真实原生全屏窗口验证冷连接在端点解析与 CDP 连接前返回 `fullscreen_guard_active`，未连接、未发送；用户确认双主题、动画开关、键盘路径、最小窗口、全屏不中断及退出全屏恢复正常。Debug/Release 均 0 警告/0 错误，186/186 测试通过；8302 行 C# + XAML、2 个项目、2 个直接生产依赖、4 个 MCP 工具、`.workbuddy/` 跟踪文件 0。候选包包含 610 个清单文件和 618 个归档条目，清单 610/610 匹配、单一生产 EXE、Plugin/程序均为 1.3.1；隔离环境完成 1.3.0→1.3.1、四工具 MCP、只读检索零写入、用户数据与宿主配置保留、卸载和 1.3.0 回退，证据位于 `artifacts/upgrade-test/v1.3.1-20260726131112`。用户明确授权发布；最终 ZIP 哈希以 GitHub Release 同名 `.sha256` 文件为准。 |
+| Phase 34 | 通过 | 2026-07-26 19:29 +08:00 | 2026-07-26 19:32 +08:00 | 3 分钟 | `phase 34` | v1.3.2 冻结为调用方中立的 Agent 产品纵切：GUI/MCP/通用文档使用 Agent 语义，新增 `agent_auto` 并保留 `codex_auto`，Codex Plugin 继续作为具体宿主；固定不增加第三方适配器、多 Agent 调度、Provider、服务、端口、队列、RPC、MCP 工具或浏览器栈。基线为 8302 行 C# + XAML、2 个项目、2 个直接生产依赖、4 个 MCP 工具、`.workbuddy/` 跟踪文件 0。源码进入 `1.3.2-dev`，Plugin、发布脚本、下载和安装说明保持 1.3.1；Debug 构建和 186/186 测试通过。未连接 Edge、未发送 Copilot 消息、未修改用户工作区，未打包、安装、标记、推送或发布。 |
+| Phase 35 | 通过 | 2026-07-26 19:32 +08:00 | 2026-07-26 19:36 +08:00 | 4 分钟 | `phase 35` | GUI 征询策略、复制提示、MCP instructions、工具 trigger 描述、README 和安装说明已统一为 Agent/调用 Agent 语义；新增通用 `MCP-CLIENTS.md`，只定义标准 STDIO 命令、四工具安全边界和重试契约，不伪报第三方专用集成。`agent_auto` 与旧 `codex_auto` 共用同一门禁，旧状态值 `codex_may_consult` 保持兼容。直接 STDIO MCP 协议测试确认四工具与安全注解不变。Debug 构建 0 警告/0 错误，190/190 测试通过；8302 行 C# + XAML、2 个项目、2 个直接生产依赖、4 个 MCP 工具、`.workbuddy/` 跟踪文件 0。未连接 Edge、未发送 Copilot 消息、未修改用户工作区，未打包、安装、标记、推送或发布。 |
+| Phase 36 | 通过 | 2026-07-26 22:20 +08:00 | 2026-07-28  |  | `phase 36` | Debug/Release 均为 0 警告/0 错误、192/192 测试通过。候选包包含 611 个清单文件和 619 个归档条目，清单 611/611 匹配、单一生产 EXE、通用 `MCP-CLIENTS.md` 已入包、`.workbuddy/` 为 0，程序与 Plugin 均为 1.3.2。隔离环境完成 1.3.1→1.3.2、四工具 MCP、状态和只读检索、用户数据与宿主配置保留、卸载和 1.3.1 回退；另以 `-SkipCodexPlugin` 完成 app-only 安装、指南留存、同一 generic STDIO 客户端门禁和完整卸载，严格核对四个工具名称、Plugin 1.3.2 和旧状态值 `codex_may_consult`，Plugin 与 app-only transcript 分开保存，证据位于 `artifacts/upgrade-test/v1.3.2-20260726225007`。用户已确认可发布，作为中英文 GUI、征询策略、权限说明与最小窗口的最终验收授权；Phase 36 通过，随后创建阶段提交并执行正式安装、标签、推送与 GitHub Release。 |
 
 允许状态只有：`未开始`、`进行中`、`通过`、`阻塞`、`部分完成`。
 
@@ -1069,3 +1075,46 @@ Phase 13 必须先通过并形成本地阶段提交。不得以 Phase 14 的代�
 ### 25.7 延期边界
 
 页面转场、窗口启动、托盘图标动画、持续循环效果、完整 Adaptive、MVVM 重构、新 MCP 工具、共享 CDP broker、后台服务、跨进程 RPC、窗口 Hook 和进程白名单不进入 v1.3.1。
+
+## 26. Phase 34–36：v1.3.2 多 Agent 中性化
+
+### 26.1 版本目标
+
+让任意遵守本地 STDIO MCP 契约的调用 Agent 都能理解和使用 Bridge，而不把 Codex 写成唯一调用方。详细兼容边界以 [v1.3.2-design.md](./v1.3.2-design.md) 为准。
+
+### 26.2 Phase 34：范围与开发基线冻结
+
+- 固定调用方中性化、`agent_auto`/`codex_auto` 兼容、通用 STDIO 文档和 220 行生产增量预算。
+- 源码进入 `1.3.2-dev`；Plugin、发布脚本、下载和安装说明保持 1.3.1。
+- 标准构建、186 项既有测试、项目/依赖/MCP 工具预算和 `.workbuddy/` 排除通过。
+- 本地提交：`phase 34: freeze v1.3.2 agent-neutral scope`。
+
+### 26.3 Phase 35：多 Agent 中性化纵切
+
+- GUI、UiText、README 和 MCP instructions 使用 Agent/调用 Agent 语义。
+- `consult_copilot` 接受 `agent_auto`，旧 `codex_auto` 继续使用相同策略。
+- 新增通用 STDIO MCP 接入说明，Codex Plugin 继续作为具体宿主。
+- 不连接 Edge、不发送消息、不修改用户工作区。
+- 本地提交：`phase 35: neutralize calling-agent integration`。
+
+### 26.4 Phase 36：兼容与发布候选门禁
+
+- 直接 STDIO MCP 客户端完成 initialize、tools/list、status 和只读查询。
+- 用户观察中英文 GUI 的征询策略、权限说明和最小窗口。
+- 完成 Debug/Release、完整测试、预算、包清单和 1.3.1 → 1.3.2 隔离升级/回退。
+- 用户已于 2026-07-28 明确授权正式安装、标签、推送和 GitHub Release。
+- 本地提交：`phase 36: harden v1.3.2 agent-neutral candidate`。
+
+进度记录（2026-07-26）：
+
+- Debug/Release 均为 0 警告、0 错误，两个配置各 192/192 测试通过。
+- 候选 ZIP 的 611 个清单文件全部匹配，619 个归档条目包含单一生产 EXE 和通用 `MCP-CLIENTS.md`，不包含 `.workbuddy/`；程序与 Plugin 均为 1.3.2。
+- 直接启动打包后的 EXE，以 `generic-stdio-phase36` 客户端完成 initialize、tools/list、`copilot_bridge_status` 和零写入检索，并确认 calling-agent instructions 与 `agent_auto`。
+- 隔离环境完成 1.3.1→1.3.2 升级、卸载和 1.3.1 回退；用户数据、正式 Codex 宿主配置均保持不变。
+- 额外以 `-SkipCodexPlugin` 完成 app-only 安装、指南留存、相同 generic STDIO 门禁和完整卸载，证明通用路径不依赖 Plugin 注册。
+- 四个工具名称、Plugin 1.3.2、旧状态值 `codex_may_consult`、状态与检索响应字段均作为严格通过条件；Plugin 与 app-only STDIO transcript 分开保存。证据位于 `artifacts/upgrade-test/v1.3.2-20260726225007`。
+- 用户已确认可发布，Phase 36 标记为通过并创建阶段提交。
+
+### 26.5 延期边界
+
+WorkBuddy、OpenClaw、opencode 等专用适配器，多 Agent 调度/身份/并发，自动内容交接，Adaptive 路由，Provider 框架和新的 MCP 工具不进入 v1.3.2。

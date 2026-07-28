@@ -1,11 +1,11 @@
 # Copilot Bridge
 
-Copilot Bridge 是一个面向 Windows 的本地协作桥接工具。它让 Codex 通过本机 STDIO MCP、当前用户已登录的 Microsoft Edge，与已绑定的 Microsoft 365 Copilot 专用后台标签页进行受控协作。根据用户在 GUI 中选择的协作模式，Copilot 可以承担前置思考、独立审核、与 Codex 相对独立的并行推理，或对明确问题提供聚焦协助；Codex 始终负责基于证据的最终裁决与实际执行。本项目在企业版 Microsoft 365 Copilot 高级版（国际版）环境中完成测试；如需面向个人版 Copilot 使用或调试，请自行验证并按其页面、功能和策略差异作相应调整。
+Copilot Bridge 是一个面向 Windows 的本地协作桥接工具。它让调用 Agent 通过本机 STDIO MCP、当前用户已登录的 Microsoft Edge，与已绑定的 Microsoft 365 Copilot 专用后台标签页进行受控协作。根据用户在 GUI 中选择的协作模式，Copilot 可以承担前置思考、独立审核、相对独立的推理分支，或对明确问题提供聚焦协助；调用 Agent 始终负责基于证据的最终裁决与实际执行。项目随包提供已验证的 Codex Plugin；其他 STDIO MCP Agent 可按通用协议接入，但不因此被声明为已完成专用适配。本项目在企业版 Microsoft 365 Copilot 高级版（国际版）环境中完成测试；如需面向个人版 Copilot 使用或调试，请自行验证并按其页面、功能和策略差异作相应调整。
 
-Copilot Bridge is a local Windows collaboration bridge. It lets Codex work through local STDIO MCP and a dedicated, bound Microsoft 365 Copilot background tab in the user's signed-in Microsoft Edge session. Depending on the collaboration mode selected in the GUI, Copilot can provide upfront reasoning, independent review, a reasoning branch independent from Codex, or focused assistance; Codex remains responsible for evidence-based final judgment and execution. The project was tested with the international enterprise edition of Microsoft 365 Copilot premium; personal Copilot use or debugging requires independent verification and adjustments for its page, feature, and policy differences.
+Copilot Bridge is a local Windows collaboration bridge. It lets a calling agent work through local STDIO MCP and a dedicated, bound Microsoft 365 Copilot background tab in the user's signed-in Microsoft Edge session. Depending on the collaboration mode selected in the GUI, Copilot can provide upfront reasoning, independent review, an independent reasoning branch, or focused assistance; the calling agent remains responsible for evidence-based final judgment and execution. The package includes a verified Codex Plugin. Other STDIO MCP agents can use the generic protocol without being claimed as product-specific integrations. The project was tested with the international enterprise edition of Microsoft 365 Copilot premium; personal Copilot use or debugging requires independent verification and adjustments for its page, feature, and policy differences.
 
 ```text
-Codex → STDIO MCP → Copilot Bridge → Edge CDP/DOM → Microsoft 365 Copilot
+Calling Agent → STDIO MCP → Copilot Bridge → Edge CDP/DOM → Microsoft 365 Copilot
 ```
 
 每次协作由三个彼此独立的控制面约束：**征询策略**决定何时允许咨询；**协作模式**决定 Assist、Outsource、Review 三种角色分工，且只能由用户在 GUI 中手动选择；**模型策略**决定允许使用的模型及优先级，并排除“自动”和快速响应类模型。“并行推理”指推理视角独立，不代表浏览器操作并发；实际 Copilot 会话始终在单一专用标签页中串行执行。
@@ -26,15 +26,15 @@ v1.3.1 enables full-screen protection by default. When the foreground window cov
 
 从 [GitHub Releases](https://github.com/RANJIANG23/Copilot-Bridge/releases) 下载以下两个同版本文件。Download both matching-version files from [GitHub Releases](https://github.com/RANJIANG23/Copilot-Bridge/releases):
 
-- `CopilotBridge-1.3.1-win-x64.zip`
-- `CopilotBridge-1.3.1-win-x64.zip.sha256`
+- `CopilotBridge-1.3.2-win-x64.zip`
+- `CopilotBridge-1.3.2-win-x64.zip.sha256`
 
 ZIP 的 SHA-256 位于同名 `.sha256` 文件中。The ZIP SHA-256 is supplied in its matching `.sha256` file.
 
 安装前可在 PowerShell 中核对。Verify it in PowerShell before installation:
 
 ```powershell
-(Get-FileHash .\CopilotBridge-1.3.1-win-x64.zip -Algorithm SHA256).Hash.ToLowerInvariant()
+(Get-FileHash .\CopilotBridge-1.3.2-win-x64.zip -Algorithm SHA256).Hash.ToLowerInvariant()
 ```
 
 ### 使用前提 / Requirements
@@ -43,7 +43,7 @@ ZIP 的 SHA-256 位于同名 `.sha256` 文件中。The ZIP SHA-256 is supplied i
 - Microsoft Edge 已登录成员自己的 Microsoft 365 企业账号 / Microsoft Edge signed in with the team member's own Microsoft 365 work account
 - 该账号可以使用 Microsoft 365 Copilot / An account entitled to use Microsoft 365 Copilot
 - Edge 从桌面或开始菜单正常启动默认配置档，并在 `edge://inspect` 中启用 Remote debugging，显示 `127.0.0.1:9222` / Edge launched normally from the desktop or Start menu with the default profile, with Remote debugging enabled at `edge://inspect` and showing `127.0.0.1:9222`
-- Codex 桌面版或 Codex CLI / Codex desktop app or Codex CLI
+- 支持本地 STDIO MCP 的调用 Agent；随包 Codex Plugin 需要 Codex 桌面版或 CLI / A calling agent that supports local STDIO MCP; the bundled Codex Plugin requires Codex desktop or CLI
 
 Bridge 不保存或迁移账号、Cookie、令牌和 Microsoft 365 凭据。Bridge does not store or migrate accounts, cookies, tokens, or Microsoft 365 credentials.
 
@@ -59,8 +59,10 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\Install-CopilotBridge.
 3. 从开始菜单打开 Copilot Bridge。Open Copilot Bridge from the Start menu.
 4. 确认 Edge 与 Microsoft 365 Copilot 状态正常，然后绑定专用 Copilot 标签页。Confirm the Edge and Microsoft 365 Copilot status, then bind the dedicated Copilot tab.
 5. 首次建议使用“仅手动 + Assist”。For the first run, use `Manual only + Assist`.
-6. 保存设置，关闭 GUI，并新建一个 Codex 任务。Save the settings, close the GUI, and start a new Codex task.
-7. 要求 Codex 使用 `copilot-consult` 对一个具体方案进行二次核验。Ask Codex to use `copilot-consult` for a focused second opinion.
+6. 保存设置，关闭 GUI，并重启调用 Agent 的 MCP 会话。Save the settings, close the GUI, and restart the calling agent's MCP session.
+7. 使用 Codex Plugin 时，新建 Codex 任务并要求它使用 `copilot-consult`；其他客户端先调用 `copilot_bridge_status`，再按通用契约调用工具。With the Codex Plugin, start a new Codex task and ask it to use `copilot-consult`; other clients call `copilot_bridge_status` first, then use the tools under the generic contract.
+
+其他 STDIO MCP Agent 使用应用单独安装和通用接入契约；这不代表项目已验证某个第三方产品的专用配置。Other STDIO MCP agents use the app-only installation and generic integration contract; this does not claim product-specific verification. See [MCP 客户端接入 / MCP client integration](./MCP-CLIENTS.md).
 
 不要为 Bridge 使用带远程调试参数的命令行方式启动 Edge；实测该方式可能停在 `Starting`。Do not launch Edge for Bridge with remote-debugging command-line flags; testing found that this path can remain stuck at `Starting`.
 
@@ -84,15 +86,15 @@ See [Installation](./INSTALL.md) for the complete procedure. Release owners must
 
 | 项目 / Item | 状态 / Status |
 |---|---|
-| 当前源码版本 / Current source version | `1.3.1`（原生体验与全屏连接保护 / native experience and fullscreen connection protection） |
-| 发布状态 / Release status | v1.3.1 已发布 Windows x64 自包含安装包与 SHA-256 文件 / v1.3.1 released with a Windows x64 self-contained package and SHA-256 file |
-| 已通过 / Passed | Phase 0–32 and G1–G8；Phase 33 待开始 / Phase 33 not started |
+| 当前源码版本 / Current source version | `1.3.2`（多 Agent 中性化） / `1.3.2` (calling-agent neutralization) |
+| 发布状态 / Release status | v1.3.2 已发布 Windows x64 自包含安装包与 SHA-256 文件 / v1.3.2 released with a Windows x64 self-contained package and SHA-256 file |
+| 已通过 / Passed | Phase 0–36 and G1–G8 / Phase 0–36 and G1–G8 |
 | 后续试点 / Follow-up pilot | 不同硬件、账号和企业策略环境 / Different hardware, account, and enterprise-policy environments |
 | 平台 / Platform | Windows 11 x64 |
 
-团队 v1.3.1 已达到项目定义的本机门禁，但不把本机隔离验收描述为跨设备兼容性证明。`1.3.1` 已作为 Windows x64 自包含安装包发布；安装前请核对 GitHub Release 中的同名 `.sha256` 文件。
+团队 v1.3.2 已达到项目定义的本机门禁，但不把本机隔离验收描述为跨设备兼容性证明。`1.3.2` 已作为 Windows x64 自包含安装包发布；安装前请核对 GitHub Release 中的同名 `.sha256` 文件。
 
-Team v1.3.1 satisfies the project's local gates, but local isolated acceptance is not presented as proof of cross-device compatibility. `1.3.1` is released as a Windows x64 self-contained package; verify the matching `.sha256` file in the GitHub Release before installation.
+Team v1.3.2 satisfies the project's local gates, but local isolated acceptance is not presented as proof of cross-device compatibility. `1.3.2` is released as a Windows x64 self-contained package; verify the matching `.sha256` file in the GitHub Release before installation.
 
 ## 架构开发思路 / Architecture and design rationale
 
@@ -114,6 +116,7 @@ Bridge prioritizes user control, verifiability, and a minimal runtime boundary r
 - [完整项目设计 / Project design](./PROJECT-DESIGN.md)
 - [阶段执行路线图 / Execution roadmap](./EXECUTION-ROADMAP.md)
 - [安装说明 / Installation](./INSTALL.md)
+- [MCP 客户端接入 / MCP client integration](./MCP-CLIENTS.md)
 - [团队部署与 G8 验收 / Team rollout and G8 validation](./TEAM-ROLLOUT.md)
 - [故障排查 / Troubleshooting](./TROUBLESHOOTING.md)
 

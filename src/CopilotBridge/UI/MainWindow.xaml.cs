@@ -780,7 +780,7 @@ public partial class MainWindow : Window
     {
         if (_selectedConversation is null) return;
         Clipboard.SetText(_workspace.RenderForDisplay(_selectedConversation));
-        ShowNotice(T("当前会话 Markdown 已复制，可粘贴到 Codex 或其他工具。"), NoticeKind.Success);
+        ShowNotice(T("当前会话 Markdown 已复制，可粘贴到调用 Agent 或其他工具。"), NoticeKind.Success);
     }
 
     private async Task<ConversationDocument?> GetSelectedConversationAsync()

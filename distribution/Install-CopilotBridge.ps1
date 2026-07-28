@@ -44,7 +44,7 @@ try {
         Copy-Item -Destination $stage -Recurse -Force
     Copy-Item -LiteralPath $marketplaceSource -Destination $stage -Recurse -Force
     Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'Uninstall-CopilotBridge.ps1') -Destination $stage -Force
-    foreach ($document in 'INSTALL.md', 'TEAM-ROLLOUT.md', 'TROUBLESHOOTING.md', 'SHA256SUMS.txt') {
+    foreach ($document in 'INSTALL.md', 'MCP-CLIENTS.md', 'TEAM-ROLLOUT.md', 'TROUBLESHOOTING.md', 'SHA256SUMS.txt') {
         $source = Join-Path $PSScriptRoot $document
         if (Test-Path -LiteralPath $source) {
             Copy-Item -LiteralPath $source -Destination $stage -Force

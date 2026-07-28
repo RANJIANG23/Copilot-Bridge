@@ -311,6 +311,14 @@ public sealed class CoreTests
         Assert.Equal("Theme", UiText.Get("主题", AppLanguage.English));
         Assert.Equal("Open", UiText.Get("打开", AppLanguage.English));
         Assert.Equal("Agent access", UiText.Get("Agent 访问权限", AppLanguage.English));
+        Assert.Equal(
+            "Agent may consult automatically",
+            UiText.Get("Agent 可自动征询", AppLanguage.English));
+        Assert.Equal(
+            "The current conversation Markdown was copied. You can paste it into the calling agent or another tool.",
+            UiText.Get(
+                "当前会话 Markdown 已复制，可粘贴到调用 Agent 或其他工具。",
+                AppLanguage.English));
     }
 
     [Fact]
@@ -405,11 +413,14 @@ public sealed class CoreTests
 
     [Theory]
     [InlineData((int)ConsultationPolicy.ManualOnly, "user_explicit", null)]
+    [InlineData((int)ConsultationPolicy.ManualOnly, "agent_auto", "blocked_by_policy")]
     [InlineData((int)ConsultationPolicy.ManualOnly, "codex_auto", "blocked_by_policy")]
+    [InlineData((int)ConsultationPolicy.CodexMayConsult, "agent_auto", null)]
     [InlineData((int)ConsultationPolicy.CodexMayConsult, "codex_auto", null)]
     [InlineData((int)ConsultationPolicy.CodexMayConsult, "required_checkpoint", null)]
     [InlineData((int)ConsultationPolicy.RequiredForKeyDesign, "required_checkpoint", null)]
     [InlineData((int)ConsultationPolicy.Disabled, "user_explicit", "blocked_by_policy")]
+    [InlineData((int)ConsultationPolicy.CodexMayConsult, "auto", "invalid_trigger")]
     public void ConsultationPolicyEnforcesTrigger(
         int policy,
         string trigger,

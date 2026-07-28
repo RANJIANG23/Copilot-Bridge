@@ -266,7 +266,7 @@ internal sealed class CopilotBridgeTools : IAsyncDisposable
     public async Task<ConsultResponse> ConsultAsync(
         [Description("Focused Markdown context and question to send unchanged to Copilot.")]
         string requestMarkdown,
-        [Description("Invocation reason: user_explicit, codex_auto, or required_checkpoint.")]
+        [Description("Invocation reason: user_explicit, agent_auto, codex_auto (legacy alias), or required_checkpoint.")]
         string trigger,
         [Description("Returned consultation ID to reuse for a follow-up, or omit for a new consultation.")]
         string? consultationId = null,

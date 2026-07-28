@@ -11,7 +11,7 @@ internal static class UiText
     private static readonly IReadOnlyDictionary<string, string> English = new Dictionary<string, string>
     {
         ["Copilot Bridge"] = "Copilot Bridge",
-        ["v1.3.1 原生体验"] = "v1.3.1 Native Experience",
+        ["v1.3.2 多 Agent 中性化"] = "v1.3.2 Agent Neutrality",
         ["概览"] = "Overview",
         ["数据统计"] = "Statistics",
         ["对话管理"] = "Conversation Management",
@@ -125,7 +125,7 @@ internal static class UiText
         ["为新会话选择 Copilot 的介入方式。"] = "Choose how Copilot participates in new conversations.",
         ["关闭"] = "Disabled",
         ["仅手动（默认）"] = "Manual only (default)",
-        ["Codex 可自动征询"] = "Codex may consult automatically",
+        ["Agent 可自动征询"] = "Agent may consult automatically",
         ["关键设计必须征询"] = "Required for key designs",
         ["默认协作模式"] = "Default collaboration mode",
         ["Assist — 快速聚焦的第二意见"] = "Assist — focused second opinion",
@@ -242,7 +242,7 @@ internal static class UiText
         ["会话 Markdown 已移动到所选项目文件夹。"] = "Conversation Markdown was moved to the selected project folder.",
         ["请输入关键词。"] = "Enter a keyword.",
         ["未命中当前会话。"] = "No matches in this conversation.",
-        ["当前会话 Markdown 已复制，可粘贴到 Codex 或其他工具。"] = "The current conversation Markdown was copied. You can paste it into Codex or another tool.",
+        ["当前会话 Markdown 已复制，可粘贴到调用 Agent 或其他工具。"] = "The current conversation Markdown was copied. You can paste it into the calling agent or another tool.",
         ["重命名"] = "Rename",
         ["删除"] = "Delete",
         ["置顶"] = "Pin to top",

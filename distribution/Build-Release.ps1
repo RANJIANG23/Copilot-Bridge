@@ -1,6 +1,6 @@
 [CmdletBinding()]
 param(
-    [string]$Version = '1.3.1'
+    [string]$Version = '1.3.2'
 )
 
 $ErrorActionPreference = 'Stop'
@@ -40,6 +40,7 @@ Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'marketplace') -Destination $sta
 Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'Install-CopilotBridge.ps1') -Destination $stage
 Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'Uninstall-CopilotBridge.ps1') -Destination $stage
 Copy-Item -LiteralPath (Join-Path $repositoryRoot 'INSTALL.md') -Destination $stage
+Copy-Item -LiteralPath (Join-Path $repositoryRoot 'MCP-CLIENTS.md') -Destination $stage
 Copy-Item -LiteralPath (Join-Path $repositoryRoot 'TEAM-ROLLOUT.md') -Destination $stage
 Copy-Item -LiteralPath (Join-Path $repositoryRoot 'TROUBLESHOOTING.md') -Destination $stage
 Copy-Item -LiteralPath (Join-Path $repositoryRoot 'LICENSE') -Destination $stage
