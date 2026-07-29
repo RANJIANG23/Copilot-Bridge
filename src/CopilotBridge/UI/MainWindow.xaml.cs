@@ -15,6 +15,7 @@ namespace CopilotBridge.UI;
 public partial class MainWindow : Window
 {
     private readonly SettingsStore _settingsStore = new();
+    private readonly PromptTemplateStore _promptTemplateStore = new();
     private readonly McpProcessRegistry _mcpProcessRegistry = new();
     private readonly ShortcutManager _shortcutManager = new();
     private readonly ProviderSelectors _selectors = ProviderSelectors.Load();
@@ -26,6 +27,7 @@ public partial class MainWindow : Window
     private BridgeSettings _settings = new();
     private ConversationWorkspaceStore _workspace = new();
     private IReadOnlyList<WorkspaceProject> _projects = [];
+    private IReadOnlyList<PromptTemplate> _promptTemplates = [];
     private ConversationDocument? _selectedConversation;
     private string _activeProjectId = ConversationWorkspaceStore.StandaloneProjectId;
     private EdgeSessionAdapter? _session;
@@ -64,6 +66,7 @@ public partial class MainWindow : Window
         Deactivated += Window_Deactivated;
         StateChanged += Window_StateChanged;
         SizeChanged += Window_SizeChanged;
+        SystemParameters.StaticPropertyChanged += SystemParameters_StaticPropertyChanged;
     }
 
     private async void Window_Loaded(object sender, RoutedEventArgs e)
@@ -76,6 +79,7 @@ public partial class MainWindow : Window
             _tray ??= new SystemTrayController(RestoreFromTray, ExitFromTray);
             _tray.Visible = _settings.UseSystemTray;
             ModelPriorityListBox.ItemsSource = _modelPriority;
+            await RefreshPromptTemplatesAsync();
             ApplyTheme();
             ApplySettingsToControls();
             InitializeMotionInteractions();
@@ -96,6 +100,11 @@ public partial class MainWindow : Window
     private async void Navigation_Click(object sender, RoutedEventArgs e)
     {
         if (sender is not Button button || button.Tag is not string page) return;
+        await NavigateToPageAsync(page);
+    }
+
+    private async Task NavigateToPageAsync(string page)
+    {
         _activePage = page;
         OverviewPanel.Visibility = page == "overview" ? Visibility.Visible : Visibility.Collapsed;
         StatisticsPanel.Visibility = page == "statistics" ? Visibility.Visible : Visibility.Collapsed;
@@ -348,6 +357,84 @@ public partial class MainWindow : Window
             _settings = previous;
             UseSystemTrayCheckBox.IsChecked = previous.UseSystemTray;
             if (_tray is not null) _tray.Visible = previous.UseSystemTray;
+            ShowNotice(FriendlyMessage(exception), NoticeKind.Error);
+        }
+    }
+
+    private async void StartWithWindows_Click(object sender, RoutedEventArgs e)
+    {
+        if (!_settingsAreLoaded) return;
+        var enabled = StartWithWindowsCheckBox.IsChecked == true;
+        if (_settings.StartWithWindows == enabled && _shortcutManager.IsStartupEnabled == enabled) return;
+
+        var previous = _settings;
+        var previousShortcutEnabled = _shortcutManager.IsStartupEnabled;
+        try
+        {
+            _shortcutManager.SetStartupEnabled(enabled);
+            _settings = _settings with { StartWithWindows = enabled };
+            await _settingsStore.SaveAsync(_settings);
+            ShowNotice(
+                T(enabled
+                    ? "已启用当前用户开机启动；只会启动 Bridge GUI。"
+                    : "已关闭当前用户开机启动。"),
+                NoticeKind.Success);
+        }
+        catch (Exception exception)
+        {
+            try { _shortcutManager.SetStartupEnabled(previousShortcutEnabled); }
+            catch (Exception rollbackException)
+            {
+                DiagnosticLog.Write("startup_shortcut_rollback_failed", rollbackException);
+            }
+            _settings = previous;
+            StartWithWindowsCheckBox.IsChecked = previous.StartWithWindows;
+            ShowNotice(FriendlyMessage(exception), NoticeKind.Error);
+        }
+    }
+
+    private async void OnboardingOpenSettings_Click(object sender, RoutedEventArgs e) =>
+        await NavigateToPageAsync("settings");
+
+    private async void OnboardingOpenCollaboration_Click(object sender, RoutedEventArgs e) =>
+        await NavigateToPageAsync("collaboration");
+
+    private async void SkipOnboarding_Click(object sender, RoutedEventArgs e) =>
+        await SetOnboardingCompletedAsync(T("首次使用清单已跳过；可在设置中重新打开。"));
+
+    private async void CompleteOnboarding_Click(object sender, RoutedEventArgs e) =>
+        await SetOnboardingCompletedAsync(T("首次使用清单已完成。"));
+
+    private async void ReopenOnboarding_Click(object sender, RoutedEventArgs e)
+    {
+        var previous = _settings;
+        try
+        {
+            _settings = _settings with { OnboardingCompleted = false };
+            await _settingsStore.SaveAsync(_settings);
+            OnboardingCard.Visibility = Visibility.Visible;
+            await NavigateToPageAsync("overview");
+        }
+        catch (Exception exception)
+        {
+            _settings = previous;
+            ShowNotice(FriendlyMessage(exception), NoticeKind.Error);
+        }
+    }
+
+    private async Task SetOnboardingCompletedAsync(string notice)
+    {
+        var previous = _settings;
+        try
+        {
+            _settings = _settings with { OnboardingCompleted = true };
+            await _settingsStore.SaveAsync(_settings);
+            OnboardingCard.Visibility = Visibility.Collapsed;
+            ShowNotice(notice, NoticeKind.Success);
+        }
+        catch (Exception exception)
+        {
+            _settings = previous;
             ShowNotice(FriendlyMessage(exception), NoticeKind.Error);
         }
     }
@@ -783,6 +870,136 @@ public partial class MainWindow : Window
         ShowNotice(T("当前会话 Markdown 已复制，可粘贴到调用 Agent 或其他工具。"), NoticeKind.Success);
     }
 
+    private async void SaveConversationTags_Click(object sender, RoutedEventArgs e)
+    {
+        if (_selectedConversation is null) return;
+        try
+        {
+            var tags = ConversationTagsTextBox.Text.Split(
+                [',', '，'],
+                StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries);
+            _selectedConversation = await _workspace.UpdateTagsAsync(_selectedConversation, tags);
+            await RefreshWorkspaceAsync(_selectedConversation.Id);
+            ShowNotice(T("会话标签已保存。"), NoticeKind.Success);
+        }
+        catch (Exception exception)
+        {
+            ShowNotice(FriendlyMessage(exception), NoticeKind.Error);
+        }
+    }
+
+    private void OpenOriginalConversation_Click(object sender, RoutedEventArgs e)
+    {
+        var url = _selectedConversation?.CopilotConversationUrl;
+        if (string.IsNullOrWhiteSpace(url) || !_selectors.IsAllowedConversationUrl(url))
+        {
+            ShowNotice(T("当前会话没有可信的原 Copilot 对话地址。"), NoticeKind.Error);
+            return;
+        }
+
+        try
+        {
+            Process.Start(new ProcessStartInfo { FileName = url, UseShellExecute = true });
+        }
+        catch (Exception exception)
+        {
+            ShowNotice(FriendlyMessage(exception), NoticeKind.Error);
+        }
+    }
+
+    private void CopyPendingPrompt_Click(object sender, RoutedEventArgs e)
+    {
+        if (string.IsNullOrWhiteSpace(TestPromptTextBox.Text))
+        {
+            ShowNotice(T("没有可复制的待发送文本。"), NoticeKind.Info);
+            return;
+        }
+        Clipboard.SetText(TestPromptTextBox.Text);
+        ShowNotice(T("待发送文本已复制；此操作不会发送消息。"), NoticeKind.Success);
+    }
+
+    private void ApplyPromptTemplate_Click(object sender, RoutedEventArgs e)
+    {
+        if (PromptTemplateComboBox.SelectedItem is not PromptTemplate template)
+        {
+            ShowNotice(T("请先选择提示模板。"), NoticeKind.Info);
+            return;
+        }
+        TestPromptTextBox.Text = template.Content;
+        TestPromptTextBox.Focus();
+        ShowNotice(T("模板已填入输入框，尚未发送。"), NoticeKind.Success);
+    }
+
+    private async void SavePromptTemplate_Click(object sender, RoutedEventArgs e)
+    {
+        if (string.IsNullOrWhiteSpace(TestPromptTextBox.Text))
+        {
+            ShowNotice(T("请先输入即时咨询内容。"), NoticeKind.Error);
+            return;
+        }
+        var name = PromptForName(T("保存提示模板"), string.Empty);
+        if (name is null) return;
+        await SavePromptTemplateAsync(null, name, TestPromptTextBox.Text);
+    }
+
+    private async void RenamePromptTemplate_Click(object sender, RoutedEventArgs e)
+    {
+        if (PromptTemplateComboBox.SelectedItem is not PromptTemplate template)
+        {
+            ShowNotice(T("请先选择提示模板。"), NoticeKind.Info);
+            return;
+        }
+        var name = PromptForName(T("重命名提示模板"), template.Name);
+        if (name is null) return;
+        await SavePromptTemplateAsync(template.Id, name, template.Content);
+    }
+
+    private async void DeletePromptTemplate_Click(object sender, RoutedEventArgs e)
+    {
+        if (PromptTemplateComboBox.SelectedItem is not PromptTemplate template)
+        {
+            ShowNotice(T("请先选择提示模板。"), NoticeKind.Info);
+            return;
+        }
+        if (MessageBox.Show(
+                T("删除所选提示模板？此操作不会删除任何会话。"),
+                T("删除提示模板"),
+                MessageBoxButton.OKCancel,
+                MessageBoxImage.Warning) != MessageBoxResult.OK) return;
+        try
+        {
+            await _promptTemplateStore.DeleteAsync(template.Id);
+            await RefreshPromptTemplatesAsync();
+            ShowNotice(T("提示模板已删除。"), NoticeKind.Success);
+        }
+        catch (Exception exception)
+        {
+            ShowNotice(FriendlyMessage(exception), NoticeKind.Error);
+        }
+    }
+
+    private async Task SavePromptTemplateAsync(string? id, string name, string content)
+    {
+        try
+        {
+            var saved = await _promptTemplateStore.SaveAsync(id, name, content);
+            await RefreshPromptTemplatesAsync(saved.Id);
+            ShowNotice(T("提示模板已保存。"), NoticeKind.Success);
+        }
+        catch (Exception exception)
+        {
+            ShowNotice(FriendlyMessage(exception), NoticeKind.Error);
+        }
+    }
+
+    private async Task RefreshPromptTemplatesAsync(string? selectedId = null)
+    {
+        _promptTemplates = await _promptTemplateStore.LoadAsync();
+        PromptTemplateComboBox.ItemsSource = _promptTemplates;
+        PromptTemplateComboBox.SelectedItem = _promptTemplates.FirstOrDefault(template =>
+            template.Id.Equals(selectedId, StringComparison.Ordinal));
+    }
+
     private async Task<ConversationDocument?> GetSelectedConversationAsync()
     {
         if (ConversationListBox.SelectedItem is not ConversationSummary summary) return null;
@@ -891,8 +1108,12 @@ public partial class MainWindow : Window
         ConversationMetaText.Text = _settings.DisplayLanguage == AppLanguage.English
             ? $"{document.Mode} · {document.Turns.Count} records · {document.UpdatedAt.LocalDateTime:yyyy-MM-dd HH:mm}"
             : $"{document.Mode} · {document.Turns.Count} 条记录 · {document.UpdatedAt.LocalDateTime:yyyy-MM-dd HH:mm}";
+        ConversationTagsTextBox.Text = string.Join(", ", document.Tags);
         ConversationMarkdownTextBox.Text = _workspace.RenderForDisplay(document);
         MoveProjectComboBox.SelectedValue = document.ProjectId;
+        OpenOriginalConversationButton.IsEnabled =
+            !string.IsNullOrWhiteSpace(document.CopilotConversationUrl) &&
+            _selectors.IsAllowedConversationUrl(document.CopilotConversationUrl);
         ConversationSearchTextBox.Text = string.Empty;
         SearchResultsText.Text = "";
     }
@@ -1047,6 +1268,7 @@ public partial class MainWindow : Window
     {
         _statusRefreshTimer.Stop();
         _noticeTimer.Stop();
+        SystemParameters.StaticPropertyChanged -= SystemParameters_StaticPropertyChanged;
         _tray?.Dispose();
         _tray = null;
         base.OnClosed(e);
@@ -1155,6 +1377,7 @@ public partial class MainWindow : Window
             Theme = ThemeComboBox.SelectedIndex == (int)AppTheme.Dark ? AppTheme.Dark : AppTheme.Light,
             KeepMcpRunningInBackground = KeepMcpRunningCheckBox.IsChecked == true,
             UseSystemTray = UseSystemTrayCheckBox.IsChecked == true,
+            StartWithWindows = StartWithWindowsCheckBox.IsChecked == true,
             FullscreenProtectionEnabled = FullscreenProtectionCheckBox.IsChecked == true,
             ConversationWorkspaceDirectory = workspaceDirectory
         };
@@ -1193,6 +1416,11 @@ public partial class MainWindow : Window
         ThemeComboBox.SelectedIndex = (int)_settings.Theme;
         KeepMcpRunningCheckBox.IsChecked = _settings.KeepMcpRunningInBackground;
         UseSystemTrayCheckBox.IsChecked = _settings.UseSystemTray;
+        StartWithWindowsCheckBox.IsChecked =
+            _settings.StartWithWindows && _shortcutManager.IsStartupEnabled;
+        OnboardingCard.Visibility = _settings.OnboardingCompleted
+            ? Visibility.Collapsed
+            : Visibility.Visible;
         FullscreenProtectionCheckBox.IsChecked = _settings.FullscreenProtectionEnabled;
     }
 
@@ -1227,6 +1455,12 @@ public partial class MainWindow : Window
         RefreshButton.IsEnabled = !busy;
         BindButton.IsEnabled = !busy;
         TestButton.IsEnabled = !busy;
+        PromptTemplateComboBox.IsEnabled = !busy;
+        ApplyPromptTemplateButton.IsEnabled = !busy;
+        SavePromptTemplateButton.IsEnabled = !busy;
+        RenamePromptTemplateButton.IsEnabled = !busy;
+        DeletePromptTemplateButton.IsEnabled = !busy;
+        CopyPendingPromptButton.IsEnabled = !busy;
         SaveCollaborationButton.IsEnabled = !busy;
         SaveBrowserButton.IsEnabled = !busy;
         SaveSettingsButton.IsEnabled = !busy;
@@ -1241,12 +1475,19 @@ public partial class MainWindow : Window
         ImportConversationButton.IsEnabled = !busy;
         RenameConversationButton.IsEnabled = !busy;
         ConversationTitleTextBox.IsEnabled = !busy;
+        ConversationTagsTextBox.IsEnabled = !busy;
+        SaveConversationTagsButton.IsEnabled = !busy;
+        OpenOriginalConversationButton.IsEnabled = !busy &&
+            !string.IsNullOrWhiteSpace(_selectedConversation?.CopilotConversationUrl) &&
+            _selectors.IsAllowedConversationUrl(_selectedConversation.CopilotConversationUrl);
         MoveProjectComboBox.IsEnabled = !busy;
         MoveConversationButton.IsEnabled = !busy;
         MigrateStorageButton.IsEnabled = !busy;
         RollbackStorageButton.IsEnabled = !busy;
         KeepMcpRunningCheckBox.IsEnabled = !busy;
         UseSystemTrayCheckBox.IsEnabled = !busy;
+        StartWithWindowsCheckBox.IsEnabled = !busy;
+        ReopenOnboardingButton.IsEnabled = !busy;
         FullscreenProtectionCheckBox.IsEnabled = !busy;
     }
 
@@ -1316,10 +1557,16 @@ public partial class MainWindow : Window
 
     private void UpdateHistoryColumns()
     {
-        if (HistoryProjectColumn is null || HistoryConversationColumn is null) return;
-        var compact = ActualWidth < 1180;
-        HistoryProjectColumn.Width = new GridLength(compact ? 170 : 220);
-        HistoryConversationColumn.Width = new GridLength(compact ? 210 : 280);
+        if (HistoryProjectColumn is null || HistoryConversationColumn is null || SidebarColumn is null) return;
+        var layout = DesktopLayout.ForWidth(ActualWidth);
+        SidebarColumn.Width = new GridLength(layout.SidebarWidth);
+        HistoryProjectColumn.Width = new GridLength(layout.ProjectColumnWidth);
+        HistoryConversationColumn.Width = new GridLength(layout.ConversationColumnWidth);
+        var secondaryVisibility = layout.ShowSecondarySidebarText
+            ? Visibility.Visible
+            : Visibility.Collapsed;
+        SidebarVersionText.Visibility = secondaryVisibility;
+        SidebarSecondaryText.Visibility = secondaryVisibility;
     }
 
     private static bool PassedDragThreshold(Point current, Point start) =>
@@ -1384,8 +1631,24 @@ public partial class MainWindow : Window
         button.Foreground = ThemeBrush(selected ? "NavSelectedTextBrush" : "NavTextBrush");
     }
 
+    private void SystemParameters_StaticPropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (string.IsNullOrEmpty(e.PropertyName) ||
+            e.PropertyName.Equals(nameof(SystemParameters.HighContrast), StringComparison.Ordinal))
+        {
+            Dispatcher.Invoke(ApplyTheme);
+        }
+    }
+
     private void ApplyTheme()
     {
+        if (SystemParameters.HighContrast)
+        {
+            ApplyHighContrastTheme();
+            ApplyNavigationTheme();
+            return;
+        }
+
         var dark = _settings.Theme == AppTheme.Dark;
         SetThemeBrush("CanvasBrush", dark ? "#1F1F1F" : "#FAFAFA");
         SetThemeBrush("SurfaceBrush", dark ? "#242424" : "#FFFFFF");
@@ -1421,6 +1684,67 @@ public partial class MainWindow : Window
         SetSystemBrush(SystemColors.ControlTextBrushKey, dark ? "#F5F5F5" : "#242424");
         SetSystemBrush(SystemColors.MenuBrushKey, dark ? "#292929" : "#FFFFFF");
         SetSystemBrush(SystemColors.MenuTextBrushKey, dark ? "#F5F5F5" : "#242424");
+        ApplyNavigationTheme();
+    }
+
+    private void ApplyHighContrastTheme()
+    {
+        SetThemeBrush("CanvasBrush", SystemColors.WindowBrush);
+        SetThemeBrush("SurfaceBrush", SystemColors.WindowBrush);
+        SetThemeBrush("SidebarBrush", SystemColors.ControlBrush);
+        SetThemeBrush("SoftSurfaceBrush", SystemColors.ControlBrush);
+        SetThemeBrush("ElevatedSurfaceBrush", SystemColors.WindowBrush);
+        SetThemeBrush("TextPrimaryBrush", SystemColors.WindowTextBrush);
+        SetThemeBrush("AccentBrush", SystemColors.HighlightBrush);
+        SetThemeBrush("AccentTextBrush", SystemColors.WindowTextBrush);
+        SetThemeBrush("OnAccentBrush", SystemColors.HighlightTextBrush);
+        SetThemeBrush("SubtleTextBrush", SystemColors.WindowTextBrush);
+        SetThemeBrush("MutedTextBrush", SystemColors.GrayTextBrush);
+        SetThemeBrush("LineBrush", SystemColors.ActiveBorderBrush);
+        SetThemeBrush("ControlBorderBrush", SystemColors.WindowTextBrush);
+        SetThemeBrush("NavTextBrush", SystemColors.WindowTextBrush);
+        SetThemeBrush("NavHoverBrush", SystemColors.HighlightBrush);
+        SetThemeBrush("NavSelectedBrush", SystemColors.HighlightBrush);
+        SetThemeBrush("NavSelectedTextBrush", SystemColors.HighlightTextBrush);
+        SetThemeBrush("SecondaryActionBrush", SystemColors.HighlightBrush);
+        SetThemeBrush("StatusUnknownBrush", SystemColors.GrayTextBrush);
+        foreach (var key in new[]
+                 {
+                     "NoticeInfoBackgroundBrush",
+                     "NoticeSuccessBackgroundBrush",
+                     "NoticeErrorBackgroundBrush"
+                 })
+        {
+            SetThemeBrush(key, SystemColors.WindowBrush);
+        }
+        foreach (var key in new[]
+                 {
+                     "NoticeInfoBorderBrush",
+                     "NoticeSuccessBorderBrush",
+                     "NoticeErrorBorderBrush"
+                 })
+        {
+            SetThemeBrush(key, SystemColors.HighlightBrush);
+        }
+        foreach (var key in new[]
+                 {
+                     "NoticeInfoTextBrush",
+                     "NoticeSuccessTextBrush",
+                     "NoticeErrorTextBrush"
+                 })
+        {
+            SetThemeBrush(key, SystemColors.WindowTextBrush);
+        }
+        SetSystemBrush(SystemColors.WindowBrushKey, SystemColors.WindowBrush);
+        SetSystemBrush(SystemColors.WindowTextBrushKey, SystemColors.WindowTextBrush);
+        SetSystemBrush(SystemColors.ControlBrushKey, SystemColors.ControlBrush);
+        SetSystemBrush(SystemColors.ControlTextBrushKey, SystemColors.ControlTextBrush);
+        SetSystemBrush(SystemColors.MenuBrushKey, SystemColors.MenuBrush);
+        SetSystemBrush(SystemColors.MenuTextBrushKey, SystemColors.MenuTextBrush);
+    }
+
+    private void ApplyNavigationTheme()
+    {
         SetNavState(OverviewNav, _activePage == "overview");
         SetNavState(StatisticsNav, _activePage == "statistics");
         SetNavState(HistoryNav, _activePage == "history");
@@ -1432,12 +1756,17 @@ public partial class MainWindow : Window
     private SolidColorBrush ThemeBrush(string key) => (SolidColorBrush)Resources[key];
     private void SetThemeBrush(string key, string color)
     {
-        var brush = Brush(color);
+        SetThemeBrush(key, Brush(color));
+    }
+
+    private void SetThemeBrush(string key, Brush brush)
+    {
         Resources[key] = brush;
         Application.Current.Resources[key] = brush;
     }
 
     private static void SetSystemBrush(object key, string color) => Application.Current.Resources[key] = Brush(color);
+    private static void SetSystemBrush(object key, Brush brush) => Application.Current.Resources[key] = brush;
     private static SolidColorBrush Brush(string value) => new((Color)ColorConverter.ConvertFromString(value));
     private static T? FindParent<T>(DependencyObject? current) where T : DependencyObject
     {

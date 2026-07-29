@@ -39,6 +39,7 @@ internal sealed record ConversationDocument
     public string CopilotTitleCurrent { get; init; } = "未命名 Copilot 对话";
     public IReadOnlyList<string> CopilotTitleHistory { get; init; } = [];
     public string? LocalTitle { get; init; }
+    public IReadOnlyList<string> Tags { get; init; } = [];
     public string TitleSource { get; init; } = "copilot";
     public string Mode { get; init; } = "assist";
     public DateTimeOffset CreatedAt { get; init; } = DateTimeOffset.Now;
@@ -55,6 +56,7 @@ internal sealed record ConversationSummary(
     string ProjectId,
     string DisplayTitle,
     string CopilotTitle,
+    string TagDisplay,
     string? LastModel,
     DateTimeOffset UpdatedAt,
     int TurnCount);
@@ -409,6 +411,7 @@ internal sealed class ConversationWorkspaceStore
                 document.ProjectId,
                 document.DisplayTitle,
                 document.CopilotTitleCurrent,
+                string.Join(" · ", document.Tags),
                 document.Turns.LastOrDefault(turn => !string.IsNullOrWhiteSpace(turn.Model))?.Model,
                 document.UpdatedAt,
                 document.Turns.Count))
@@ -483,6 +486,7 @@ internal sealed class ConversationWorkspaceStore
                 document.DisplayTitle,
                 document.CopilotTitleInitial,
                 document.CopilotTitleCurrent,
+                string.Join('\n', document.Tags),
                 document.Mode,
                 lastModel ?? string.Empty);
             var metadataMatch = normalizedQuery.Length == 0 ||
@@ -570,6 +574,20 @@ internal sealed class ConversationWorkspaceStore
         {
             LocalTitle = localTitle.Trim(),
             TitleSource = "local_override",
+            UpdatedAt = DateTimeOffset.Now
+        };
+        await SaveAsync(document, cancellationToken);
+        return document;
+    }
+
+    internal async Task<ConversationDocument> UpdateTagsAsync(
+        ConversationDocument document,
+        IEnumerable<string>? tags,
+        CancellationToken cancellationToken = default)
+    {
+        document = document with
+        {
+            Tags = NormalizeTags(tags),
             UpdatedAt = DateTimeOffset.Now
         };
         await SaveAsync(document, cancellationToken);
@@ -868,6 +886,21 @@ internal sealed class ConversationWorkspaceStore
     internal string RenderForDisplay(ConversationDocument document)
     {
         return _storageV2.RenderReadable(document);
+    }
+
+    internal static IReadOnlyList<string> NormalizeTags(IEnumerable<string>? tags)
+    {
+        var normalized = new List<string>();
+        foreach (var value in tags ?? [])
+        {
+            var tag = value.Trim();
+            if (tag.Length == 0) continue;
+            if (tag.Length > 32) throw new InvalidDataException("单个标签不能超过 32 个字符。");
+            if (normalized.Contains(tag, StringComparer.CurrentCultureIgnoreCase)) continue;
+            if (normalized.Count == 12) throw new InvalidDataException("每个会话最多保存 12 个标签。");
+            normalized.Add(tag);
+        }
+        return normalized;
     }
 
     private async Task<WorkspaceProject> EnsureProjectAsync(

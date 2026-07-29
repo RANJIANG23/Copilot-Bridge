@@ -29,7 +29,7 @@ if (Test-Path -LiteralPath $evidencePath) {
 }
 
 $isolatedLocal = Join-Path $evidencePath 'LocalAppData'
-$codexTestParent = Join-Path $env:LOCALAPPDATA 'CopilotBridge-Phase36'
+$codexTestParent = Join-Path $env:LOCALAPPDATA 'CopilotBridge-Phase40'
 $isolatedCodex = Join-Path $codexTestParent ([IO.Path]::GetFileName($evidencePath))
 if (Test-Path -LiteralPath $isolatedCodex) {
     throw "Isolated Codex home already exists: $isolatedCodex"
@@ -167,7 +167,7 @@ function Invoke-PackagedMcp([string]$InstallDirectory, [string]$TranscriptName) 
     $process = [Diagnostics.Process]::Start($info)
     $errorTask = $process.StandardError.ReadToEndAsync()
     $process.StandardInput.WriteLine(
-        '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"generic-stdio-phase36","version":"1"}}}')
+        '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"generic-stdio-phase40","version":"1"}}}')
     $process.StandardInput.WriteLine(
         '{"jsonrpc":"2.0","method":"notifications/initialized","params":{}}')
     $process.StandardInput.WriteLine(
@@ -297,10 +297,10 @@ $hostConfigAfter = if (Test-Path -LiteralPath $hostConfig) {
     (Get-FileHash -LiteralPath $hostConfig -Algorithm SHA256).Hash
 } else { 'missing' }
 
-$passed = $previousVersion -like '1.3.1*' -and
-    $candidateVersion -like '1.3.2*' -and
-    $rollbackVersion -like '1.3.1*' -and
-    $appOnlyVersion -like '1.3.2*' -and
+$passed = $previousVersion -like '1.3.2*' -and
+    $candidateVersion -like '1.4.0*' -and
+    $rollbackVersion -like '1.3.2*' -and
+    $appOnlyVersion -like '1.4.0*' -and
     $mcp.ToolNames.Count -eq 4 -and
     $mcp.ToolSetMatches -and
     $mcp.StatusRead -and
@@ -322,7 +322,7 @@ $passed = $previousVersion -like '1.3.1*' -and
     $uninstallPreservedData -and
     $pluginCountAfterUninstall -eq 0 -and
     $marketplaceCountAfterUninstall -eq 0 -and
-    $plugin.version -eq '1.3.2' -and
+    $plugin.version -eq '1.4.0' -and
     $hostConfigBefore -eq $hostConfigAfter
 $result = [ordered]@{
     result = if ($passed) { 'passed' } else { 'failed' }
@@ -334,7 +334,7 @@ $result = [ordered]@{
     pluginVersion = $plugin.version
     mcpTools = $mcp.ToolNames
     mcpToolSetMatches = $mcp.ToolSetMatches
-    genericClientName = 'generic-stdio-phase36'
+    genericClientName = 'generic-stdio-phase40'
     statusRead = $mcp.StatusRead
     statusPolicy = $mcp.StatusPolicy
     agentNeutralInstructions = $mcp.AgentNeutralInstructions
@@ -365,7 +365,7 @@ if ($passed -and (Test-Path -LiteralPath $isolatedCodex)) {
     if (-not $resolvedCodexHome.StartsWith(
             $allowedCodexPrefix,
             [StringComparison]::OrdinalIgnoreCase) -or
-        [IO.Path]::GetFileName($resolvedCodexHome) -notlike 'v1.3.2-*') {
+        [IO.Path]::GetFileName($resolvedCodexHome) -notlike 'v1.4.0-*') {
         throw "Refusing to clean unexpected Codex home: $resolvedCodexHome"
     }
     Remove-Item -LiteralPath $resolvedCodexHome -Recurse -Force
