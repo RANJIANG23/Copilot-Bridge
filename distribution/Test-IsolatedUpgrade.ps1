@@ -297,9 +297,9 @@ $hostConfigAfter = if (Test-Path -LiteralPath $hostConfig) {
     (Get-FileHash -LiteralPath $hostConfig -Algorithm SHA256).Hash
 } else { 'missing' }
 
-$passed = $previousVersion -like '1.3.1*' -and
+$passed = $previousVersion -like '1.3.2*' -and
     $candidateVersion -like '1.4.0*' -and
-    $rollbackVersion -like '1.3.1*' -and
+    $rollbackVersion -like '1.3.2*' -and
     $appOnlyVersion -like '1.4.0*' -and
     $mcp.ToolNames.Count -eq 4 -and
     $mcp.ToolSetMatches -and

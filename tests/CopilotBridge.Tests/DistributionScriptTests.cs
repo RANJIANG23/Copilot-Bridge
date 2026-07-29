@@ -21,9 +21,9 @@ public sealed class DistributionScriptTests
             ".codex-plugin",
             "plugin.json")));
         var upgradeScript = File.ReadAllText(Path.Combine(root, "distribution", "Test-IsolatedUpgrade.ps1"));
-        Assert.Contains("$previousVersion -like '1.3.1*'", upgradeScript);
+        Assert.Contains("$previousVersion -like '1.3.2*'", upgradeScript);
         Assert.Contains("$candidateVersion -like '1.4.0*'", upgradeScript);
-        Assert.Contains("$rollbackVersion -like '1.3.1*'", upgradeScript);
+        Assert.Contains("$rollbackVersion -like '1.3.2*'", upgradeScript);
         Assert.Contains("$appOnlyVersion -like '1.4.0*'", upgradeScript);
         Assert.Contains("'CopilotBridge-Phase40'", upgradeScript);
         Assert.Contains("-notlike 'v1.4.0-*'", upgradeScript);
