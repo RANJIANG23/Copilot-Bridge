@@ -1,8 +1,8 @@
 # Microsoft Copilot 项目完整设计
 
-> 设计基线：v1.4.0 发布候选
-> 日期：2026-07-27（Asia/Shanghai）
-> 状态：v1.3.2 已正式发布；Phase 34–39 已通过；v1.4.0 Phase 40 自动门禁通过、人工视觉门禁未完成
+> 设计基线：v1.4.0 正式发布
+> 日期：2026-07-30（Asia/Shanghai）
+> 状态：v1.4.0 已正式发布；Phase 0–39 与 G1–G8 已通过；Phase 40 自动门禁与正式发布完成、人工视觉门禁未完成，状态保持部分完成
 > 工作名称：Copilot Bridge
 > 项目目录：本仓库根目录
 > 目标模式执行路线图：[EXECUTION-ROADMAP.md](./EXECUTION-ROADMAP.md)
